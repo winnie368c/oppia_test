@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for methods in the action registry 123."""
+"""Tests for methods in the action registry."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from core.tests import test_utils
 
 
 class ActionRegistryUnitTests(test_utils.GenericTestBase):
-    """Test for the action registry.123"""
+    """Test for the action registry!"""
 
     def test_action_registry(self) -> None:
         """Do some sanity checks on the action registry."""
