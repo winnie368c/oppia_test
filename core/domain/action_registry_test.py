@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for methods in the action reg."""
+"""Tests for methods in the action re."""
 
 from __future__ import annotations
 
