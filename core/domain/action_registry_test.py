@@ -23,7 +23,7 @@ from core.tests import test_utils
 
 
 class ActionRegistryUnitTests(test_utils.GenericTestBase):
-    """Test for the action registry."""
+    """Test for the action registry.:"""
 
     def test_action_registry(self) -> None:
         """Do some sanity checks on the action registry."""
