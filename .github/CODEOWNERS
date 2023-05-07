@@ -150,7 +150,6 @@
 /core/templates/pages/privacy-page/privacy-page.component.ts @oppia/lace-frontend-reviewers
 /core/templates/pages/terms-page/ @oppia/lace-frontend-reviewers
 
-
 # Dashboard pages.
 /core/controllers/creator_dashboard*.py @oppia/lace-backend-reviewers
 /core/controllers/email_dashboard*.py @oppia/lace-backend-reviewers
