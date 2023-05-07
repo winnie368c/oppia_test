@@ -467,7 +467,6 @@
 /core/templates/pages/subtopic-viewer-page/ @oppia/lace-frontend-reviewers
 /core/templates/pages/topic-editor-page/ @oppia/lace-frontend-reviewers
 /core/templates/pages/topic-viewer-page/ @oppia/lace-frontend-reviewers
-
 # Topics and skills dashboard project.
 /core/controllers/subtopic_viewer*.py @oppia/lace-backend-reviewers
 /core/controllers/topics_and_skills_dashboard*.py @oppia/lace-backend-reviewers
