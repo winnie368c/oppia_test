@@ -18,7 +18,7 @@
 
 from __future__ import annotations
 
-from core.domain import activity_domain
+from core.domain import activity_domain 
 from core.tests import test_utils
 
 
