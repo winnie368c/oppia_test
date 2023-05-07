@@ -633,7 +633,7 @@
 /core/templates/pages/participation-playbook/ @oppia/angular-migration-reviewers
 /core/templates/pages/about-foundation-page/ @oppia/angular-migration-reviewers
 /core/templates/pages/volunteer-page/ @oppia/angular-migration-reviewers
-
+/thanks-page/ @jameesjohn @vojtechjelinek
 
 # Speed Improvement team.
 /core/templates/google-analytics.initializer.ts @oppia/frontend-infrastructure-reviewers
