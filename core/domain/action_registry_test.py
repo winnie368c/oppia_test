@@ -14,8 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for methods in the action regg."""
-
+"""Tests for methods in the action registry"""
 from __future__ import annotations
 
 from core.domain import action_registry
