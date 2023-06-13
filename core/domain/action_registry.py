@@ -35,7 +35,7 @@ if MYPY: # pragma: no cover
 
 
 class Registry:
-    """Registry of all actions45."""
+    """Registry of all actions."""
 
     # Dict mapping action IDs to instances of the actions.
     _actions: Dict[str, base.BaseLearnerActionSpec] = {}
