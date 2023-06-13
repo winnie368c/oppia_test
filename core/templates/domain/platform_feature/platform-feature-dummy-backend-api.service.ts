@@ -16,7 +16,7 @@
  * @fileoverview Service to check the status of dummy handler in backend.
  */
 
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { downgradeInjectable } from '@angular/upgrade/static';
 
@@ -47,8 +47,12 @@ export class PlatformFeatureDummyBackendApiService {
       await this.http.get(PlatformFeatureDomainConstants.DUMMY_HANDLER_URL)
         .toPromise();
       return true;
-    } catch (err) {
-      if (err.status === 404) {
+    // We use unknown type because we are unsure of the type of error
+    // that was thrown. Since the catch block cannot identify the
+    // specific type of error, we are unable to further optimise the
+    // code by introducing more types of errors.
+    } catch (err: unknown) {
+      if (err instanceof HttpErrorResponse && err.status === 404) {
         return false;
       } else {
         throw err;

@@ -20,9 +20,6 @@
 // App.ts is upgraded to Angular 8.
 import { ParamChangeObjectFactory } from
   'domain/exploration/ParamChangeObjectFactory';
-import { RuleObjectFactory } from 'domain/exploration/RuleObjectFactory';
-import { VoiceoverObjectFactory } from
-  'domain/exploration/VoiceoverObjectFactory';
 import { WrittenTranslationObjectFactory } from
   'domain/exploration/WrittenTranslationObjectFactory';
 import { WrittenTranslationsObjectFactory } from
@@ -39,8 +36,6 @@ describe('App', function() {
     beforeEach(angular.mock.module('oppia', function($provide) {
       $provide.value(
         'ParamChangeObjectFactory', new ParamChangeObjectFactory());
-      $provide.value('RuleObjectFactory', new RuleObjectFactory());
-      $provide.value('VoiceoverObjectFactory', new VoiceoverObjectFactory());
       $provide.value(
         'WrittenTranslationObjectFactory',
         new WrittenTranslationObjectFactory());
@@ -92,23 +87,66 @@ describe('App', function() {
       spyOn(sourceMappedStackTrace, 'mapStackTrace');
     }));
 
-    it('should handle non-Error type exceptions gracefully', function() {
-      var testException = (error, regex) => {
-        $exceptionHandler(error);
-        var expectedError = new Error(error);
-        expect(sourceMappedStackTrace.mapStackTrace).toHaveBeenCalledWith(
-          jasmine.stringMatching(regex),
-          jasmine.any(Function));
-        expect($log.error).toHaveBeenCalledWith(expectedError);
-      };
-      testException('something', /^Error: something/);
-      testException('', /^Error: /);
-      testException(undefined, /^Error: /);
-      testException(null, /^Error: null/);
-      testException({
-        a: 'something'
-      }, /^Error: \[object Object\]/);
-      testException({}, /^Error: \[object Object\]/);
+    it('should handle undefined gracefully', function() {
+      $exceptionHandler(undefined);
+      const errorFromObject = new Error('undefined');
+
+      expect(sourceMappedStackTrace.mapStackTrace).toHaveBeenCalledWith(
+        jasmine.stringMatching(/^Error: undefined/), jasmine.any(Function));
+      expect($log.error).toHaveBeenCalledWith(errorFromObject);
+    });
+
+    it('should handle null gracefully', function() {
+      $exceptionHandler(null);
+      const errorFromObject = new Error(null);
+
+      expect(sourceMappedStackTrace.mapStackTrace).toHaveBeenCalledWith(
+        jasmine.stringMatching(/^Error: null/), jasmine.any(Function));
+      expect($log.error).toHaveBeenCalledWith(errorFromObject);
+    });
+
+    it('should handle string values gracefully', function() {
+      $exceptionHandler('something');
+      const errorFromObject = new Error('something');
+
+      expect(sourceMappedStackTrace.mapStackTrace).toHaveBeenCalledWith(
+        jasmine.stringMatching(/^Error: something/), jasmine.any(Function));
+      expect($log.error).toHaveBeenCalledWith(errorFromObject);
+    });
+
+    it('should print stack trace when given empty string', function() {
+      $exceptionHandler('');
+      const errorFromObject = new Error('');
+
+      expect(sourceMappedStackTrace.mapStackTrace).toHaveBeenCalledWith(
+        jasmine.stringMatching(/^Error/), jasmine.any(Function));
+      expect($log.error).toHaveBeenCalledWith(errorFromObject);
+    });
+
+    it('should handle object values gracefully', function() {
+      // Error constructor will fail to compile without casting the object from
+      // unknown to string.
+      let obj: unknown = {a: 'something'};
+      $exceptionHandler(obj);
+      const errorFromObject = new Error(obj as string);
+
+      expect(sourceMappedStackTrace.mapStackTrace).toHaveBeenCalledWith(
+        jasmine.stringMatching(/^Error: \[object Object\]/),
+        jasmine.any(Function));
+      expect($log.error).toHaveBeenCalledWith(errorFromObject);
+    });
+
+    it('should handle empty object values gracefully', function() {
+      // Error constructor will fail to compile without casting the object from
+      // unknown to string.
+      let obj: unknown = {};
+      $exceptionHandler(obj);
+      const errorFromObject = new Error(obj as string);
+
+      expect(sourceMappedStackTrace.mapStackTrace).toHaveBeenCalledWith(
+        jasmine.stringMatching(/^Error: \[object Object\]/),
+        jasmine.any(Function));
+      expect($log.error).toHaveBeenCalledWith(errorFromObject);
     });
 
     it('should handle Error type exceptions correctly', function() {

@@ -16,30 +16,23 @@
  * @fileoverview Unit tests for Pencil Code Editor Validation Service.
  */
 
-import { AnswerGroupObjectFactory } from
-  'domain/exploration/AnswerGroupObjectFactory';
+import { AnswerGroup, AnswerGroupObjectFactory } from 'domain/exploration/AnswerGroupObjectFactory';
 import { AppConstants } from 'app.constants';
-import { OutcomeObjectFactory } from
-  'domain/exploration/OutcomeObjectFactory';
-import { PencilCodeEditorValidationService } from
-  // eslint-disable-next-line max-len
-  'interactions/PencilCodeEditor/directives/pencil-code-editor-validation.service';
-import { RuleObjectFactory, RuleInputs } from
-  'domain/exploration/RuleObjectFactory';
+import { OutcomeObjectFactory } from 'domain/exploration/OutcomeObjectFactory';
+import { PencilCodeEditorValidationService } from 'interactions/PencilCodeEditor/directives/pencil-code-editor-validation.service';
+import { Rule, RuleInputs } from 'domain/exploration/rule.model';
 import { TestBed } from '@angular/core/testing';
 
 describe('Pencil Code Editor Validation Service', () => {
-  let pcevs: PencilCodeEditorValidationService = null;
-  let oof: OutcomeObjectFactory = null;
-  let rof: RuleObjectFactory = null;
-  let inputBackend: RuleInputs = null;
-  let agof : AnswerGroupObjectFactory = null;
+  let pcevs: PencilCodeEditorValidationService;
+  let oof: OutcomeObjectFactory;
+  let inputBackend: RuleInputs;
+  let agof: AnswerGroupObjectFactory;
 
   beforeEach(() => {
-    oof = TestBed.get(OutcomeObjectFactory);
-    pcevs = TestBed.get(PencilCodeEditorValidationService);
-    rof = TestBed.get(RuleObjectFactory);
-    agof = TestBed.get(AnswerGroupObjectFactory);
+    oof = TestBed.inject(OutcomeObjectFactory);
+    pcevs = TestBed.inject(PencilCodeEditorValidationService);
+    agof = TestBed.inject(AnswerGroupObjectFactory);
   });
 
   describe('on calling getCustomizationArgsWarnings', () => {
@@ -64,7 +57,7 @@ describe('Pencil Code Editor Validation Service', () => {
       };
       const testOutcome1 = oof.createNew(
         'Introduction', 'default_outcome', '', []);
-      var answergroup1 = [];
+      var answergroup1: AnswerGroup[] = [];
       var partialWarningsList = [];
       partialWarningsList.push({
         type: AppConstants.WARNING_TYPES.ERROR,
@@ -83,7 +76,9 @@ describe('Pencil Code Editor Validation Service', () => {
       };
       const testOutcome2 = oof.createNew(
         'Introduction', 'feedback_0', '<p>YES</p>', []);
-      let rulesDict = rof.createNew('CodeString', inputBackend);
+      let rulesDict = Rule.createNew('CodeEquals', inputBackend, {
+        x: 'CodeString'
+      });
       let answergroup2 = agof.createNew([rulesDict], testOutcome2, [], null);
 
       // It also returns the error when feedback is not provided.
@@ -105,7 +100,9 @@ describe('Pencil Code Editor Validation Service', () => {
       };
       const testOutcome = oof.createNew(
         'Introduction', 'feedback_0', '<p>YES</p>', []);
-      let rulesDict = rof.createNew('CodeString', inputBackend);
+      let rulesDict = Rule.createNew('CodeEquals', inputBackend, {
+        x: 'CodeString'
+      });
       let answergroup2 = agof.createNew([rulesDict], testOutcome, [], null);
       const testOutcome2 = oof.createNew(
         'Introduction', 'default_outcome',
@@ -126,7 +123,7 @@ describe('Pencil Code Editor Validation Service', () => {
       };
       const testOutcome1 = oof.createNew(
         'Introduction', 'default_outcome', '', []);
-      var answergroup1 = [];
+      var answergroup1: AnswerGroup[] = [];
 
       spyOn(pcevs, 'getCustomizationArgsWarnings')
         .withArgs(customizationArgs).and.returnValue([]);
@@ -137,6 +134,39 @@ describe('Pencil Code Editor Validation Service', () => {
 
       // It checks the getCustomizationArgsWarnings has been called or not.
       expect(pcevs.getCustomizationArgsWarnings).toHaveBeenCalled();
+    });
+
+    it('should catch non-string value for initialCode', () => {
+      var statename = 'Introduction';
+      var customizationArgs = {
+        initialCode: {
+          value: 1
+        }
+      };
+      inputBackend = {
+        x: [['<p>one</p>']]
+      };
+      const testOutcome = oof.createNew(
+        'Introduction', 'feedback_0', '<p>YES</p>', []);
+      let rulesDict = Rule.createNew('CodeEquals', inputBackend, {
+        x: 'CodeString'
+      });
+      let answergroup2 = agof.createNew([rulesDict], testOutcome, [], null);
+      const testOutcome2 = oof.createNew(
+        'Introduction', 'default_outcome',
+        '<p>no</p>', []);
+      var partialWarningsList = [];
+      partialWarningsList.push({
+        type: AppConstants.WARNING_TYPES.ERROR,
+        message: 'The initialCode must be a string.'
+      });
+      expect(pcevs.getAllWarnings(
+        // This throws "Type '1'. We need to suppress this error because is not
+        // assignable to type 'string'." Here we are assigning the wrong type
+        // of value to "customizationArguments" in order to test validations.
+        // @ts-expect-error
+        statename, customizationArgs, [answergroup2], testOutcome2)
+      ).toEqual(partialWarningsList);
     });
   });
 });

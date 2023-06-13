@@ -28,13 +28,15 @@ import { ExplorationStatsBackendApiService } from
   providedIn: 'root'
 })
 export class ExplorationStatsService {
-  private statsCache: Promise<ExplorationStats> = null;
+  // 'statsCache' will be null until the exploration stats are fetched from
+  // the backend.
+  private statsCache: Promise<ExplorationStats> | null = null;
 
   constructor(
       private explorationStatsBackendApiService:
         ExplorationStatsBackendApiService) {}
 
-  getExplorationStats(expId: string): Promise<ExplorationStats> {
+  async getExplorationStatsAsync(expId: string): Promise<ExplorationStats> {
     if (this.statsCache === null) {
       this.statsCache = (
         this.explorationStatsBackendApiService.fetchExplorationStatsAsync(

@@ -24,12 +24,12 @@ import cloneDeep from 'lodash/cloneDeep';
 
 import { UrlInterpolationService } from
   'domain/utilities/url-interpolation.service';
-import { QuestionBackendDict } from
+import { Question, QuestionBackendDict, QuestionObjectFactory } from
   'domain/question/QuestionObjectFactory';
 import { QuestionDomainConstants } from
   'domain/question/question-domain.constants';
 
-import constants from 'assets/constants';
+import { AppConstants } from 'app.constants';
 
 interface PretestQuestionsBackendResponse {
   'pretest_question_dicts': QuestionBackendDict[];
@@ -41,16 +41,17 @@ interface PretestQuestionsBackendResponse {
 export class PretestQuestionBackendApiService {
   constructor(
     private urlInterpolationService: UrlInterpolationService,
-    private http: HttpClient
+    private http: HttpClient,
+    private questionObjectFactory: QuestionObjectFactory
   ) {}
 
   _fetchPretestQuestions(
       explorationId: string, storyUrlFragment: string,
-      successCallback: (value: QuestionBackendDict[]) => void,
+      successCallback: (value: Question[]) => void,
       errorCallback: (reason: string) => void): void {
     if (
       !storyUrlFragment ||
-      !storyUrlFragment.match(constants.VALID_URL_FRAGMENT_REGEX)) {
+      !storyUrlFragment.match(AppConstants.VALID_URL_FRAGMENT_REGEX)) {
       successCallback([]);
       return;
     }
@@ -66,8 +67,13 @@ export class PretestQuestionBackendApiService {
     ).toPromise().then(data => {
       var pretestQuestionDicts = (
         cloneDeep(data.pretest_question_dicts));
+      var pretestQuestionObjects = pretestQuestionDicts.map(
+        (pretestQuestionDict) => {
+          return this.questionObjectFactory.createFromBackendDict(
+            pretestQuestionDict);
+        });
       if (successCallback) {
-        successCallback(pretestQuestionDicts);
+        successCallback(pretestQuestionObjects);
       }
     }, errorResponse => {
       if (errorCallback) {
@@ -76,9 +82,9 @@ export class PretestQuestionBackendApiService {
     });
   }
 
-  fetchPretestQuestions(
+  async fetchPretestQuestionsAsync(
       explorationId: string,
-      storyUrlFragment: string): Promise<QuestionBackendDict[]> {
+      storyUrlFragment: string): Promise<Question[]> {
     return new Promise((resolve, reject) => {
       this._fetchPretestQuestions(
         explorationId, storyUrlFragment, resolve, reject);

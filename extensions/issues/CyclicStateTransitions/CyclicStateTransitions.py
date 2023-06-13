@@ -16,10 +16,15 @@
 
 """Python configuration for recording cyclic state transitions issue."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 from extensions.issues import base
+
+from typing import List
+
+MYPY = False
+if MYPY:  # pragma: no cover
+    from extensions import domain
 
 
 class CyclicStateTransitions(base.BaseExplorationIssueSpec):
@@ -27,7 +32,7 @@ class CyclicStateTransitions(base.BaseExplorationIssueSpec):
     cyclic manner multiple times.
     """
 
-    _customization_arg_specs = [{
+    _customization_arg_specs: List[domain.CustomizationArgSpecsDict] = [{
         'name': 'state_names',
         'description': 'List of state names',
         'schema': {

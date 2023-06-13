@@ -17,20 +17,18 @@
  */
 import { TestBed } from '@angular/core/testing';
 
-import { NormalizeWhitespacePipe } from
-  'filters/string-utility-filters/normalize-whitespace.pipe';
+import { NormalizeWhitespacePipe } from 'filters/string-utility-filters/normalize-whitespace.pipe';
 import { NormalizeWhitespacePunctuationAndCasePipe } from 'filters/string-utility-filters/normalize-whitespace-punctuation-and-case.pipe';
-import { PencilCodeEditorRulesService } from
-  'interactions/PencilCodeEditor/directives/pencil-code-editor-rules.service';
+import { PencilCodeEditorRulesService } from 'interactions/PencilCodeEditor/directives/pencil-code-editor-rules.service';
 
 describe('Pencil Code Editor rules service', () => {
-  let pcers: PencilCodeEditorRulesService = null;
+  let pcers: PencilCodeEditorRulesService;
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
         NormalizeWhitespacePipe, NormalizeWhitespacePunctuationAndCasePipe]
     });
-    pcers = TestBed.get(PencilCodeEditorRulesService);
+    pcers = TestBed.inject(PencilCodeEditorRulesService);
   });
 
   describe('\'equals\' rule', () => {

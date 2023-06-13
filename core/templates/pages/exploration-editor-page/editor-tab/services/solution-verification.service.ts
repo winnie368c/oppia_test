@@ -21,11 +21,11 @@ import { downgradeInjectable } from '@angular/upgrade/static';
 
 import { StateEditorService } from
   // eslint-disable-next-line max-len
-  'components/state-editor/state-editor-properties-services/state-editor.service.ts';
+  'components/state-editor/state-editor-properties-services/state-editor.service';
 import { Interaction } from 'domain/exploration/InteractionObjectFactory';
 import { InteractionAnswer } from 'interactions/answer-defs';
 import { AnswerClassificationService } from
-  'pages/exploration-player-page/services/answer-classification.service.ts';
+  'pages/exploration-player-page/services/answer-classification.service';
 import { InteractionRulesRegistryService } from
   'services/interaction-rules-registry.service';
 
@@ -42,6 +42,9 @@ export class SolutionVerificationService {
       stateName: string,
       interaction: Interaction,
       correctAnswer: InteractionAnswer): boolean {
+    if (interaction.id === null) {
+      throw new Error('Interaction ID must not be null');
+    }
     let rulesService = this.interactionRulesRegistryService.
       getRulesServiceByInteractionId(interaction.id);
     let result =

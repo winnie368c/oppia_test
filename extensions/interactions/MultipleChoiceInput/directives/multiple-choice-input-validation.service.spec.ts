@@ -25,9 +25,9 @@ import { MultipleChoiceInputCustomizationArgs } from
 import { MultipleChoiceInputValidationService } from 'interactions/MultipleChoiceInput/directives/multiple-choice-input-validation.service';
 import { Outcome, OutcomeObjectFactory } from
   'domain/exploration/OutcomeObjectFactory';
-import { RuleObjectFactory } from 'domain/exploration/RuleObjectFactory';
+import { Rule } from 'domain/exploration/rule.model';
 import { SubtitledHtml } from
-  'domain/exploration/SubtitledHtmlObjectFactory';
+  'domain/exploration/subtitled-html.model';
 
 import { AppConstants } from 'app.constants';
 
@@ -40,7 +40,6 @@ describe('MultipleChoiceInputValidationService', () => {
   let validatorService: MultipleChoiceInputValidationService,
     customizationArguments: MultipleChoiceInputCustomizationArgs;
   let oof: OutcomeObjectFactory, agof: AnswerGroupObjectFactory;
-  let rof: RuleObjectFactory;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -51,11 +50,11 @@ describe('MultipleChoiceInputValidationService', () => {
     WARNING_TYPES = AppConstants.WARNING_TYPES;
     oof = TestBed.get(OutcomeObjectFactory);
     agof = TestBed.get(AnswerGroupObjectFactory);
-    rof = TestBed.get(RuleObjectFactory);
     currentState = 'First State';
 
     goodDefaultOutcome = oof.createFromBackendDict({
       dest: 'Second State',
+      dest_if_really_stuck: null,
       feedback: {
         html: '',
         content_id: ''
@@ -68,6 +67,7 @@ describe('MultipleChoiceInputValidationService', () => {
 
     badOutcome = oof.createFromBackendDict({
       dest: currentState,
+      dest_if_really_stuck: null,
       feedback: {
         html: '',
         content_id: ''
@@ -82,7 +82,9 @@ describe('MultipleChoiceInputValidationService', () => {
       choices: {
         value: [
           new SubtitledHtml('Option 1', ''),
-          new SubtitledHtml('Option 2', '')
+          new SubtitledHtml('Option 2', ''),
+          new SubtitledHtml('Option 3', ''),
+          new SubtitledHtml('Option 4', '')
         ]
       },
       showChoicesInShuffledOrder: {
@@ -101,9 +103,21 @@ describe('MultipleChoiceInputValidationService', () => {
         inputs: {
           x: 1
         }
-      }].map(rof.createFromBackendDict),
+      }, {
+        rule_type: 'Equals',
+        inputs: {
+          x: 2
+        }
+      }, {
+        rule_type: 'Equals',
+        inputs: {
+          x: 3
+        }
+      }].map(
+        ruleDict => Rule.createFromBackendDict(
+          ruleDict, 'MultipleChoiceInput')),
       goodDefaultOutcome,
-      null,
+      [],
       null)];
   });
 
@@ -117,18 +131,31 @@ describe('MultipleChoiceInputValidationService', () => {
   it('should expect a choices customization argument', () => {
     expect(() => {
       validatorService.getAllWarnings(
-      // This throws "Argument of type '{}' is not assignable to
-      // parameter of type 'MultipleChoiceInputCustomizationArgs'." We are
-      // purposely assigning the wrong type of customization args in order
-      // to test validations.
+      // This throws "Argument of type '{}'. We need to suppress this error
+      // because is not assignable to parameter of type
+      // 'MultipleChoiceInputCustomizationArgs'." We are purposely assigning
+      // the wrong type of customization args in order to test validations.
       // @ts-expect-error
         currentState, {}, goodAnswerGroups, goodDefaultOutcome);
     }).toThrowError(
       'Expected customization arguments to have property: choices');
   });
 
+  it('should expect at least two choices', () => {
+    customizationArguments.choices.value = [
+      new SubtitledHtml('1', '')
+    ];
+
+    var warnings = validatorService.getAllWarnings(
+      currentState, customizationArguments, [], goodDefaultOutcome);
+    expect(warnings).toEqual([{
+      type: WARNING_TYPES.CRITICAL,
+      message: 'Please enter at least 2 choices.'
+    }]);
+  });
+
   it('should expect non-empty and unique choices', () => {
-    customizationArguments.choices.value[0].setHtml('');
+    customizationArguments.choices.value[3].html = '';
     var warnings = validatorService.getAllWarnings(
       currentState, customizationArguments, goodAnswerGroups,
       goodDefaultOutcome);
@@ -137,7 +164,7 @@ describe('MultipleChoiceInputValidationService', () => {
       message: 'Please ensure the choices are nonempty.'
     }]);
 
-    customizationArguments.choices.value[0].setHtml('Option 2');
+    customizationArguments.choices.value[3].html = 'Option 2';
     warnings = validatorService.getAllWarnings(
       currentState, customizationArguments, goodAnswerGroups,
       goodDefaultOutcome);
@@ -149,13 +176,14 @@ describe('MultipleChoiceInputValidationService', () => {
 
   it('should validate answer group rules refer to valid choices only once',
     () => {
-      goodAnswerGroups[0].rules[0].inputs.x = 2;
+      goodAnswerGroups[0].rules[0].inputs.x = 4;
       var warnings = validatorService.getAllWarnings(
         currentState, customizationArguments, goodAnswerGroups,
         goodDefaultOutcome);
       expect(warnings).toEqual([{
         type: WARNING_TYPES.CRITICAL,
-        message: 'Please ensure rule 1 in group 1 refers to a valid choice.'
+        message: 'Please ensure learner answer 1 in Oppia response 1 refers ' +
+        'to a valid choice.'
       }]);
 
       goodAnswerGroups[0].rules[0].inputs.x = 1;
@@ -167,8 +195,9 @@ describe('MultipleChoiceInputValidationService', () => {
       expect(warnings).toEqual([{
         type: WARNING_TYPES.CRITICAL,
         message: (
-          'Please ensure rule 2 in group 1 is not equaling the same ' +
-          'multiple choice option as another rule.')
+          'Please ensure learner answer 2 in Oppia response 1 is not ' +
+          'equaling the same multiple choice option as another ' +
+          'learner answer.')
       }]);
     });
 

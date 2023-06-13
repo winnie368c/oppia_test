@@ -19,11 +19,12 @@
 import { TestBed } from '@angular/core/testing';
 
 import { DeviceInfoService } from
-  'services/contextual/device-info.service.ts';
-import { WindowRef } from 'services/contextual/window-ref.service.ts';
+  'services/contextual/device-info.service';
+import { WindowRef } from 'services/contextual/window-ref.service';
 
 describe('Device Info Service', () => {
-  let dis, wrs;
+  let dis: DeviceInfoService;
+  let wrs: WindowRef;
   const mobileUserAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like ' +
     'Mac OS X) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 ' +
     'Mobile/15A372 Safari/604.1';
@@ -39,7 +40,7 @@ describe('Device Info Service', () => {
   it('should evaluate when a device is a mobile device', () => {
     spyOnProperty(wrs.nativeWindow, 'navigator').and.callFake(() => ({
       userAgent: mobileUserAgent
-    }));
+    } as Navigator));
 
     expect(dis.isMobileDevice()).toBe(true);
     expect(dis.isMobileUserAgent()).toBe(true);
@@ -48,7 +49,7 @@ describe('Device Info Service', () => {
   it('should evaluate when a device is not a mobile device', () => {
     spyOnProperty(wrs.nativeWindow, 'navigator').and.callFake(() => ({
       userAgent: desktopUserAgent
-    }));
+    } as Navigator));
 
     expect(dis.isMobileDevice()).toBe(false);
     expect(dis.isMobileUserAgent()).toBe(false);

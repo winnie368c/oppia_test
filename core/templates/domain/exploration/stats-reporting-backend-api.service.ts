@@ -40,9 +40,12 @@ export interface AggregatedStats {
   'num_completions': number;
   'num_actual_starts': number;
   'state_stats_mapping': {
-    [stateName: string]: SessionStateStats
+    [stateName: string]: SessionStateStats;
   };
 }
+
+type StatsReportingUrlsKey = (
+  keyof typeof ExplorationPlayerConstants.STATS_REPORTING_URLS);
 
 @Injectable({
   providedIn: 'root'
@@ -59,36 +62,42 @@ export class StatsReportingBackendApiService {
       previousStateName: string, nextStateName: string): string {
     try {
       return this.urlInterpolationService.interpolateUrl(
-        ExplorationPlayerConstants.STATS_REPORTING_URLS[urlIdentifier], {
+        ExplorationPlayerConstants.STATS_REPORTING_URLS[
+          urlIdentifier as StatsReportingUrlsKey
+        ], {
           exploration_id: explorationId
         });
-    } catch (e) {
-      let additionalInfo = (
-        '\nUndefined exploration id error debug logs:' +
-        '\nThe event being recorded: ' + urlIdentifier +
-        '\nExploration ID: ' + this.contextService.getExplorationId()
-      );
-      if (currentStateName) {
-        additionalInfo += (
-          '\nCurrent State name: ' + currentStateName);
+    // We use unknown type because we are unsure of the type of error
+    // that was thrown. Since the catch block cannot identify the
+    // specific type of error, we are unable to further optimise the
+    // code by introducing more types of errors.
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        let additionalInfo = (
+          '\nUndefined exploration id error debug logs:' +
+          '\nThe event being recorded: ' + urlIdentifier +
+          '\nExploration ID: ' + this.contextService.getExplorationId()
+        );
+        if (currentStateName) {
+          additionalInfo += (
+            '\nCurrent State name: ' + currentStateName);
+        }
+        if (nextExpId) {
+          additionalInfo += (
+            '\nRefresher exp id: ' + nextExpId);
+        }
+        if (previousStateName && nextStateName) {
+          additionalInfo += (
+            '\nOld State name: ' + previousStateName +
+            '\nNew State name: ' + nextStateName);
+        }
+        e.message += additionalInfo;
       }
-      if (nextExpId) {
-        additionalInfo += (
-          '\nRefresher exp id: ' + nextExpId);
-      }
-      if (
-        previousStateName &&
-        nextStateName) {
-        additionalInfo += (
-          '\nOld State name: ' + previousStateName +
-          '\nNew State name: ' + nextStateName);
-      }
-      e.message += additionalInfo;
       throw e;
     }
   }
 
-  postsStats(
+  async postsStatsAsync(
       aggregatedStats: AggregatedStats, expVersion: number,
       explorationId: string, currentStateName: string, nextExpId: string,
       previousStateName: string, nextStateName: string): Promise<Object> {
@@ -100,7 +109,7 @@ export class StatsReportingBackendApiService {
     }).toPromise();
   }
 
-  recordExpStarted(
+  async recordExpStartedAsync(
       params: Object, sessionId: string, stateName: string, expVersion: number,
       explorationId: string, currentStateName: string, nextExpId: string,
       previousStateName: string, nextStateName: string): Promise<Object> {
@@ -114,7 +123,7 @@ export class StatsReportingBackendApiService {
     }).toPromise();
   }
 
-  recordStateHit(
+  async recordStateHitAsync(
       clientTimeSpentInSecs: number, expVersion: number, newStateName: string,
       oldParams: Object, sessionId: string,
       explorationId: string, currentStateName: string, nextExpId: string,
@@ -130,7 +139,7 @@ export class StatsReportingBackendApiService {
     }).toPromise();
   }
 
-  recordExplorationActuallyStarted(
+  async recordExplorationActuallyStartedAsync(
       expVersion: number, stateName: string,
       sessionId: string, explorationId: string, currentStateName: string,
       nextExpId: string, previousStateName: string,
@@ -144,7 +153,7 @@ export class StatsReportingBackendApiService {
     }).toPromise();
   }
 
-  recordSolutionHit(
+  async recordSolutionHitAsync(
       timeSpentInStateSecs: number, expVersion: number, stateName: string,
       sessionId: string, explorationId: string, currentStateName: string,
       nextExpId: string, previousStateName: string,
@@ -159,7 +168,7 @@ export class StatsReportingBackendApiService {
     }).toPromise();
   }
 
-  recordLeaveForRefresherExp(
+  async recordLeaveForRefresherExpAsync(
       expVersion: number, refresherExpId: string, stateName: string,
       sessionId: string, timeSpentInStateSecs: number,
       explorationId: string, currentStateName: string,
@@ -176,7 +185,7 @@ export class StatsReportingBackendApiService {
     }).toPromise();
   }
 
-  recordStateCompleted(
+  async recordStateCompletedAsync(
       expVersion: number, sessionId: string, stateName: string,
       timeSpentInStateSecs: number, explorationId: string,
       currentStateName: string, nextExpId: string, previousStateName: string,
@@ -191,7 +200,7 @@ export class StatsReportingBackendApiService {
     }).toPromise();
   }
 
-  recordExplorationCompleted(
+  async recordExplorationCompletedAsync(
       clientTimeSpentInSecs: number, collectionId: string, params: Object,
       sessionId: string, stateName: string, version: number,
       explorationId: string, currentStateName: string, nextExpId: string,
@@ -208,7 +217,7 @@ export class StatsReportingBackendApiService {
     }).toPromise();
   }
 
-  recordAnswerSubmitted(
+  async recordAnswerSubmittedAsync(
       answer: string, params: Object, version: number, sessionId: string,
       clientTimeSpentInSecs: number, oldStateName: string,
       answerGroupIndex: number, ruleSpecIndex: number,
@@ -230,7 +239,7 @@ export class StatsReportingBackendApiService {
     }).toPromise();
   }
 
-  recordMaybeLeaveEvent(
+  async recordMaybeLeaveEventAsync(
       clientTimeSpentInSecs: number, collectionId: string, params: Object,
       sessionId: string, stateName: string, version: number,
       explorationId: string, currentStateName: string, nextExpId: string,

@@ -16,142 +16,94 @@
 
 """Unit tests for scripts/linters/js_ts_linter.py."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import multiprocessing
 import os
+import re
 
 from core.tests import test_utils
 
+from typing import Final, Pattern, Tuple
+
 from . import general_purpose_linter
 from . import pre_commit_linter
+from . import warranted_angular_security_bypasses
 
-NAME_SPACE = multiprocessing.Manager().Namespace()
+NAME_SPACE: Final = multiprocessing.Manager().Namespace()
 NAME_SPACE.files = pre_commit_linter.FileCache()
-FILE_CACHE = NAME_SPACE.files
+FILE_CACHE: Final = NAME_SPACE.files
 
-LINTER_TESTS_DIR = os.path.join(os.getcwd(), 'scripts', 'linters', 'test_files')
+LINTER_TESTS_DIR: Final = os.path.join(
+    os.getcwd(), 'scripts', 'linters', 'test_files'
+)
 
 # HTML filepaths.
-INVALID_NG_TEMPLATE_HTML_FILEPATH = os.path.join(
+INVALID_NG_TEMPLATE_HTML_FILEPATH: Final = os.path.join(
     LINTER_TESTS_DIR, 'invalid_ng_template.html')
-INVALID_TRAILING_WHITESPACE_HTML_FILEPATH = os.path.join(
+INVALID_TRAILING_WHITESPACE_HTML_FILEPATH: Final = os.path.join(
     LINTER_TESTS_DIR, 'invalid_trailing_whitespace.html')
-INVALID_PARENT_HTML_FILEPATH = os.path.join(
+INVALID_PARENT_HTML_FILEPATH: Final = os.path.join(
     LINTER_TESTS_DIR, 'invalid_parent.html')
-INVALID_GLYPHICON_FILEPATH = os.path.join(
+INVALID_GLYPHICON_FILEPATH: Final = os.path.join(
     LINTER_TESTS_DIR, 'invalid_glyphicon.html')
-INVALID_STYLE_TAG_HTML_FILEPATH = os.path.join(
+INVALID_STYLE_TAG_HTML_FILEPATH: Final = os.path.join(
     LINTER_TESTS_DIR, 'invalid_style_tag.html')
 
 # CSS filepaths.
-INVALID_CSS_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid.css')
+INVALID_CSS_FILEPATH: Final = os.path.join(LINTER_TESTS_DIR, 'invalid.css')
 
 # Js and Ts filepaths.
-FILE_IN_EXCLUDED_PATH = os.path.join(
+FILE_IN_EXCLUDED_PATH: Final = os.path.join(
     'core', 'tests', 'build_sources', 'assets', 'constants.js')
-INVALID_EXPLORE_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_explore.js')
-INVALID_PAUSE_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_pause.js')
-INVALID_SLEEP_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_sleep.js')
-INVALID_WAIT_FOR_ANGULAR_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_wait_for_angular.js')
-INVALID_FDESCRIBE_DDESCRIBE_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_ddescribe_fdescribe.ts')
-INVALID_IIT_FIT_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_iit_fit.ts')
-INVALID_INJECT_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_inject.ts')
-INVALID_INNER_HTML_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_innerhtml.ts')
-INVALID_RELATIVE_IMPORT_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_relative_import.js')
-INVALID_PARENT_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_parent.ts')
-INVALID_TEMPLATE_URL_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_templateurl.ts')
-INVALID_FILEOVERVIEW_FILEPATH = os.path.join(
+EXTRA_JS_FILEPATH: Final = os.path.join('core', 'templates', 'demo.js')
+INVALID_FILEOVERVIEW_FILEPATH: Final = os.path.join(
     LINTER_TESTS_DIR, 'invalid_fileoverview.ts')
-INVALID_TO_THROW_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_toThrow.ts')
-INVALID_THROW_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_throw.ts')
-INVALID_THROW_WITH_STRING_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_throw_with_string.ts')
-INVALID_ESLINT_CAMELCASE_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_eslint_camelcase.ts')
-INVALID_ESLINT_ANY_TYPE_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_eslint_any_type.ts')
-INVALID_BROADCAST_USE_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_broadcast_use.ts')
-INVALID_LODASH_IMPORT_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_lodash_import.ts')
-INVALID_HTTP_CLIENT_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_http_client_used.ts')
+INVALID_BYPASS_FLAG: Final = os.path.join(
+    LINTER_TESTS_DIR, 'invalid_bypass_flag.ts')
+VALID_SERVICE_FILE_PATH = os.path.join(
+    LINTER_TESTS_DIR, 'valid-backend-api.service.ts')
 
 # PY filepaths.
-INVALID_ITERKEY_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_iterkeys.py')
-INVALID_ITERVALUES_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_itervalues.py')
-INVALID_ITERITEMS_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_iteritems.py')
-INVALID_METACLASS_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_metaclass.py')
-INVALID_BASESTRING_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_basestring.py')
-INVALID_ZIP_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_zip.py')
-INVALID_STR_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_str.py')
-INVALID_ROUND_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_round.py')
-INVALID_RANGE_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_range.py')
-INVALID_OBJECT_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_object.py')
-INVALID_NEXT_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_next.py')
-INVALID_MAP_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_map.py')
-INVALID_INPUT_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_input.py')
-INVALID_REQUEST_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_request.py')
-INVALID_URLJOIN_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_urljoin.py')
-INVALID_UNQUOTE_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_unquote.py')
-INVALID_NO_NEWLINE_FILEPATH = os.path.join(
+INVALID_REQUEST_FILEPATH: Final = os.path.join(
+    LINTER_TESTS_DIR, 'invalid_request.py'
+)
+INVALID_NO_NEWLINE_FILEPATH: Final = os.path.join(
     LINTER_TESTS_DIR, 'invalid_no_newline.py')
-INVALID_PARSE_QS_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_parse_qs.py')
-INVALID_URL_UNSPLIT_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_urlunsplit.py')
-INVALID_URLPARSE_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_urlparse.py')
-INVALID_URLSPLIT_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_urlsplit.py')
-INVALID_URLOPEN_FILEPATH = os.path.join(
+INVALID_URLOPEN_FILEPATH: Final = os.path.join(
     LINTER_TESTS_DIR, 'invalid_urlopen.py')
-INVALID_URLRETRIEVE_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_urlretrieve.py')
-INVALID_AUTHOR_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_author.py')
-INVALID_DATETIME_NOW_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_datetime_now.py')
-INVALID_NDB_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_ndb.py')
-INVALID_PRINT_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_print.py')
-INVALID_PYLINT_ID_FILEPATH = os.path.join(
+INVALID_AUTHOR_FILEPATH: Final = os.path.join(
+    LINTER_TESTS_DIR, 'invalid_author.py'
+)
+INVALID_DATASTORE_FILEPATH: Final = os.path.join(
+    LINTER_TESTS_DIR, 'invalid_datastore.py')
+INVALID_PYLINT_ID_FILEPATH: Final = os.path.join(
     LINTER_TESTS_DIR, 'invalid_pylint_id.py')
-INVALID_ASSERT_EQUALS_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_assert_equals.py')
-INVALID_OPEN_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_open.py')
-INVALID_STRINGIO_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_stringio.py')
-INVALID_QUOTE_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_quote.py')
-INVALID_UNQUOTE_PLUS_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_urlunquote_plus.py')
-INVALID_URLENCODE_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_urlencode.py')
-INVALID_TABS_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_tabs.py')
-INVALID_MERGE_CONFLICT_FILEPATH = os.path.join(
+INVALID_TABS_FILEPATH: Final = os.path.join(
+    LINTER_TESTS_DIR, 'invalid_tabs.py'
+)
+INVALID_MERGE_CONFLICT_FILEPATH: Final = os.path.join(
     LINTER_TESTS_DIR, 'invalid_merge_conflict.py')
-INVALID_TODO_FILEPATH = os.path.join(LINTER_TESTS_DIR, 'invalid_todo.py')
-INVALID_COPYRIGHT_FILEPATH = os.path.join(
+INVALID_TODO_FILEPATH: Final = os.path.join(
+    LINTER_TESTS_DIR, 'invalid_todo.py'
+)
+INVALID_COPYRIGHT_FILEPATH: Final = os.path.join(
     LINTER_TESTS_DIR, 'invalid_copyright.py')
-INVALID_UNICODE_LITERAL_FILEPATH = os.path.join(
-    LINTER_TESTS_DIR, 'invalid_unicode_literal.py')
-INVALID_DEV_MODE_IN_CONSTANT_FILEPATH = 'constants.ts'
+INVALID_ANNOTATIONS_FILEPATH: Final = os.path.join(
+    LINTER_TESTS_DIR, 'invalid_annotations.py')
+CONSTANTS_FILEPATH: Final = os.path.join(
+    os.getcwd(), 'assets', 'constants.ts'
+)
+VALID_PY_IGNORE_PRAGMA_FILEPATH: Final = os.path.join(
+    LINTER_TESTS_DIR, 'valid_py_ignore_pragma.py')
+VALID_PY_FILE_PATH = os.path.join(
+    LINTER_TESTS_DIR, 'valid.py')
 
 
 class HTMLLintTests(test_utils.LinterTestBase):
     """Test the HTML lint functions."""
 
-    def test_invalid_use_of_ng_template(self):
+    def test_invalid_use_of_ng_template(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_NG_TEMPLATE_HTML_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_bad_patterns()
@@ -161,7 +113,7 @@ class HTMLLintTests(test_utils.LinterTestBase):
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_invalid_use_of_trailing_whitespace(self):
+    def test_invalid_use_of_trailing_whitespace(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_TRAILING_WHITESPACE_HTML_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_bad_patterns()
@@ -171,7 +123,7 @@ class HTMLLintTests(test_utils.LinterTestBase):
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_invalid_use_of_parent(self):
+    def test_invalid_use_of_parent(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_PARENT_HTML_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_bad_patterns()
@@ -182,7 +134,7 @@ class HTMLLintTests(test_utils.LinterTestBase):
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_invalid_use_of_style(self):
+    def test_invalid_use_of_style(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_STYLE_TAG_HTML_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_bad_patterns()
@@ -193,268 +145,38 @@ class HTMLLintTests(test_utils.LinterTestBase):
         self.assertTrue(lint_task_report.failed)
 
 
-class JsTsLintTests(test_utils.LinterTestBase):
-    """Test the JsTs lint functions."""
-
-    def test_invalid_use_of_browser_explore(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_EXPLORE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 30: In tests, please do not use browser.explore().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_browser_pause(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_PAUSE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 30: In tests, please do not use browser.pause().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_browser_sleep(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_SLEEP_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 30: In tests, please do not use browser.sleep().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_browser_wait_for_angular(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_WAIT_FOR_ANGULAR_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 30: In tests, please do not use '
-            'browser.waitForAngular().'], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_fdescribe_ddescribe(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_FDESCRIBE_DDESCRIBE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 24: In tests, please use \'describe\' instead of '
-            '\'ddescribe\'or \'fdescribe\''], lint_task_report.trimmed_messages)
-        self.assert_same_list_elements([
-            'Line 28: In tests, please use \'describe\' instead of '
-            '\'ddescribe\'or \'fdescribe\''], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_iit_fit(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_IIT_FIT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 40: In tests, please use \'it\' instead of \'iit\' or '
-            '\'fit\''], lint_task_report.trimmed_messages)
-        self.assert_same_list_elements([
-            'Line 64: In tests, please use \'it\' instead of \'iit\' or '
-            '\'fit\''], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_inject(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_INJECT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 26: In tests, please use \'angular.mock.inject\' '
-            'instead of \'inject\''], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_template_url(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_TEMPLATE_URL_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 24: The directives must be directly referenced.'
-            ], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_parent(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_PARENT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 25: Please do not access parent properties using '
-            '$parent. Use the scope objectfor this purpose.'
-            ], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_relative_import(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_RELATIVE_IMPORT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 20: Please, don\'t use relative imports in require().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_inner_html(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_INNER_HTML_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 27: Please do not use innerHTML property.'
-            ], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_to_throw(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_TO_THROW_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 25: Please use \'toThrowError\' instead of \'toThrow\''],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_throw(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_THROW_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 27: Please use \'throw new\' instead of \'throw\''],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_throw_with_string(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_THROW_WITH_STRING_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 27: Please use \'throw new Error\' instead of '
-            '\'throw\''], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_eslint_camelcase_comment(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_ESLINT_CAMELCASE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 24: Please do not use eslint disable for camelcase. If '
-            'you are using this statement to define properties in an '
-            'interface for a backend dict. Wrap the property name in '
-            'single quotes instead.'], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_eslint_no_explicit_any_comment(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_ESLINT_ANY_TYPE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 21: Please do not define "any" types. You can refer '
-             'https://github.com/oppia/oppia/wiki/Guide-on-defining-types '
-             'if you\'re having trouble declaring types.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_broadcast(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_BROADCAST_USE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 26: Please do not use $broadcast/$on for propagating events. '
-            'Use @Input/@Output instead.'], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_lodash_import(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_LODASH_IMPORT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            [
-                'Line 20: Please do not use "import { someFunction } '
-                'from \'lodash\'". Use "import someFunction '
-                'from \'lodash/someFunction\'" instead.',
-            ],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_http_client_used_with_error_message(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_HTTP_CLIENT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 22: An instance of HttpClient is found in this file. You are '
-            'not allowed to create http requests from files that are not '
-            'backend api services.'], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-
 class PythonLintTests(test_utils.LinterTestBase):
     """Test the Python lint functions."""
 
-    def test_invalid_use_of_author(self):
+    def test_invalid_use_of_author(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_AUTHOR_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_bad_patterns()
         self.assert_same_list_elements(
-            ['Line 26: Please remove author tags from this file.'],
+            ['Line 23: Please remove author tags from this file.'],
             lint_task_report.trimmed_messages)
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_invalid_use_of_datetime_now(self):
+    def test_invalid_use_of_ndb(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_DATETIME_NOW_FILEPATH], FILE_CACHE)
+            [INVALID_DATASTORE_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 42: Please use datetime.datetime.utcnow() instead '
-            'of datetime.datetime.now().'], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_ndb(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_NDB_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
+        self.assert_same_list_elements(
+            ['Line 28: Please use datastore_services instead of ndb'],
+            lint_task_report.trimmed_messages)
         self.assert_same_list_elements(
             ['Line 31: Please use datastore_services instead of ndb'],
             lint_task_report.trimmed_messages)
-        self.assert_same_list_elements(
-            ['Line 34: Please use datastore_services instead of ndb'],
-            lint_task_report.trimmed_messages)
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_invalid_use_of_print(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_PRINT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 42: Please use python_utils.PRINT().'
-            ], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_pylint_id(self):
+    def test_invalid_use_of_pylint_id(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_PYLINT_ID_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_bad_patterns()
         self.assert_same_list_elements([
-            'Line 43: Please remove pylint exclusion if it is unnecessary,'
+            'Line 40: Please remove pylint exclusion if it is unnecessary,'
             ' or make it human readable with a sentence instead of an id. '
             'The id-to-message list can be seen '
             'here->http://pylint-messages.wikidot.com/all-codes'
@@ -462,296 +184,11 @@ class PythonLintTests(test_utils.LinterTestBase):
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_invalid_use_of_assert_equals(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_ASSERT_EQUALS_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 43: Please do not use self.assertEquals method. This '
-            'method has been deprecated. Instead use self.assertEqual '
-            'method.'], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_open(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_OPEN_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 42: Please use python_utils.open_file() instead '
-            'of open().'], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_stringio(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_STRINGIO_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 44: Please use python_utils.string_io() instead of '
-            'import StringIO.'], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_quote(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_QUOTE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 44: Please use python_utils.url_quote().'
-            ], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_unquote_plus(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_UNQUOTE_PLUS_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 45: Please use python_utils.url_unquote_plus().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_urlencode(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_URLENCODE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 46: Please use python_utils.url_encode().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_urlretrieve(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_URLRETRIEVE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 46: Please use python_utils.url_retrieve().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_urlopen(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_URLOPEN_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 45: Please use python_utils.url_open().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_urlsplit(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_URLSPLIT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 46: Please use python_utils.url_split().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_urlparse(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_URLPARSE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 46: Please use python_utils.url_parse().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_url_unsplit(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_URL_UNSPLIT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 46: Please use python_utils.url_unsplit().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_parse_qs(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_PARSE_QS_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 45: Please use python_utils.parse_query_string().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_unquote(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_UNQUOTE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 44: Please use python_utils.urllib_unquote().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_urljoin(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_URLJOIN_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 46: Please use python_utils.url_join().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_request(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_REQUEST_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 47: Please use python_utils.url_request().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_input(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_INPUT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 42: Please use python_utils.INPUT.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_map(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_MAP_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 42: Please use python_utils.MAP.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_next(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_NEXT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 43: Please use python_utils.NEXT.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_object(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_OBJECT_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 25: Please use python_utils.OBJECT.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_range(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_RANGE_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 42: Please use python_utils.RANGE.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_round(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_ROUND_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 42: Please use python_utils.ROUND.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_str(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_STR_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Line 42: Please try to use python_utils.convert_to_bytes() '
-            'for the strings used in webapp2\'s built-in methods or for '
-            'strings used directly in NDB datastore models. If you need to'
-            ' cast ints/floats to strings, please use '
-            'python_utils.UNICODE() instead.'
-            ], lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_zip(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_ZIP_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 44: Please use python_utils.ZIP.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_basestring(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_BASESTRING_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 42: Please use python_utils.BASESTRING.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_metaclass(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_METACLASS_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 46: Please use python_utils.with_metaclass().'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_iteritems(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_ITERITEMS_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 43: Please use items() instead.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_itervalues(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_ITERVALUES_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 43: Please use values() instead.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_invalid_use_of_iterkeys(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_ITERKEY_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements(
-            ['Line 43: Please use keys() instead.'],
-            lint_task_report.trimmed_messages)
-        self.assertEqual('Bad pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
 
 class GeneralLintTests(test_utils.LinterTestBase):
     """Test all other general lint functions."""
 
-    def test_invalid_use_of_tabs(self):
+    def test_invalid_use_of_tabs(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_TABS_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_bad_patterns()
@@ -761,7 +198,7 @@ class GeneralLintTests(test_utils.LinterTestBase):
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_merge_conflict_present(self):
+    def test_merge_conflict_present(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_MERGE_CONFLICT_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_bad_patterns()
@@ -772,7 +209,7 @@ class GeneralLintTests(test_utils.LinterTestBase):
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_invalid_use_of_glyphicon(self):
+    def test_invalid_use_of_glyphicon(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_GLYPHICON_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_bad_patterns()
@@ -782,17 +219,39 @@ class GeneralLintTests(test_utils.LinterTestBase):
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_invalid_use_of_todo(self):
+    def test_invalid_use_of_todo(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_TODO_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_bad_patterns()
         self.assert_same_list_elements([
-            'Line 33: Please assign TODO comments to a user in the format'
-            ' TODO(username): XXX.'], lint_task_report.trimmed_messages)
+            'Line 30: Please link TODO comments to an issue in the format'
+            ' TODO(#issuenum): XXX.'], lint_task_report.trimmed_messages)
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_missing_copyright(self):
+    def test_error_message_includes_filepath(self) -> None:
+        def _mock_readlines_error(unused_self: str) -> None:
+            raise Exception('filecache error')
+
+        with self.swap(FILE_CACHE, 'readlines', _mock_readlines_error):
+            linter = general_purpose_linter.GeneralPurposeLinter(
+                [INVALID_ANNOTATIONS_FILEPATH], FILE_CACHE)
+            with self.assertRaisesRegex(
+                    Exception,
+                    '%s filecache error' % INVALID_ANNOTATIONS_FILEPATH):
+                linter.check_mandatory_patterns()
+
+    def test_missing_unicode_literal(self) -> None:
+        linter = general_purpose_linter.GeneralPurposeLinter(
+            [INVALID_ANNOTATIONS_FILEPATH], FILE_CACHE)
+        lint_task_report = linter.check_mandatory_patterns()
+        self.assert_same_list_elements([
+            'Please ensure this file should contain annotations future import.'
+        ], lint_task_report.trimmed_messages)
+        self.assertEqual('Mandatory pattern', lint_task_report.name)
+        self.assertTrue(lint_task_report.failed)
+
+    def test_missing_copyright(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_COPYRIGHT_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_mandatory_patterns()
@@ -802,17 +261,7 @@ class GeneralLintTests(test_utils.LinterTestBase):
         self.assertEqual('Mandatory pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_missing_unicode_literal(self):
-        linter = general_purpose_linter.GeneralPurposeLinter(
-            [INVALID_UNICODE_LITERAL_FILEPATH], FILE_CACHE)
-        lint_task_report = linter.check_mandatory_patterns()
-        self.assert_same_list_elements([
-            'Please ensure this file should contain unicode_literals '
-            'future import.'], lint_task_report.trimmed_messages)
-        self.assertEqual('Mandatory pattern', lint_task_report.name)
-        self.assertTrue(lint_task_report.failed)
-
-    def test_missing_fileoverview(self):
+    def test_missing_fileoverview(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_FILEOVERVIEW_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_mandatory_patterns()
@@ -823,28 +272,49 @@ class GeneralLintTests(test_utils.LinterTestBase):
         self.assertEqual('Mandatory pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_invalid_dev_mode_in_constant_ts(self):
-        def mock_readlines(unused_self, unused_filepath):
+    def test_invalid_dev_mode_in_constants_ts(self) -> None:
+        def mock_readlines(unused_self: str) -> Tuple[str, ...]:
             return (
                 'Copyright 2020 The Oppia Authors. All Rights Reserved.',
                 ' * @fileoverview Initializes constants for '
                 'the Oppia codebase.',
-                '"DEV_MODE": false\n',)
+                '"DEV_MODE": false,\n'
+                '"EMULATOR_MODE": true\n')
 
-        readlines_swap = self.swap(
-            pre_commit_linter.FileCache, 'readlines', mock_readlines)
-
-        with readlines_swap:
+        with self.swap(FILE_CACHE, 'readlines', mock_readlines):
             linter = general_purpose_linter.GeneralPurposeLinter(
-                [INVALID_DEV_MODE_IN_CONSTANT_FILEPATH], FILE_CACHE)
+                [CONSTANTS_FILEPATH], FILE_CACHE)
             lint_task_report = linter.check_bad_patterns()
-        self.assert_same_list_elements([
-            'Please set the DEV_MODE variable in constants.ts'
-            'to true before committing.'], lint_task_report.trimmed_messages)
+        self.assertEqual(len(lint_task_report.trimmed_messages), 1)
+        self.assertTrue(lint_task_report.trimmed_messages[0].endswith(
+            'constants.ts --> Please set the DEV_MODE variable in '
+            'constants.ts to true before committing.'))
+
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_linter_with_no_files(self):
+    def test_invalid_emulator_mode_in_constants_ts(self) -> None:
+        def mock_readlines(unused_self: str) -> Tuple[str, ...]:
+            return (
+                'Copyright 2020 The Oppia Authors. All Rights Reserved.',
+                ' * @fileoverview Initializes constants for '
+                'the Oppia codebase.',
+                '"DEV_MODE": true,\n'
+                '"EMULATOR_MODE": false\n')
+
+        with self.swap(FILE_CACHE, 'readlines', mock_readlines):
+            linter = general_purpose_linter.GeneralPurposeLinter(
+                [CONSTANTS_FILEPATH], FILE_CACHE)
+            lint_task_report = linter.check_bad_patterns()
+        self.assertEqual(len(lint_task_report.trimmed_messages), 1)
+        self.assertTrue(lint_task_report.trimmed_messages[0].endswith(
+            'constants.ts --> Please set the EMULATOR_MODE variable in '
+            'constants.ts to true before committing.'))
+
+        self.assertEqual('Bad pattern', lint_task_report.name)
+        self.assertTrue(lint_task_report.failed)
+
+    def test_linter_with_no_files(self) -> None:
         lint_task_report = general_purpose_linter.GeneralPurposeLinter(
             [], FILE_CACHE).perform_all_lint_checks()
         self.assertEqual(
@@ -855,7 +325,7 @@ class GeneralLintTests(test_utils.LinterTestBase):
         self.assertEqual('General purpose lint', lint_task_report[0].name)
         self.assertFalse(lint_task_report[0].failed)
 
-    def test_file_with_no_newline_at_eof(self):
+    def test_file_with_no_newline_at_eof(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_NO_NEWLINE_FILEPATH], FILE_CACHE)
         lint_task_report = linter.check_newline_at_eof()
@@ -865,9 +335,55 @@ class GeneralLintTests(test_utils.LinterTestBase):
         self.assertEqual('Newline at EOF', lint_task_report.name)
         self.assertTrue(lint_task_report.failed)
 
-    def test_with_excluded_filepath(self):
+    def test_file_with_newline_at_eof(self) -> None:
+        linter = general_purpose_linter.GeneralPurposeLinter(
+            [VALID_PY_FILE_PATH], FILE_CACHE)
+        lint_task_report = linter.check_newline_at_eof()
+        self.assertEqual('Newline at EOF', lint_task_report.name)
+        self.assertFalse(lint_task_report.failed)
+
+    def test_file_with_disallow_flags_raise_messsage(self) -> None:
+        linter = general_purpose_linter.GeneralPurposeLinter(
+            [VALID_SERVICE_FILE_PATH, INVALID_BYPASS_FLAG], FILE_CACHE)
+        lint_task_report = linter.check_disallowed_flags()
+        self.assert_same_list_elements(
+            ['Please do not use "no-bypass-security-phrase" flag. It is only '
+             'expected to be used in files listed in '
+             'warranted_angular_security_bypasses.py'],
+            lint_task_report.trimmed_messages)
+        self.assertEqual(lint_task_report.name, 'Disallow flags')
+        self.assertTrue(lint_task_report.failed)
+
+    def test_excluded_file_with_disallow_flags_raise_no_message(self) -> None:
+        linter = general_purpose_linter.GeneralPurposeLinter(
+            [INVALID_BYPASS_FLAG], FILE_CACHE)
+        excluded_files_swap = self.swap(
+            warranted_angular_security_bypasses,
+            'EXCLUDED_BYPASS_SECURITY_TRUST_FILES',
+            [INVALID_BYPASS_FLAG])
+        with excluded_files_swap:
+            lint_task_report = linter.check_disallowed_flags()
+        self.assertEqual(
+            lint_task_report.trimmed_messages, [])
+        self.assertEqual(lint_task_report.name, 'Disallow flags')
+        self.assertFalse(lint_task_report.failed)
+
+    def test_check_extra_js_file_found(self) -> None:
+        linter = general_purpose_linter.GeneralPurposeLinter(
+            [EXTRA_JS_FILEPATH], FILE_CACHE)
+        lint_task_report = linter.check_extra_js_files()
+        self.assertEqual([
+            'core/templates/demo.js  --> Found extra .js file',
+            'If you want the above files to be present as js files, add '
+            'them to the list JS_FILEPATHS_NOT_TO_BUILD in build.py. '
+            'Otherwise, rename them to .ts'], lint_task_report.trimmed_messages)
+        self.assertEqual('Extra JS files', lint_task_report.name)
+        self.assertTrue(lint_task_report.failed)
+
+    def test_with_excluded_filepath(self) -> None:
         def mock_is_filepath_excluded_for_bad_patterns_check(
-                unused_pattern, unused_filepath):
+            unused_pattern: Pattern[str], unused_filepath: str
+        ) -> bool:
             return True
 
         filepath_excluded_swap = self.swap(
@@ -885,16 +401,39 @@ class GeneralLintTests(test_utils.LinterTestBase):
         self.assertEqual('Bad pattern', lint_task_report.name)
         self.assertFalse(lint_task_report.failed)
 
-    def test_perform_all_lint_checks_with_success(self):
+    def test_perform_all_lint_checks_with_success(self) -> None:
         linter = general_purpose_linter.GeneralPurposeLinter(
             [INVALID_NO_NEWLINE_FILEPATH], FILE_CACHE)
         lint_task_report = linter.perform_all_lint_checks()
         self.assertTrue(isinstance(lint_task_report, list))
 
-    def test_get_linters_with_success(self):
+    def test_get_linters_with_success(self) -> None:
         custom_linter, third_party_linter = general_purpose_linter.get_linters(
             [INVALID_AUTHOR_FILEPATH], FILE_CACHE)
         self.assertTrue(
             isinstance(
                 custom_linter, general_purpose_linter.GeneralPurposeLinter))
         self.assertEqual(third_party_linter, None)
+
+    def test_linter_ignore_pragma(self) -> None:
+        linter = general_purpose_linter.GeneralPurposeLinter(
+            [VALID_PY_IGNORE_PRAGMA_FILEPATH], FILE_CACHE)
+        lint_task_report = linter.check_bad_patterns()
+        self.assertFalse(lint_task_report.failed)
+
+    def test_check_bad_patterns_in_excluded_dirs(self) -> None:
+        bad_pattern_regexp: general_purpose_linter.BadPatternRegexpDict = {
+            'regexp': re.compile(r'[ \t]+$'),
+            'message': 'There should not be any trailing whitespaces.',
+            'excluded_files': (),
+            'excluded_dirs': (LINTER_TESTS_DIR,)
+        }
+        check_status, error_messages = (
+            general_purpose_linter.check_bad_pattern_in_file(
+                os.path.join(LINTER_TESTS_DIR, 'some_file.py'),
+                ('unused_variable = 5 \n',),
+                bad_pattern_regexp
+            )
+        )
+        self.assertFalse(check_status)
+        self.assertEqual(error_messages, [])

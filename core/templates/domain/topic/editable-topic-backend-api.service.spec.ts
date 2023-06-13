@@ -21,16 +21,64 @@ import { TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
 
 import { EditableTopicBackendApiService } from 'domain/topic/editable-topic-backend-api.service';
 import { CsrfTokenService } from 'services/csrf-token.service';
-import { TranslatorProviderForTests } from 'tests/test.extras';
+import { TopicBackendDict } from 'domain/topic/topic-object.model';
 
 describe('Editable topic backend API service', () => {
-  let httpTestingController = null;
-  let editableTopicBackendApiService = null;
-  let sampleDataResults = null;
-  let csrfService = null;
-
-  beforeEach(
-    angular.mock.module('oppia', TranslatorProviderForTests));
+  let httpTestingController: HttpTestingController;
+  let editableTopicBackendApiService: EditableTopicBackendApiService;
+  // Sample topic object returnable from the backend.
+  let sampleDataResults = {
+    topic_dict: {
+      id: '0',
+      name: 'Topic Name',
+      description: 'Topic Description',
+      version: '1',
+      canonical_story_references: [{
+        story_id: 'story_1',
+        story_is_published: true
+      }],
+      additional_story_references: [{
+        story_id: 'story_2',
+        story_is_published: true
+      }],
+      uncategorized_skill_ids: ['skill_id_1'],
+      subtopics: [],
+      language_code: 'en'
+    },
+    canonical_story_summary_dicts: [{
+      id: '0',
+      title: 'Title',
+      node_count: 1,
+      story_is_published: false
+    }],
+    grouped_skill_summary_dicts: {},
+    skill_id_to_description_dict: {
+      skill_id_1: 'Description 1'
+    },
+    skill_id_to_rubrics_dict: {
+      skill_id_1: []
+    },
+    classroom_url_fragment: 'math',
+    skill_question_count_dict: {},
+    subtopic_page: {
+      id: 'topicId-1',
+      topicId: 'topicId',
+      page_contents: {
+        subtitled_html: {
+          html: '<p>Data</p>',
+          content_id: 'content'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {
+            content: {}
+          }
+        },
+      },
+      language_code: 'en'
+    },
+    skill_creation_is_allowed: true
+  };
+  let csrfService: CsrfTokenService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -41,61 +89,9 @@ describe('Editable topic backend API service', () => {
       EditableTopicBackendApiService);
     csrfService = TestBed.get(CsrfTokenService);
 
-    spyOn(csrfService, 'getTokenAsync').and.callFake(() => {
+    spyOn(csrfService, 'getTokenAsync').and.callFake(async() => {
       return Promise.resolve('sample-csrf-token');
     });
-
-    // Sample topic object returnable from the backend.
-    sampleDataResults = {
-      topic_dict: {
-        id: '0',
-        name: 'Topic Name',
-        description: 'Topic Description',
-        version: '1',
-        canonical_story_references: [{
-          story_id: 'story_1',
-          story_is_published: true
-        }],
-        canonical_story_summary_dicts: [{
-          id: '0',
-          title: 'Title',
-          node_count: 1,
-          story_is_published: false
-        }],
-        additional_story_references: [{
-          story_id: 'story_2',
-          story_is_published: true
-        }],
-        uncategorized_skill_ids: ['skill_id_1'],
-        subtopics: [],
-        language_code: 'en'
-      },
-      grouped_skill_summary_dicts: {},
-      skill_id_to_description_dict: {
-        skill_id_1: 'Description 1'
-      },
-      skill_id_to_rubrics_dict: {
-        skill_id_1: []
-      },
-      classroom_url_fragment: 'math',
-      skill_question_count_dict: {},
-      subtopic_page: {
-        id: 'topicId-1',
-        topicId: 'topicId',
-        page_contents: {
-          subtitled_html: {
-            html: '<p>Data</p>',
-            content_id: 'content'
-          },
-          recorded_voiceovers: {
-            voiceovers_mapping: {
-              content: {}
-            }
-          },
-        },
-        language_code: 'en'
-      }
-    };
   });
 
   afterEach(() => {
@@ -107,7 +103,7 @@ describe('Editable topic backend API service', () => {
       let successHandler = jasmine.createSpy('success');
       let failHandler = jasmine.createSpy('fail');
 
-      editableTopicBackendApiService.fetchTopic('0').then(
+      editableTopicBackendApiService.fetchTopicAsync('0').then(
         successHandler, failHandler);
       let req = httpTestingController.expectOne('/topic_editor_handler/data/0');
       expect(req.request.method).toEqual('GET');
@@ -122,7 +118,8 @@ describe('Editable topic backend API service', () => {
         groupedSkillSummaries: sampleDataResults.grouped_skill_summary_dicts,
         skillIdToRubricsDict: sampleDataResults.skill_id_to_rubrics_dict,
         skillQuestionCountDict: sampleDataResults.skill_question_count_dict,
-        classroomUrlFragment: sampleDataResults.classroom_url_fragment
+        classroomUrlFragment: sampleDataResults.classroom_url_fragment,
+        skillCreationIsAllowed: true
       });
       expect(failHandler).not.toHaveBeenCalled();
     }));
@@ -132,7 +129,7 @@ describe('Editable topic backend API service', () => {
       let successHandler = jasmine.createSpy('success');
       let failHandler = jasmine.createSpy('fail');
 
-      editableTopicBackendApiService.fetchTopic('1').then(
+      editableTopicBackendApiService.fetchTopicAsync('1').then(
         successHandler, failHandler);
       let req = httpTestingController.expectOne('/topic_editor_handler/data/1');
       expect(req.request.method).toEqual('GET');
@@ -152,7 +149,7 @@ describe('Editable topic backend API service', () => {
       let successHandler = jasmine.createSpy('success');
       let failHandler = jasmine.createSpy('fail');
 
-      editableTopicBackendApiService.fetchSubtopicPage('topicId', 1).then(
+      editableTopicBackendApiService.fetchSubtopicPageAsync('topicId', 1).then(
         successHandler, failHandler);
       let req = httpTestingController.expectOne(
         '/subtopic_page_editor_handler/data/topicId/1');
@@ -171,7 +168,7 @@ describe('Editable topic backend API service', () => {
     let successHandler = jasmine.createSpy('success');
     let failHandler = jasmine.createSpy('fail');
 
-    editableTopicBackendApiService.fetchSubtopicPage('topicId', 1).then(
+    editableTopicBackendApiService.fetchSubtopicPageAsync('topicId', 1).then(
       successHandler, failHandler);
     let req = httpTestingController.expectOne(
       '/subtopic_page_editor_handler/data/topicId/1');
@@ -191,10 +188,13 @@ describe('Editable topic backend API service', () => {
     fakeAsync(() => {
       let successHandler = jasmine.createSpy('success');
       let failHandler = jasmine.createSpy('fail');
-      let topic = null;
+      // 'topic' is initialized before it's value is fetched from backend,
+      // hence we need to do non-null assertion. For more information, see
+      // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+      let topic!: TopicBackendDict;
 
       // Loading a topic the first time should fetch it from the backend.
-      editableTopicBackendApiService.fetchTopic('0').then(
+      editableTopicBackendApiService.fetchTopicAsync('0').then(
         function(data) {
           topic = data.topicDict;
         });
@@ -205,7 +205,7 @@ describe('Editable topic backend API service', () => {
       flushMicrotasks();
 
       topic.name = 'New Name';
-      topic.version = '2';
+      topic.version = 2;
       let topicWrapper = {
         topic_dict: topic,
         skill_id_to_description_dict: {
@@ -215,7 +215,7 @@ describe('Editable topic backend API service', () => {
       };
 
       // Send a request to update topic.
-      editableTopicBackendApiService.updateTopic(
+      editableTopicBackendApiService.updateTopicAsync(
         topic.id, topic.version, 'Name is updated', []
       ).then(successHandler, failHandler);
       req = httpTestingController.expectOne('/topic_editor_handler/data/0');
@@ -238,8 +238,8 @@ describe('Editable topic backend API service', () => {
       let failHandler = jasmine.createSpy('fail');
 
       // Loading a topic the first time should fetch it from the backend.
-      editableTopicBackendApiService.updateTopic(
-        '1', '1', 'Update an invalid topic.', []
+      editableTopicBackendApiService.updateTopicAsync(
+        '1', 1, 'Update an invalid topic.', []
       ).then(successHandler, failHandler);
       let req = httpTestingController.expectOne('/topic_editor_handler/data/1');
       expect(req.request.method).toEqual('PUT');
@@ -307,8 +307,9 @@ describe('Editable topic backend API service', () => {
   it('should use the rejection handler if the url fragment already exists',
     fakeAsync(() => {
       editableTopicBackendApiService.doesTopicWithUrlFragmentExistAsync(
-        'topic-url-fragment').then(() => {}, error => {
-        expect(error).toEqual('Error: Failed to check topic url fragment.');
+        'topic-url-fragment').then(() => {}, errorResponse => {
+        expect(errorResponse.statusText).toEqual(
+          'Error: Failed to check topic url fragment.');
       });
       let req = httpTestingController.expectOne(
         '/topic_url_fragment_handler/topic-url-fragment');
@@ -325,7 +326,7 @@ describe('Editable topic backend API service', () => {
     let successHandler = jasmine.createSpy('success');
     let failHandler = jasmine.createSpy('fail');
 
-    editableTopicBackendApiService.fetchStories('0').then(
+    editableTopicBackendApiService.fetchStoriesAsync('0').then(
       successHandler, failHandler);
     let req = httpTestingController.expectOne(
       '/topic_editor_story_handler/' + '0');
@@ -344,7 +345,7 @@ describe('Editable topic backend API service', () => {
     let successHandler = jasmine.createSpy('success');
     let failHandler = jasmine.createSpy('fail');
 
-    editableTopicBackendApiService.fetchStories('0').then(
+    editableTopicBackendApiService.fetchStoriesAsync('0').then(
       successHandler, failHandler);
     let req = httpTestingController.expectOne(
       '/topic_editor_story_handler/' + '0');
@@ -365,7 +366,7 @@ describe('Editable topic backend API service', () => {
     let successHandler = jasmine.createSpy('success');
     let failHandler = jasmine.createSpy('fail');
 
-    editableTopicBackendApiService.deleteTopic('0').then(
+    editableTopicBackendApiService.deleteTopicAsync('0').then(
       successHandler, failHandler);
     let req = httpTestingController.expectOne(
       '/topic_editor_handler/data/' + '0');
@@ -385,7 +386,7 @@ describe('Editable topic backend API service', () => {
       var successHandler = jasmine.createSpy('success');
       var failHandler = jasmine.createSpy('fail');
 
-      editableTopicBackendApiService.deleteTopic('1').then(
+      editableTopicBackendApiService.deleteTopicAsync('1').then(
         successHandler, failHandler);
       let req = httpTestingController.expectOne(
         '/topic_editor_handler/data/' + '1');
@@ -399,5 +400,53 @@ describe('Editable topic backend API service', () => {
 
       expect(successHandler).not.toHaveBeenCalled();
       expect(failHandler).toHaveBeenCalledWith('Error deleting topic 1.');
+    }));
+
+  it('should sucessfully get topic id to topic name', fakeAsync(() => {
+    let successHandler = jasmine.createSpy('success');
+    let failHandler = jasmine.createSpy('fail');
+
+    editableTopicBackendApiService.getTopicIdToTopicNameAsync(
+      ['topicId']).then(successHandler, failHandler);
+    const topicIdToTopicName = {
+      topicId: 'topicName'
+    };
+
+    let req = httpTestingController.expectOne(
+      '/topic_id_to_topic_name_handler/?comma_separated_topic_ids=topicId');
+    expect(req.request.method).toEqual('GET');
+    req.flush({
+      topic_id_to_topic_name: topicIdToTopicName
+    });
+
+    flushMicrotasks();
+
+    expect(successHandler).toHaveBeenCalledWith(topicIdToTopicName);
+    expect(failHandler).not.toHaveBeenCalled();
+  }));
+
+  it('should use the rejection handler for getting topic id to topic name',
+    fakeAsync(() => {
+      var successHandler = jasmine.createSpy('success');
+      var failHandler = jasmine.createSpy('fail');
+
+      editableTopicBackendApiService.getTopicIdToTopicNameAsync(
+        ['topicId']).then(successHandler, failHandler);
+
+      let req = httpTestingController.expectOne(
+        '/topic_id_to_topic_name_handler/?comma_separated_topic_ids=topicId');
+      expect(req.request.method).toEqual('GET');
+
+      req.flush({
+        error: 'Error in fetching topic id to topic name count.'
+      }, {
+        status: 400, statusText: 'Invalid request'
+      });
+
+      flushMicrotasks();
+
+      expect(successHandler).not.toHaveBeenCalled();
+      expect(failHandler).toHaveBeenCalledWith(
+        'Error in fetching topic id to topic name count.');
     }));
 });

@@ -16,48 +16,47 @@
 
 """Controllers for custom landing pages."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 from core.controllers import acl_decorators
 from core.controllers import base
 
+from typing import Dict
 
-class FractionLandingRedirectPage(base.BaseHandler):
+
+class FractionLandingRedirectPage(
+    base.BaseHandler[Dict[str, str], Dict[str, str]]
+):
     """The handler redirecting to the Fractions landing page."""
 
+    URL_PATH_ARGS_SCHEMAS: Dict[str, str] = {}
+    HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
+
     @acl_decorators.open_access
-    def get(self):
+    def get(self) -> None:
         """Handles GET requests."""
         self.redirect('/math/fractions')
 
 
-class TopicLandingRedirectPage(base.BaseHandler):
+class TopicLandingRedirectPage(
+    base.BaseHandler[Dict[str, str], Dict[str, str]]
+):
     """The handler redirecting the old landing page URL to the new one."""
 
+    URL_PATH_ARGS_SCHEMAS = {
+        'topic': {
+            'schema': {
+                'type': 'basestring'
+            }
+        }
+    }
+    HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
+
     @acl_decorators.open_access
-    def get(self, topic):
-        """Handles GET requests."""
+    def get(self, topic: str) -> None:
+        """Handles GET requests.
+
+        Args:
+            topic: str. Topic of page to be redirected to.
+        """
         self.redirect('/math/%s' % topic)
-
-
-class TopicLandingPage(base.BaseHandler):
-    """Page showing the topic landing page."""
-
-    @acl_decorators.open_access
-    def get(self):
-        """Handles GET requests."""
-
-        self.render_template('topic-landing-page.mainpage.html')
-
-
-class StewardsLandingPage(base.BaseHandler):
-    """Page showing the landing page for stewards (parents, teachers,
-    volunteers, or NGOs).
-    """
-
-    @acl_decorators.open_access
-    def get(self):
-        """Handles GET requests."""
-        self.render_template(
-            'stewards-landing-page.mainpage.html')

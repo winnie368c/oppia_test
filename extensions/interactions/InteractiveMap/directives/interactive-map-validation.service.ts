@@ -66,7 +66,7 @@ export class InteractiveMapValidationService {
   getAllWarnings(
       stateName: string, customizationArgs: InteractiveMapCustomizationArgs,
       answerGroups: AnswerGroup[], defaultOutcome: Outcome): Warning[] {
-    var warningsList = [];
+    var warningsList: Warning[] = [];
 
     warningsList = warningsList.concat(
       this.getCustomizationArgsWarnings(customizationArgs));
@@ -79,9 +79,9 @@ export class InteractiveMapValidationService {
           if (rules[j].inputs.d < 0) {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.CRITICAL,
-              message: 'Please ensure that rule ' + String(j + 1) +
-                ' in group ' + String(i + 1) +
-                ' refers to a valid distance.'
+              message: 'Please ensure that learner answer ' + String(j + 1) +
+              ' in Oppia response ' + String(i + 1) +
+              ' refers to a valid distance.'
             });
           }
         }

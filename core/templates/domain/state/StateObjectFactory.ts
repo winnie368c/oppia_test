@@ -27,58 +27,68 @@ import { ParamChangesObjectFactory } from
   'domain/exploration/ParamChangesObjectFactory';
 import {
   RecordedVoiceOverBackendDict,
-  RecordedVoiceovers,
-  RecordedVoiceoversObjectFactory
-} from 'domain/exploration/RecordedVoiceoversObjectFactory';
+  RecordedVoiceovers
+} from 'domain/exploration/recorded-voiceovers.model';
 import {
   SubtitledHtmlBackendDict,
-  SubtitledHtml,
-  SubtitledHtmlObjectFactory
-} from 'domain/exploration/SubtitledHtmlObjectFactory';
-import {
-  WrittenTranslationsBackendDict,
-  WrittenTranslations,
-  WrittenTranslationsObjectFactory
-} from 'domain/exploration/WrittenTranslationsObjectFactory';
+  SubtitledHtml
+} from 'domain/exploration/subtitled-html.model';
 
-import constants from 'assets/constants';
+import { AppConstants } from 'app.constants';
+import { BaseTranslatableObject } from 'domain/objects/BaseTranslatableObject.model';
 
 export interface StateBackendDict {
-  'classifier_model_id': string;
+  // The classifier model ID associated with a state, if applicable,
+  // null otherwise.
+  'classifier_model_id': string | null;
   'content': SubtitledHtmlBackendDict;
   'interaction': InteractionBackendDict;
   'param_changes': readonly ParamChangeBackendDict[];
   'recorded_voiceovers': RecordedVoiceOverBackendDict;
   'solicit_answer_details': boolean;
-  'written_translations': WrittenTranslationsBackendDict;
-  'next_content_id_index': number;
+  'card_is_checkpoint': boolean;
+  // This property is null if no skill is linked to the State.
+  'linked_skill_id': string | null;
 }
 
-export class State {
-  name: string;
-  classifierModelId: string;
+export class State extends BaseTranslatableObject {
+  // Name is null before saving a state.
+  name: string | null;
+  classifierModelId: string | null;
+  linkedSkillId: string | null;
   content: SubtitledHtml;
   interaction: Interaction;
   paramChanges: ParamChange[];
   recordedVoiceovers: RecordedVoiceovers;
   solicitAnswerDetails: boolean;
-  writtenTranslations: WrittenTranslations;
-  nextContentIdIndex: number;
+  cardIsCheckpoint: boolean;
+
   constructor(
-      name: string, classifierModelId: string, content: SubtitledHtml,
-      interaction: Interaction, paramChanges: ParamChange[],
-      recordedVoiceovers: RecordedVoiceovers, solicitAnswerDetails: boolean,
-      writtenTranslations: WrittenTranslations, nextContentIdIndex: number) {
+      name: string | null, classifierModelId: string | null,
+      linkedSkillId: string | null,
+      content: SubtitledHtml, interaction: Interaction,
+      paramChanges: ParamChange[], recordedVoiceovers: RecordedVoiceovers,
+      solicitAnswerDetails: boolean, cardIsCheckpoint: boolean) {
+    super();
     this.name = name;
     this.classifierModelId = classifierModelId;
+    this.linkedSkillId = linkedSkillId;
     this.content = content;
     this.interaction = interaction;
     this.paramChanges = paramChanges;
     this.recordedVoiceovers = recordedVoiceovers;
     this.solicitAnswerDetails = solicitAnswerDetails;
-    this.writtenTranslations = writtenTranslations;
-    this.nextContentIdIndex = nextContentIdIndex;
+    this.cardIsCheckpoint = cardIsCheckpoint;
   }
+
+  getTranslatableFields(): SubtitledHtml[] {
+    return [this.content];
+  }
+
+  getTranslatableObjects(): BaseTranslatableObject[] {
+    return [this.interaction];
+  }
+
   setName(newName: string): void {
     this.name = newName;
   }
@@ -87,14 +97,14 @@ export class State {
     return {
       content: this.content.toBackendDict(),
       classifier_model_id: this.classifierModelId,
+      linked_skill_id: this.linkedSkillId,
       interaction: this.interaction.toBackendDict(),
       param_changes: this.paramChanges.map((paramChange) => {
         return paramChange.toBackendDict();
       }),
       recorded_voiceovers: this.recordedVoiceovers.toBackendDict(),
       solicit_answer_details: this.solicitAnswerDetails,
-      written_translations: this.writtenTranslations.toBackendDict(),
-      next_content_id_index: this.nextContentIdIndex
+      card_is_checkpoint: this.cardIsCheckpoint,
     };
   }
 
@@ -106,8 +116,7 @@ export class State {
     this.paramChanges = otherState.paramChanges;
     this.recordedVoiceovers = otherState.recordedVoiceovers;
     this.solicitAnswerDetails = otherState.solicitAnswerDetails;
-    this.writtenTranslations = otherState.writtenTranslations;
-    this.nextContentIdIndex = otherState.nextContentIdIndex;
+    this.cardIsCheckpoint = otherState.cardIsCheckpoint;
   }
 }
 
@@ -117,46 +126,62 @@ export class State {
 export class StateObjectFactory {
   constructor(
     private interactionObject: InteractionObjectFactory,
-    private paramchangesObject: ParamChangesObjectFactory,
-    private recordedVoiceoversObject: RecordedVoiceoversObjectFactory,
-    private subtitledHtmlObject: SubtitledHtmlObjectFactory,
-    private writtenTranslationsObject: WrittenTranslationsObjectFactory) {}
+    private paramchangesObject: ParamChangesObjectFactory) {}
 
   get NEW_STATE_TEMPLATE(): StateBackendDict {
-    return constants.NEW_STATE_TEMPLATE;
+    return AppConstants.NEW_STATE_TEMPLATE as StateBackendDict;
   }
 
-  createDefaultState(newStateName: string): State {
+  // TODO(#14313): Remove the createDefaultState so that full state can be
+  // created from start.
+  // Create a default state until the actual state is saved.
+  // Passes name as null before saving a state.
+  createDefaultState(
+      newStateName: string | null,
+      contentIdForContent: string,
+      contentIdForDefaultOutcome: string): State {
     var newStateTemplate = this.NEW_STATE_TEMPLATE;
     var newState = this.createFromBackendDict(newStateName, {
       classifier_model_id: newStateTemplate.classifier_model_id,
+      linked_skill_id: newStateTemplate.linked_skill_id,
       content: newStateTemplate.content,
       interaction: newStateTemplate.interaction,
       param_changes: newStateTemplate.param_changes,
       recorded_voiceovers: newStateTemplate.recorded_voiceovers,
       solicit_answer_details: newStateTemplate.solicit_answer_details,
-      written_translations: newStateTemplate.written_translations,
-      next_content_id_index: newStateTemplate.next_content_id_index
+      card_is_checkpoint: newStateTemplate.card_is_checkpoint
     });
-    newState.interaction.defaultOutcome.dest = newStateName;
+    newState.content.contentId = contentIdForContent;
+    let defaultOutcome = newState.interaction.defaultOutcome;
+
+    if (defaultOutcome) {
+      defaultOutcome.feedback.contentId = contentIdForDefaultOutcome;
+    }
+    if (defaultOutcome !== null && newStateName !== null) {
+      defaultOutcome.dest = newStateName as string;
+    }
+    newState.recordedVoiceovers.addContentId(contentIdForContent);
+    newState.recordedVoiceovers.addContentId(contentIdForDefaultOutcome);
+
     return newState;
   }
 
+  // Passes name as null before saving a state.
   createFromBackendDict(
-      stateName: string, stateDict: StateBackendDict): State {
+      stateName: string | null, stateDict: StateBackendDict
+  ): State {
     return new State(
       stateName,
       stateDict.classifier_model_id,
-      this.subtitledHtmlObject.createFromBackendDict(stateDict.content),
+      stateDict.linked_skill_id,
+      SubtitledHtml.createFromBackendDict(stateDict.content),
       this.interactionObject.createFromBackendDict(stateDict.interaction),
       this.paramchangesObject.createFromBackendList(
         stateDict.param_changes),
-      this.recordedVoiceoversObject.createFromBackendDict(
+      RecordedVoiceovers.createFromBackendDict(
         stateDict.recorded_voiceovers),
       stateDict.solicit_answer_details,
-      this.writtenTranslationsObject.createFromBackendDict(
-        stateDict.written_translations),
-      stateDict.next_content_id_index);
+      stateDict.card_is_checkpoint);
   }
 }
 

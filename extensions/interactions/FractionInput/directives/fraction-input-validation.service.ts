@@ -20,8 +20,7 @@ import { Injectable } from '@angular/core';
 import { downgradeInjectable } from '@angular/upgrade/static';
 
 import { FractionAnswer } from 'interactions/answer-defs';
-import { Fraction, FractionObjectFactory } from
-  'domain/objects/FractionObjectFactory';
+import { Fraction } from 'domain/objects/fraction.model';
 import { baseInteractionValidationService } from
   'interactions/base-interaction-validation.service';
 import { AppConstants } from 'app.constants';
@@ -30,10 +29,20 @@ import { FractionInputCustomizationArgs } from
   'interactions/customization-args-defs';
 import { AnswerGroup } from 'domain/exploration/AnswerGroupObjectFactory';
 import { Outcome } from 'domain/exploration/OutcomeObjectFactory';
+import { Rule } from 'domain/exploration/rule.model';
 
 interface FractionWarning {
   type: string;
   message: string;
+}
+
+interface Range {
+  answerGroupIndex: number;
+  ruleIndex: number;
+  lb: number | null;
+  ub: number | null;
+  lbi: boolean;
+  ubi: boolean;
 }
 
 @Injectable({
@@ -41,26 +50,28 @@ interface FractionWarning {
 })
 export class FractionInputValidationService {
   constructor(
-    private fof: FractionObjectFactory,
     private bivs: baseInteractionValidationService) {}
 
   getNonIntegerInputWarning(i: number, j: number): FractionWarning {
     return {
       type: AppConstants.WARNING_TYPES.ERROR,
       message: (
-        'Rule ' + (j + 1) + ' from answer group ' +
+        'Learner answer ' + (j + 1) + ' from Oppia response ' +
         (i + 1) + ' is invalid: input should be an ' +
         'integer.')
     };
   }
+
   getCustomizationArgsWarnings(
       customizationArgs: FractionInputCustomizationArgs): Warning[] {
     return [];
   }
+
   getAllWarnings(
       stateName: string, customizationArgs: FractionInputCustomizationArgs,
-      answerGroups: AnswerGroup[], defaultOutcome: Outcome): Warning[] {
-    var warningsList = [];
+      answerGroups: AnswerGroup[], defaultOutcome: Outcome
+  ): (Warning | FractionWarning)[] {
+    var warningsList: (Warning | FractionWarning)[] = [];
     var shouldBeInSimplestForm =
       customizationArgs.requireSimplestForm.value;
     var allowImproperFraction =
@@ -71,8 +82,8 @@ export class FractionInputValidationService {
     warningsList = warningsList.concat(
       this.getCustomizationArgsWarnings(customizationArgs));
 
-    var toFloat = function(fraction) {
-      return this.fof.fromDict(fraction).toFloat();
+    var toFloat = (fraction: FractionAnswer) => {
+      return Fraction.fromDict(fraction).toFloat();
     };
     /**
      * Store an answer range for every rule, then check for redundant
@@ -84,15 +95,16 @@ export class FractionInputValidationService {
      *   ubi: bool, is upper bound inclusive
      * }
      */
-    var setLowerAndUpperBounds = function(range, lb, ub, lbi, ubi) {
+    var setLowerAndUpperBounds = (
+        range: Range, lb: number, ub: number, lbi: boolean, ubi: boolean) => {
       range.lb = lb;
       range.ub = ub;
       range.lbi = lbi;
       range.ubi = ubi;
     };
-    var isEnclosedBy = function(ra, rb) {
-      if ((ra.lb === null && ra.ub === null) ||
-        (rb.lb === null && rb.ub === null)) {
+    var isEnclosedBy = (ra: Range, rb: Range) => {
+      if (ra.lb === null || ra.ub === null ||
+        rb.lb === null || rb.ub === null) {
         return false;
       }
 
@@ -105,7 +117,7 @@ export class FractionInputValidationService {
         upperBoundConditionIsSatisfied;
     };
 
-    var shouldCheckRangeCriteria = function(earlierRule, laterRule) {
+    var shouldCheckRangeCriteria = (earlierRule: Rule, laterRule: Rule) => {
       if (
         (earlierRule.type === 'IsExactlyEqualTo' &&
         laterRule.type === 'IsExactlyEqualTo') ||
@@ -137,20 +149,20 @@ export class FractionInputValidationService {
         var matchedDenominator = {
           answerGroupIndex: i,
           ruleIndex: j,
-          denominator: null,
+          denominator: 0,
         };
 
         switch (rule.type) {
           case 'IsExactlyEqualTo':
             if (shouldBeInSimplestForm) {
-              var fractionDict = <FractionAnswer> rule.inputs.f;
-              var fractionInSimplestForm = this.fof.fromDict(
+              var fractionDict = rule.inputs.f as FractionAnswer;
+              var fractionInSimplestForm = Fraction.fromDict(
                 fractionDict).convertToSimplestForm();
               if (!angular.equals(fractionDict, fractionInSimplestForm)) {
                 warningsList.push({
                   type: AppConstants.WARNING_TYPES.ERROR,
                   message: (
-                    'Rule ' + (j + 1) + ' from answer group ' +
+                    'Learner answer ' + (j + 1) + ' from Oppia response ' +
                     (i + 1) +
                     ' will never be matched because it is not ' +
                     'in simplest form.')
@@ -158,13 +170,13 @@ export class FractionInputValidationService {
               }
             }
             if (!allowImproperFraction) {
-              var fraction: Fraction = this.fof.fromDict(
-                <FractionAnswer> rule.inputs.f);
+              var fraction: Fraction = Fraction.fromDict(
+                rule.inputs.f as FractionAnswer);
               if (fraction.isImproperFraction()) {
                 warningsList.push({
                   type: AppConstants.WARNING_TYPES.ERROR,
                   message: (
-                    'Rule ' + (j + 1) + ' from answer group ' +
+                    'Learner answer ' + (j + 1) + ' from Oppia response ' +
                     (i + 1) +
                     ' will never be matched because it is an ' +
                     'improper fraction')
@@ -172,33 +184,33 @@ export class FractionInputValidationService {
               }
             }
             if (!allowNonzeroIntegerPart) {
-              var fraction: Fraction = this.fof.fromDict(
-                <FractionAnswer> rule.inputs.f);
+              var fraction: Fraction = Fraction.fromDict(
+                rule.inputs.f as FractionAnswer);
               if (fraction.hasNonzeroIntegerPart()) {
                 warningsList.push({
                   type: AppConstants.WARNING_TYPES.ERROR,
                   message: (
-                    'Rule ' + (j + 1) + ' from answer group ' +
+                    'Learner answer ' + (j + 1) + ' from Oppia response ' +
                     (i + 1) +
                     ' will never be matched because it has a ' +
                     'non zero integer part')
                 });
               }
             }
-            var f = toFloat.call(this, rule.inputs.f);
+            var f = toFloat.call(this, rule.inputs.f as FractionAnswer);
             setLowerAndUpperBounds(range, f, f, true, true);
             break;
-          case 'IsEquivalentTo': // fall-through
+          case 'IsEquivalentTo': // fall-through.
           case 'IsEquivalentToAndInSimplestForm':
-            var f = toFloat.call(this, rule.inputs.f);
+            var f = toFloat.call(this, rule.inputs.f as FractionAnswer);
             setLowerAndUpperBounds(range, f, f, true, true);
             break;
           case 'IsGreaterThan':
-            var f = toFloat.call(this, rule.inputs.f);
+            var f = toFloat.call(this, rule.inputs.f as FractionAnswer);
             setLowerAndUpperBounds(range, f, Infinity, false, false);
             break;
           case 'IsLessThan':
-            var f = toFloat.call(this, rule.inputs.f);
+            var f = toFloat.call(this, rule.inputs.f as FractionAnswer);
             setLowerAndUpperBounds(range, -Infinity, f, false, false);
             break;
           case 'HasNumeratorEqualTo':
@@ -211,7 +223,7 @@ export class FractionInputValidationService {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  'Rule ' + (j + 1) + ' from answer group ' +
+                  'Learner answer ' + (j + 1) + ' from Oppia response ' +
                   (i + 1) +
                   ' will never be matched because integer part ' +
                   'has to be zero')
@@ -229,40 +241,40 @@ export class FractionInputValidationService {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  'Rule ' + (j + 1) + ' from answer group ' +
+                  'Learner answer ' + (j + 1) + ' from Oppia response ' +
                   (i + 1) + ' is invalid: denominator ' +
                   'should be greater than zero.')
               });
             }
-            matchedDenominator.denominator = rule.inputs.x;
+            matchedDenominator.denominator = rule.inputs.x as number;
             break;
           case 'HasFractionalPartExactlyEqualTo':
-            if ((<FractionAnswer> rule.inputs.f).wholeNumber !== 0) {
+            if ((rule.inputs.f as FractionAnswer).wholeNumber !== 0) {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  'Rule ' + (j + 1) + ' from answer group ' +
+                  'Learner answer ' + (j + 1) + ' from Oppia response ' +
                   (i + 1) +
                   ' is invalid as integer part should be zero')
               });
             }
-            if ((<FractionAnswer> rule.inputs.f).isNegative !== false) {
+            if ((rule.inputs.f as FractionAnswer).isNegative) {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  'Rule ' + (j + 1) + ' from answer group ' +
+                  'Learner answer ' + (j + 1) + ' from Oppia response ' +
                   (i + 1) +
                   ' is invalid as sign should be positive')
               });
             }
             if (!allowImproperFraction) {
-              var fraction: Fraction = this.fof.fromDict(
-                <FractionAnswer> rule.inputs.f);
+              var fraction: Fraction = Fraction.fromDict(
+                rule.inputs.f as FractionAnswer);
               if (fraction.isImproperFraction()) {
                 warningsList.push({
                   type: AppConstants.WARNING_TYPES.ERROR,
                   message: (
-                    'Rule ' + (j + 1) + ' from answer group ' +
+                    'Learner answer ' + (j + 1) + ' from Oppia response ' +
                     (i + 1) +
                     ' is invalid as improper fractions are not allowed')
                 });
@@ -280,10 +292,10 @@ export class FractionInputValidationService {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  'Rule ' + (j + 1) + ' from answer group ' +
+                  'Learner answer ' + (j + 1) + ' from Oppia response ' +
                   (i + 1) + ' will never be matched because it ' +
-                  'is made redundant by rule ' + (ranges[k].ruleIndex + 1) +
-                  ' from answer group ' + (ranges[k].answerGroupIndex + 1) +
+                  'is made redundant by answer ' + (ranges[k].ruleIndex + 1) +
+                  ' from Oppia response ' + (ranges[k].answerGroupIndex + 1) +
                   '.')
               });
             }
@@ -294,15 +306,15 @@ export class FractionInputValidationService {
           if (matchedDenominators[k].denominator !== null &&
             rule.type === 'HasFractionalPartExactlyEqualTo') {
             if (matchedDenominators[k].denominator ===
-              (<FractionAnswer> rule.inputs.f).denominator) {
+              (rule.inputs.f as FractionAnswer).denominator) {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  'Rule ' + (j + 1) + ' from answer group ' +
+                  'Learner answer ' + (j + 1) + ' from Oppia response ' +
                   (i + 1) + ' will never be matched because it ' +
-                  'is made redundant by rule ' +
+                  'is made redundant by answer ' +
                   (matchedDenominators[k].ruleIndex + 1) +
-                  ' from answer group ' +
+                  ' from Oppia response ' +
                   (matchedDenominators[k].answerGroupIndex + 1) + '.')
               });
             }

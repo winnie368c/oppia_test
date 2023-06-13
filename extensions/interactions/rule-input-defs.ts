@@ -23,20 +23,9 @@ import {
   GraphAnswer } from
   'interactions/answer-defs';
 
-// AlgebraicExpressionInput interaction has multiple types of inputs based on
-// rule type.
-export interface AlgebraicExpressionRuleInputsWithPlaceholder {
-  x: string;
-  y: string[];
-}
-
-export interface AlgebraicExpressionRuleInputsWithoutPlaceholder {
+export interface AlgebraicExpressionRuleInputs {
   x: string;
 }
-
-export type AlgebraicExpressionRuleInputs = (
-  AlgebraicExpressionRuleInputsWithPlaceholder |
-  AlgebraicExpressionRuleInputsWithoutPlaceholder);
 
 export interface CodeReplRuleInputs {
   x: string;
@@ -108,10 +97,6 @@ export interface ItemSelectionRuleInputs {
   x: string[];
 }
 
-export interface LogicProofRuleInputs {
-  c: string;
-}
-
 // MathEquation interaction has multiple types of inputs based on
 // rule type. Parameter y is supposed to represent the side of the equation that
 // needs to be checked.
@@ -120,19 +105,13 @@ export interface MathEquationRuleInputsWithSide {
   y: string;
 }
 
-export interface MathEquationRuleInputsWithPlaceholder {
-  x: string;
-  y: string[];
-}
-
 export interface MathEquationRuleInputsWithoutSide {
   x: string;
 }
 
 export type MathEquationRuleInputs = (
   MathEquationRuleInputsWithSide |
-  MathEquationRuleInputsWithoutSide |
-  MathEquationRuleInputsWithPlaceholder);
+  MathEquationRuleInputsWithoutSide);
 
 export interface MultipleChoiceRuleInputs {
   x: number;
@@ -218,16 +197,35 @@ export interface RatioInputHasNumberOfTermsEqualToRuleInputs {
   y: number;
 }
 
-export type RatioInputRuleInputs = (
-  RatioInputEqualRuleInputs |
-  RatioInputHasNumberOfTermsEqualToRuleInputs);
-
-export interface SetInputRuleInputs {
-  x: string[];
+export interface RatioInputHasSpecificTermEqualToRuleInputs {
+  x: number;
+  y: number;
 }
 
-export interface TextInputRuleInputs {
-  x: string[];
+export type RatioInputRuleInputs = (
+  RatioInputEqualRuleInputs |
+  RatioInputHasNumberOfTermsEqualToRuleInputs |
+  RatioInputHasSpecificTermEqualToRuleInputs);
+
+export interface BaseTranslatableObject {
+  contentId: string | null;
+}
+
+export interface TranslatableSetOfUnicodeString extends BaseTranslatableObject {
+  unicodeStrSet: string[];
+}
+
+export interface SetInputRuleInputs {
+  x: TranslatableSetOfUnicodeString;
+}
+
+export interface TranslatableSetOfNormalizedString
+  extends BaseTranslatableObject {
+  normalizedStrSet: string[];
+}
+
+export interface TextInputRuleInputs extends BaseTranslatableObject {
+  x: TranslatableSetOfNormalizedString;
 }
 
 export type InteractionRuleInputs = (
@@ -241,7 +239,6 @@ export type InteractionRuleInputs = (
   ImageClickRuleInputs |
   InteractiveMapRuleInputs |
   ItemSelectionRuleInputs |
-  LogicProofRuleInputs |
   MathEquationRuleInputs |
   MultipleChoiceRuleInputs |
   MusicNotesRuleInputs |

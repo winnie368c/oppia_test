@@ -16,426 +16,617 @@
  * @fileoverview Unit tests for storyViewerPage.
  */
 
-import { TestBed } from '@angular/core/testing';
-import { OppiaAngularRootComponent } from
-  'components/oppia-angular-root.component';
-import { StoryViewerBackendApiService } from
-  'domain/story_viewer/story-viewer-backend-api.service';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
-import { ReadOnlyStoryNode } from
-  'domain/story_viewer/read-only-story-node.model';
+import { TestBed, fakeAsync, flushMicrotasks, tick } from '@angular/core/testing';
+import { ElementRef, NO_ERRORS_SCHEMA, EventEmitter } from '@angular/core';
+import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+import { TranslateService } from '@ngx-translate/core';
+
 import { StoryNode } from 'domain/story/story-node.model';
+import { StoryPlaythrough } from 'domain/story_viewer/story-playthrough.model';
+import { StoryViewerPageComponent } from './story-viewer-page.component';
+import { UserService } from 'services/user.service';
+import { StoryViewerBackendApiService } from 'domain/story_viewer/story-viewer-backend-api.service';
+import { AlertsService } from 'services/alerts.service';
+import { AssetsBackendApiService } from 'services/assets-backend-api.service';
+import { UrlService } from 'services/contextual/url.service';
 import { PageTitleService } from 'services/page-title.service';
-import { StoryPlaythrough, StoryPlaythroughBackendDict } from 'domain/story_viewer/story-playthrough.model';
-import { UserService } from 'services/user.service.ts';
+import { UserInfo } from 'domain/user/user-info.model';
+import { WindowRef } from 'services/contextual/window-ref.service';
+import { MockTranslatePipe } from 'tests/unit-test-utils';
+import { I18nLanguageCodeService } from 'services/i18n-language-code.service';
+import { ReadOnlyStoryNode } from 'domain/story_viewer/read-only-story-node.model';
 
-describe('Story Viewer Page component', function() {
-  var ctrl = null;
-  var $q = null;
-  var $rootScope = null;
-  var alertsService = null;
-  var assetsBackendApiService = null;
-  var storyViewerBackendApiService = null;
-  var urlService = null;
-  var userService = null;
-  var mockWindow = null;
-  var storyPlaythrough = null;
+class MockAssetsBackendApiService {
+  getThumbnailUrlForPreview() {
+    return 'thumbnail-url';
+  }
+}
 
-  beforeEach(angular.mock.module('oppia'));
+class MockTranslateService {
+  onLangChange: EventEmitter<string> = new EventEmitter();
+  instant(key: string, interpolateParams?: Object): string {
+    return key;
+  }
+}
 
-  beforeEach(function() {
+describe('Story Viewer Page component', () => {
+  let httpTestingController: HttpTestingController;
+  let component: StoryViewerPageComponent;
+  let alertsService: AlertsService;
+  let assetsBackendApiService: AssetsBackendApiService;
+  let storyViewerBackendApiService: StoryViewerBackendApiService;
+  let urlService: UrlService;
+  let userService: UserService;
+  let pageTitleService: PageTitleService;
+  let windowRef: WindowRef;
+  let i18nLanguageCodeService: I18nLanguageCodeService;
+  let translateService: TranslateService;
+  let _samplePlaythroughObject: StoryPlaythrough;
+  const UserInfoObject = {
+    roles: ['USER_ROLE'],
+    is_moderator: false,
+    is_curriculum_admin: false,
+    is_super_admin: false,
+    is_topic_manager: false,
+    can_create_collections: true,
+    preferred_site_language_code: null,
+    username: 'tester',
+    email: 'test@test.com',
+    user_is_logged_in: false
+  };
+
+  beforeEach(fakeAsync(() => {
     TestBed.configureTestingModule({
-      imports: [HttpClientTestingModule]
-    });
-
-    OppiaAngularRootComponent.pageTitleService = (
-      TestBed.get(PageTitleService)
-    );
+      declarations: [StoryViewerPageComponent, MockTranslatePipe],
+      imports: [HttpClientTestingModule],
+      providers: [
+        {
+          provide: assetsBackendApiService,
+          useClass: MockAssetsBackendApiService
+        },
+        {
+          provide: TranslateService,
+          useClass: MockTranslateService
+        }
+      ],
+      schemas: [NO_ERRORS_SCHEMA]
+    }).compileComponents();
+    httpTestingController = TestBed.get(HttpTestingController);
+    pageTitleService = TestBed.get(PageTitleService);
+    assetsBackendApiService = TestBed.get(AssetsBackendApiService);
+    urlService = TestBed.get(UrlService);
+    i18nLanguageCodeService = TestBed.inject(I18nLanguageCodeService);
+    userService = TestBed.get(UserService);
+    alertsService = TestBed.get(AlertsService);
     storyViewerBackendApiService = TestBed.get(StoryViewerBackendApiService);
-  });
-
-  beforeEach(angular.mock.module('oppia', function($provide) {
-    mockWindow = {
+    windowRef = TestBed.get(WindowRef);
+    i18nLanguageCodeService = TestBed.inject(I18nLanguageCodeService);
+    translateService = TestBed.inject(TranslateService);
+    let fixture = TestBed.createComponent(StoryViewerPageComponent);
+    component = fixture.componentInstance;
+    spyOn(i18nLanguageCodeService, 'isCurrentLanguageRTL').and.returnValue(
+      true);
+    spyOnProperty(windowRef, 'nativeWindow').and.returnValue({
       location: {
-        reload: jasmine.createSpy('reload', () => {})
+        reload: ()=>{},
+        href: '/home'
       }
-    };
-
-    $provide.value('$window', mockWindow);
-    $provide.value('UserService', TestBed.get(UserService));
+    } as Window);
   }));
 
-  beforeEach(angular.mock.inject(function($injector, $componentController) {
-    $q = $injector.get('$q');
-    $rootScope = $injector.get('$rootScope');
-    alertsService = $injector.get('AlertsService');
-    assetsBackendApiService = $injector.get('AssetsBackendApiService');
-    urlService = $injector.get('UrlService');
-    userService = $injector.get('UserService');
-
+  beforeEach(() => {
     spyOn(assetsBackendApiService, 'getThumbnailUrlForPreview').and
       .returnValue('thumbnail-url');
-    spyOn(urlService, 'getTopicUrlFragmentFromLearnerUrl').and.returnValue(
-      'topic_1');
-    spyOn(urlService, 'getClassroomUrlFragmentFromLearnerUrl').and.returnValue(
-      'clasroom_1');
-    spyOn(urlService, 'getStoryUrlFragmentFromLearnerUrl').and.returnValue(
-      'story_1');
-    spyOn(userService, 'getUserInfoAsync').and.returnValue($q.resolve({
-      isLoggedIn: () => true
-    }));
-    spyOn(userService, 'getLoginUrlAsync').and.returnValue($q.resolve('/home'));
+    spyOn(userService, 'getUserInfoAsync').and.returnValue(Promise.resolve(
+      UserInfo.createFromBackendDict(UserInfoObject))
+    );
+  });
 
-
-    ctrl = $componentController('storyViewerPage', {
-      $rootScope: $rootScope,
-      AlertsService: alertsService,
-    });
-
-    // This approach was choosen because spyOn() doesn't work on properties
-    // that doesn't have a get access type.
-    // Without this approach the test will fail because it'll throw
-    // 'Property classroomBackendApiService does not have access type get'
-    // or 'Property classroomBackendApiService does not have access type set'
-    // error.
-    Object.defineProperty(ctrl, 'storyViewerBackendApiService', {
-      get: () => undefined,
-      set: () => {}
-    });
-    spyOnProperty(ctrl, 'storyViewerBackendApiService').and.returnValue(
-      storyViewerBackendApiService);
-
-    storyPlaythrough = StoryPlaythrough.createFromBackendDict({
-      story_nodes: [{
-        id: 'node_1',
-        title: 'Title 1',
-        description: 'Description 1',
-        destination_node_ids: [],
-        prerequisite_skill_ids: ['skill_1'],
-        acquired_skill_ids: ['skill_2'],
-        outline: 'Outline',
-        outline_is_finalized: false,
-        exploration_id: null,
-        exp_summary_dict: {
-          category: 'Welcome',
-          created_on_msec: 1564183471833.675,
-          community_owned: true,
-          thumbnail_bg_color: '#992a2b',
-          title: 'Welcome to Oppia!',
-          num_views: 14897,
-          tags: [],
-          last_updated_msec: 1571653541705.924,
-          human_readable_contributors_summary: {},
-          status: 'public',
-          language_code: 'en',
-          objective: "become familiar with Oppia's capabilities",
-          thumbnail_icon_url: '/subjects/Welcome.svg',
-          ratings: {
-            1: 1,
-            2: 1,
-            3: 3,
-            4: 24,
-            5: 46
-          },
-          id: '0',
-          activity_type: 'exploration'
+  beforeEach(() => {
+    var firstSampleReadOnlyStoryNodeBackendDict = {
+      id: 'node_1',
+      description: 'description',
+      title: 'Title 1',
+      prerequisite_skill_ids: [],
+      acquired_skill_ids: [],
+      destination_node_ids: ['node_2'],
+      outline: 'Outline',
+      exploration_id: 'exp_id',
+      outline_is_finalized: false,
+      exp_summary_dict: {
+        title: 'Title',
+        status: 'private',
+        last_updated_msec: 1591296737470.528,
+        community_owned: false,
+        objective: 'Test Objective',
+        id: '44LKoKLlIbGe',
+        num_views: 0,
+        thumbnail_icon_url: '/subjects/Algebra.svg',
+        human_readable_contributors_summary: {},
+        language_code: 'en',
+        thumbnail_bg_color: '#cd672b',
+        created_on_msec: 1591296635736.666,
+        ratings: {
+          1: 0,
+          2: 0,
+          3: 0,
+          4: 0,
+          5: 0
         },
-        completed: true,
-        thumbnail_bg_color: '#fff',
-        thumbnail_filename: 'story.svg'
-      }, {
-        id: 'node_2',
-        title: 'Title 2',
-        description: 'Description 2',
-        destination_node_ids: [],
-        prerequisite_skill_ids: ['skill_1'],
-        acquired_skill_ids: ['skill_2'],
-        outline: 'Outline',
-        outline_is_finalized: false,
-        exploration_id: null,
-        exp_summary_dict: {
-          category: 'Welcome',
-          created_on_msec: 1564183471833.675,
-          community_owned: true,
-          thumbnail_bg_color: '#992a2b',
-          title: 'Welcome to Oppia! 2',
-          num_views: 14897,
-          tags: [],
-          last_updated_msec: 1571653541705.924,
-          human_readable_contributors_summary: {},
-          status: 'public',
-          language_code: 'en',
-          objective: "become familiar with Oppia's capabilities 2",
-          thumbnail_icon_url: '/subjects/Welcome.svg',
-          ratings: {
-            1: 1,
-            2: 1,
-            3: 3,
-            4: 24,
-            5: 46
-          },
-          id: '0',
-          activity_type: 'exploration'
+        tags: [],
+        activity_type: 'exploration',
+        category: 'Algebra'
+      },
+      completed: true,
+      thumbnail_bg_color: '#bb8b2f',
+      thumbnail_filename: 'filename'
+    };
+    var secondSampleReadOnlyStoryNodeBackendDict = {
+      id: 'node_2',
+      description: 'description',
+      title: 'Title 2',
+      prerequisite_skill_ids: [],
+      acquired_skill_ids: [],
+      destination_node_ids: ['node_3'],
+      outline: 'Outline',
+      exploration_id: 'exp_id',
+      outline_is_finalized: false,
+      exp_summary_dict: {
+        title: 'Title',
+        status: 'private',
+        last_updated_msec: 1591296737470.528,
+        community_owned: false,
+        objective: 'Test Objective',
+        id: '44LKoKLlIbGe',
+        num_views: 0,
+        thumbnail_icon_url: '/subjects/Algebra.svg',
+        human_readable_contributors_summary: {},
+        language_code: 'en',
+        thumbnail_bg_color: '#cd672b',
+        created_on_msec: 1591296635736.666,
+        ratings: {
+          1: 0,
+          2: 0,
+          3: 0,
+          4: 0,
+          5: 0
         },
-        completed: false,
-        thumbnail_bg_color: '#000',
-        thumbnail_filename: 'story.svg'
-      }],
-      story_title: 'Story Title 1',
-      story_description: 'Story Description 1',
+        tags: [],
+        activity_type: 'exploration',
+        category: 'Algebra'
+      },
+      completed: false,
+      thumbnail_bg_color: '#bb8b2f',
+      thumbnail_filename: 'filename',
+    };
+    var storyPlaythroughBackendObject = {
+      story_id: 'qwerty',
+      story_nodes: [
+        firstSampleReadOnlyStoryNodeBackendDict,
+        secondSampleReadOnlyStoryNodeBackendDict],
+      story_title: 'Story',
+      story_description: 'Description',
       topic_name: 'Topic 1',
-      meta_tag_content: 'Story Meta Tag Content'
-    } as StoryPlaythroughBackendDict);
-  }));
-
-  it('should get path icon parameters after story data is loaded', function() {
-    spyOn(storyViewerBackendApiService, 'fetchStoryData').and.returnValue(
-      $q.resolve(storyPlaythrough));
-    ctrl.$onInit();
-    $rootScope.$apply();
-
-    expect(ctrl.pathIconParameters).toEqual([{
-      thumbnailIconUrl: 'thumbnail-url',
-      left: '225px',
-      top: '35px',
-      thumbnailBgColor: '#fff'
-    }, {
-      thumbnailIconUrl: 'thumbnail-url',
-      thumbnailBgColor: '#000'
-    }]);
+      meta_tag_content: 'Story meta tag content'
+    };
+    _samplePlaythroughObject =
+      StoryPlaythrough.createFromBackendDict(
+        storyPlaythroughBackendObject);
   });
 
-  it('should sign in correctly', function() {
-    expect(mockWindow.location).not.toEqual('/home');
-    ctrl.signIn();
-    $rootScope.$apply();
-    expect(mockWindow.location).toEqual('/home');
-  });
-
-  it('should show warning when fetching story data fails', function() {
-    spyOn(alertsService, 'addWarning');
-    spyOn(storyViewerBackendApiService, 'fetchStoryData').and.returnValue(
-      $q.reject({
-        status: 404
-      }));
-    ctrl.$onInit();
-    $rootScope.$apply();
-
-    expect(alertsService.addWarning).toHaveBeenCalledWith(
-      'Failed to get dashboard data');
-    expect(ctrl.pathIconParameters).toEqual([]);
+  afterEach(() => {
+    httpTestingController.verify();
   });
 
   it('should get complete exploration url when clicking on svg element',
-    function() {
-      var node = StoryNode.createFromIdAndTitle(
+    () => {
+      spyOn(urlService, 'getTopicUrlFragmentFromLearnerUrl').and.returnValue(
+        'topic');
+      spyOn(urlService, 'getClassroomUrlFragmentFromLearnerUrl')
+        .and.returnValue('math');
+      spyOn(
+        urlService, 'getStoryUrlFragmentFromLearnerUrl').and.returnValue(
+        'story');
+      let node = StoryNode.createFromIdAndTitle(
         '1', 'Story node title');
-      expect(ctrl.getExplorationUrl(node)).toBe(
-        '/explore/null?topic_url_fragment=topic_1&' +
-        'classroom_url_fragment=clasroom_1&story_url_fragment=story_1&' +
+      expect(component.getExplorationUrl(node)).toBe(
+        '/explore/null?topic_url_fragment=topic&' +
+        'classroom_url_fragment=math&story_url_fragment=story&' +
         'node_id=1');
     });
 
   it('should get complete image path corresponding to a given' +
-   ' relative path', function() {
-    var imagePath = '/path/to/image.png';
-    expect(ctrl.getStaticImageUrl(imagePath)).toBe(
+    ' relative path', () => {
+    let imagePath = '/path/to/image.png';
+    expect(component.getStaticImageUrl(imagePath)).toBe(
       '/assets/images/path/to/image.png');
   });
 
-  it('should change page title and meta tag when story data is fetched',
-    function() {
-      spyOn(storyViewerBackendApiService, 'fetchStoryData').and.returnValue(
-        $q.resolve(storyPlaythrough));
-      spyOn(OppiaAngularRootComponent.pageTitleService, 'setPageTitle');
-      spyOn(OppiaAngularRootComponent.pageTitleService, 'updateMetaTag');
-
-      ctrl.$onInit();
-      $rootScope.$apply();
-
-      expect(
-        OppiaAngularRootComponent.pageTitleService.setPageTitle
-      ).toHaveBeenCalledWith('Learn Topic 1 | Story Title 1 | Oppia');
-      expect(
-        OppiaAngularRootComponent.pageTitleService.updateMetaTag
-      ).toHaveBeenCalledWith('Story Meta Tag Content');
-    });
-
-  it('should show story\'s chapters when story has chapters', function() {
-    spyOn(storyViewerBackendApiService, 'fetchStoryData').and.returnValue(
-      $q.resolve(storyPlaythrough));
-
-    ctrl.$onInit();
-    $rootScope.$apply();
-
-    expect(ctrl.showChapters()).toBe(true);
-  });
-
   it('should not show story\'s chapters when story has no chapters',
-    function() {
-      spyOn(storyViewerBackendApiService, 'fetchStoryData').and.returnValue(
-        $q.resolve(StoryPlaythrough.createFromBackendDict({
+    () => {
+      spyOn(urlService, 'getTopicUrlFragmentFromLearnerUrl').and.returnValue(
+        'topic');
+      spyOn(urlService, 'getClassroomUrlFragmentFromLearnerUrl')
+        .and.returnValue('math');
+      spyOn(
+        urlService, 'getStoryUrlFragmentFromLearnerUrl').and.returnValue(
+        'story');
+      spyOn(
+        storyViewerBackendApiService, 'fetchStoryDataAsync').and.returnValue(
+        Promise.resolve(StoryPlaythrough.createFromBackendDict({
           story_nodes: [],
           story_title: 'Story Title 1',
           story_description: 'Story Description 1',
           topic_name: 'topic_1',
-        } as StoryPlaythroughBackendDict)));
+          meta_tag_content: 'this is a meta tag content',
+          story_id: 'id'
+        })));
 
-      ctrl.$onInit();
-      $rootScope.$apply();
+      component.ngOnInit();
 
-      expect(ctrl.showChapters()).toBe(false);
+      expect(component.showChapters()).toBeFalse();
     });
 
-  it('should not show story\'s chapters when story data is not loaded',
-    function() {
-      ctrl.$onInit();
+  it('should throw error if story url fragment is not present', () => {
+    spyOn(urlService, 'getTopicUrlFragmentFromLearnerUrl').and.returnValue(
+      'topic');
+    spyOn(urlService, 'getClassroomUrlFragmentFromLearnerUrl')
+      .and.returnValue('math');
+    spyOn(
+      urlService, 'getStoryUrlFragmentFromLearnerUrl').and.returnValue(null);
+    spyOn(
+      storyViewerBackendApiService, 'fetchStoryDataAsync').and.returnValue(
+      Promise.resolve(StoryPlaythrough.createFromBackendDict({
+        story_nodes: [],
+        story_title: 'Story Title 1',
+        story_description: 'Story Description 1',
+        topic_name: 'topic_1',
+        meta_tag_content: 'this is a meta tag content',
+        story_id: 'id'
+      })));
+    let node = StoryNode.createFromIdAndTitle('1', 'Story node title');
 
-      expect(ctrl.showChapters()).toBe(false);
-    });
+    expect(() => {
+      component.ngOnInit();
+    }).toThrowError('Story url fragment is null');
 
-  it('should not hide chapter when it\'s part of story chapters', function() {
-    spyOn(storyViewerBackendApiService, 'fetchStoryData').and.returnValue(
-      $q.resolve(storyPlaythrough));
-
-    ctrl.$onInit();
-    $rootScope.$apply();
-
-    var node = ReadOnlyStoryNode.createFromBackendDict({
-      id: 'node_2',
-      title: 'Title 2',
-      description: 'Description 2',
-      destination_node_ids: [],
-      prerequisite_skill_ids: ['skill_1'],
-      acquired_skill_ids: ['skill_2'],
-      outline: 'Outline',
-      outline_is_finalized: false,
-      exploration_id: null,
-      exp_summary_dict: {
-        category: 'Welcome',
-        created_on_msec: 1564183471833.675,
-        community_owned: true,
-        thumbnail_bg_color: '#992a2b',
-        title: 'Welcome to Oppia! 2',
-        num_views: 14897,
-        tags: [],
-        last_updated_msec: 1571653541705.924,
-        human_readable_contributors_summary: {},
-        status: 'public',
-        language_code: 'en',
-        objective: "become familiar with Oppia's capabilities 2",
-        thumbnail_icon_url: '/subjects/Welcome.svg',
-        ratings: {
-          1: 1,
-          2: 1,
-          3: 3,
-          4: 24,
-          5: 46
-        },
-        id: '0',
-        activity_type: 'exploration'
-      },
-      completed: false,
-      thumbnail_bg_color: '#000',
-      thumbnail_filename: 'story.svg'
-    });
-    expect(ctrl.isChapterLocked(node)).toBe(false);
+    expect(() => {
+      component.getExplorationUrl(node);
+    }).toThrowError('Story url fragment is null');
   });
 
-  it('should not hide chapter when it\'s completed', function() {
-    spyOn(storyViewerBackendApiService, 'fetchStoryData').and.returnValue(
-      $q.resolve(storyPlaythrough));
-
-    ctrl.$onInit();
-    $rootScope.$apply();
-
-    var node = ReadOnlyStoryNode.createFromBackendDict({
-      id: 'node_3',
-      title: 'Title 2',
-      description: 'Description 2',
-      destination_node_ids: [],
-      prerequisite_skill_ids: ['skill_1'],
-      acquired_skill_ids: ['skill_2'],
-      outline: 'Outline',
-      outline_is_finalized: false,
-      exploration_id: null,
-      exp_summary_dict: {
-        category: 'Welcome',
-        created_on_msec: 1564183471833.675,
-        community_owned: true,
-        thumbnail_bg_color: '#992a2b',
-        title: 'Welcome to Oppia! 2',
-        num_views: 14897,
-        tags: [],
-        last_updated_msec: 1571653541705.924,
-        human_readable_contributors_summary: {},
-        status: 'public',
-        language_code: 'en',
-        objective: "become familiar with Oppia's capabilities 2",
-        thumbnail_icon_url: '/subjects/Welcome.svg',
-        ratings: {
-          1: 1,
-          2: 1,
-          3: 3,
-          4: 24,
-          5: 46
+  it('should show story\'s chapters when story has chapters',
+    () => {
+      let sampleDataResults = {
+        story_id: 'qwerty',
+        story_title: 'Story title',
+        story_description: 'Story description',
+        story_nodes: [],
+        topic_name: 'Topic name',
+        meta_tag_content: 'Story meta tag content'
+      };
+      let samplePlaythroughObject =
+        StoryPlaythrough.createFromBackendDict(
+          sampleDataResults);
+      component.storyPlaythroughObject = {
+        id: '1',
+        nodes: [],
+        title: 'title',
+        description: 'description',
+        topicName: 'topic_name',
+        metaTagContent: 'this is meta tag content',
+        getInitialNode(): ReadOnlyStoryNode {
+          return samplePlaythroughObject.getInitialNode();
         },
-        id: '0',
-        activity_type: 'exploration'
-      },
-      completed: true,
-      thumbnail_bg_color: '#000',
-      thumbnail_filename: 'story.svg'
+        getStoryNodeCount(): number {
+          return 2;
+        },
+        getStoryNodes(): ReadOnlyStoryNode[] {
+          return [];
+        },
+        hasFinishedStory(): boolean {
+          return false;
+        },
+        getNextPendingNodeId(): string {
+          return 'id';
+        },
+        hasStartedStory(): boolean {
+          return false;
+        },
+        getStoryId(): string {
+          return this.id;
+        },
+        getMetaTagContent(): string {
+          return this.metaTagContent;
+        }
+      };
+      spyOn(urlService, 'getTopicUrlFragmentFromLearnerUrl').and.returnValue(
+        'topic');
+      spyOn(urlService, 'getClassroomUrlFragmentFromLearnerUrl')
+        .and.returnValue('math');
+      spyOn(
+        urlService, 'getStoryUrlFragmentFromLearnerUrl').and.returnValue(
+        'story');
+      spyOn(
+        storyViewerBackendApiService, 'fetchStoryDataAsync').and.returnValue(
+        Promise.resolve(_samplePlaythroughObject));
+
+      expect(
+        _samplePlaythroughObject.getStoryNodes()[0].getId()).toEqual('node_1');
+      expect(
+        _samplePlaythroughObject.getStoryNodes()[1].getId()).toEqual('node_2');
+
+      expect(component.showChapters()).toBeTrue();
     });
-    expect(ctrl.isChapterLocked(node)).toBe(false);
+
+  it('should sign in correctly', fakeAsync(() => {
+    spyOn(userService, 'getLoginUrlAsync').and.resolveTo('/home');
+    component.signIn();
+    flushMicrotasks();
+    expect(windowRef.nativeWindow.location.href).toBe('/home');
+  }));
+
+  it('should refresh page if login url is not provided when login button is' +
+  ' clicked', fakeAsync(() => {
+    const reloadSpy = spyOn(windowRef.nativeWindow.location, 'reload');
+    spyOn(userService, 'getLoginUrlAsync')
+      .and.resolveTo(undefined);
+    component.signIn();
+    flushMicrotasks();
+
+    expect(reloadSpy).toHaveBeenCalled();
+  }));
+
+  it('should show warnings when fetching story data fails',
+    fakeAsync(() => {
+      spyOn(urlService, 'getClassroomUrlFragmentFromLearnerUrl')
+        .and.returnValue('math');
+      spyOn(urlService, 'getTopicUrlFragmentFromLearnerUrl').and.returnValue(
+        'topic');
+      spyOn(
+        urlService, 'getStoryUrlFragmentFromLearnerUrl').and.returnValue(
+        'story');
+      spyOn(
+        storyViewerBackendApiService, 'fetchStoryDataAsync').and.returnValue(
+        Promise.reject(
+          {
+            status: 404
+          }));
+      spyOn(alertsService, 'addWarning').and.callThrough();
+      component.ngOnInit();
+      flushMicrotasks();
+      expect(alertsService.addWarning).toHaveBeenCalledWith(
+        'Failed to get dashboard data');
+    }));
+
+  it('should get path icon parameters after story data is loaded',
+    fakeAsync(() => {
+      spyOn(urlService, 'getTopicUrlFragmentFromLearnerUrl').and.returnValue(
+        'topic');
+      spyOn(urlService, 'getClassroomUrlFragmentFromLearnerUrl')
+        .and.returnValue('math');
+      spyOn(
+        urlService, 'getStoryUrlFragmentFromLearnerUrl').and.returnValue(
+        'story');
+      spyOn(
+        storyViewerBackendApiService, 'fetchStoryDataAsync').and.returnValue(
+        Promise.resolve(_samplePlaythroughObject));
+      spyOn(component, 'subscribeToOnLangChange');
+      component.ngOnInit();
+
+      flushMicrotasks();
+
+      expect(component.subscribeToOnLangChange).toHaveBeenCalled();
+      expect(component.pathIconParameters).toEqual([{
+        thumbnailIconUrl: 'thumbnail-url',
+        left: '225px',
+        top: '35px',
+        thumbnailBgColor: '#bb8b2f'
+      }, {
+        thumbnailIconUrl: 'thumbnail-url',
+        left: '225px',
+        top: '35px',
+        thumbnailBgColor: '#bb8b2f' }]);
+    }));
+
+  it('should obtain translated title and set it whenever the ' +
+    'selected language changes', () => {
+    component.subscribeToOnLangChange();
+    spyOn(component, 'setPageTitle');
+    translateService.onLangChange.emit();
+
+    expect(component.setPageTitle).toHaveBeenCalled();
   });
 
-  it('should hide chapter when it\'s not part of story chapters and' +
-    ' it\'s not completed', function() {
-    spyOn(storyViewerBackendApiService, 'fetchStoryData').and.returnValue(
-      $q.resolve(storyPlaythrough));
+  it('should set page title', () => {
+    spyOn(translateService, 'instant').and.callThrough();
+    spyOn(pageTitleService, 'setDocumentTitle');
+    component.topicName = 'dummy_topic_name';
+    component.storyTitle = 'dummy_story_title';
+    component.setPageTitle();
 
-    ctrl.$onInit();
-    $rootScope.$apply();
+    expect(translateService.instant).toHaveBeenCalledWith(
+      'I18N_STORY_VIEWER_PAGE_TITLE', {
+        topicName: 'dummy_topic_name',
+        storyTitle: 'dummy_story_title'
+      });
+    expect(pageTitleService.setDocumentTitle).toHaveBeenCalledWith(
+      'I18N_STORY_VIEWER_PAGE_TITLE');
+  });
 
-    var node = ReadOnlyStoryNode.createFromBackendDict({
-      id: 'node_3',
-      title: 'Title 2',
-      description: 'Description 2',
-      destination_node_ids: [],
-      prerequisite_skill_ids: ['skill_1'],
-      acquired_skill_ids: ['skill_2'],
-      outline: 'Outline',
-      outline_is_finalized: false,
-      exploration_id: null,
-      exp_summary_dict: {
-        category: 'Welcome',
-        created_on_msec: 1564183471833.675,
-        community_owned: true,
-        thumbnail_bg_color: '#992a2b',
-        title: 'Welcome to Oppia! 2',
-        num_views: 14897,
-        tags: [],
-        last_updated_msec: 1571653541705.924,
-        human_readable_contributors_summary: {},
-        status: 'public',
-        language_code: 'en',
-        objective: "become familiar with Oppia's capabilities 2",
-        thumbnail_icon_url: '/subjects/Welcome.svg',
-        ratings: {
-          1: 1,
-          2: 1,
-          3: 3,
-          4: 24,
-          5: 46
+  it('should unsubscribe upon component destruction', () => {
+    component.subscribeToOnLangChange();
+    expect(component.directiveSubscriptions.closed).toBe(false);
+    component.ngOnDestroy();
+
+    expect(component.directiveSubscriptions.closed).toBe(true);
+  });
+
+  it('should place empty values if Filename and BgColor are null',
+    fakeAsync(() => {
+      var firstSampleReadOnlyStoryNodeBackendDict = {
+        id: 'node_1',
+        description: 'description',
+        title: 'Title 1',
+        prerequisite_skill_ids: [],
+        acquired_skill_ids: [],
+        destination_node_ids: ['node_2'],
+        outline: 'Outline',
+        exploration_id: 'exp_id',
+        outline_is_finalized: false,
+        exp_summary_dict: {
+          title: 'Title',
+          status: 'private',
+          last_updated_msec: 1591296737470.528,
+          community_owned: false,
+          objective: 'Test Objective',
+          id: '44LKoKLlIbGe',
+          num_views: 0,
+          thumbnail_icon_url: '/subjects/Algebra.svg',
+          human_readable_contributors_summary: {},
+          language_code: 'en',
+          thumbnail_bg_color: '#cd672b',
+          created_on_msec: 1591296635736.666,
+          ratings: {
+            1: 0,
+            2: 0,
+            3: 0,
+            4: 0,
+            5: 0
+          },
+          tags: [],
+          activity_type: 'exploration',
+          category: 'Algebra'
         },
-        id: '0',
-        activity_type: 'exploration'
-      },
-      completed: false,
-      thumbnail_bg_color: '#000',
-      thumbnail_filename: 'story.svg'
-    });
-    expect(ctrl.isChapterLocked(node)).toBe(true);
+        completed: true,
+        thumbnail_bg_color: '#bb8b2f',
+        thumbnail_filename: ''
+      };
+      var secondSampleReadOnlyStoryNodeBackendDict = {
+        id: 'node_2',
+        description: 'description',
+        title: 'Title 2',
+        prerequisite_skill_ids: [],
+        acquired_skill_ids: [],
+        destination_node_ids: ['node_3'],
+        outline: 'Outline',
+        exploration_id: 'exp_id',
+        outline_is_finalized: false,
+        exp_summary_dict: {
+          title: 'Title',
+          status: 'private',
+          last_updated_msec: 1591296737470.528,
+          community_owned: false,
+          objective: 'Test Objective',
+          id: '44LKoKLlIbGe',
+          num_views: 0,
+          thumbnail_icon_url: '/subjects/Algebra.svg',
+          human_readable_contributors_summary: {},
+          language_code: 'en',
+          thumbnail_bg_color: '#cd672b',
+          created_on_msec: 1591296635736.666,
+          ratings: {
+            1: 0,
+            2: 0,
+            3: 0,
+            4: 0,
+            5: 0
+          },
+          tags: [],
+          activity_type: 'exploration',
+          category: 'Algebra'
+        },
+        completed: false,
+        thumbnail_bg_color: '#bb8b2f',
+        thumbnail_filename: '',
+      };
+
+      var storyPlaythroughBackendObject = {
+        story_id: 'qwerty',
+        story_nodes: [
+          firstSampleReadOnlyStoryNodeBackendDict,
+          secondSampleReadOnlyStoryNodeBackendDict
+        ],
+        story_title: 'Story',
+        story_description: 'Description',
+        topic_name: 'Topic 1',
+        meta_tag_content: 'Story meta tag content'
+      };
+      _samplePlaythroughObject =
+      StoryPlaythrough.createFromBackendDict(
+        storyPlaythroughBackendObject);
+      spyOn(urlService, 'getClassroomUrlFragmentFromLearnerUrl')
+        .and.returnValue('math');
+      spyOn(urlService, 'getTopicUrlFragmentFromLearnerUrl').and.returnValue(
+        'topic');
+      spyOn(
+        urlService, 'getStoryUrlFragmentFromLearnerUrl').and.returnValue(
+        'story');
+      spyOn(
+        storyViewerBackendApiService, 'fetchStoryDataAsync').and.returnValue(
+        Promise.resolve(_samplePlaythroughObject));
+      component.ngOnInit();
+      flushMicrotasks();
+      expect(component.thumbnailFilename === '');
+      expect(component.iconUrl === '');
+    }));
+
+  it('should close the login overlay', fakeAsync(()=>{
+    spyOn(component, 'hideLoginOverlay').and.callThrough();
+
+    expect(component.showLoginOverlay).toEqual(true);
+
+    component.hideLoginOverlay();
+    tick();
+
+    expect(component.showLoginOverlay).toEqual(false);
+  }));
+
+  it('should set focus on skip button', fakeAsync(()=>{
+    let target = document.createElement('div');
+    target.classList.add('target');
+
+    let nonTarget = document.createElement('div');
+    nonTarget.classList.add('test');
+
+    let overlay = new ElementRef(document.createElement('div'));
+    let button = new ElementRef(document.createElement('button'));
+
+    component.skipButton = button;
+    component.overlay = overlay;
+    component.showLoginOverlay = true;
+
+    spyOn(component, 'focusSkipButton').and.callThrough();
+    spyOn(component.skipButton.nativeElement, 'focus');
+    spyOn(target, 'closest').and.returnValue(nonTarget);
+
+    component.focusSkipButton(target, true);
+    tick();
+
+    expect(component.skipButton.nativeElement.focus).not.toHaveBeenCalled();
+
+    component.focusSkipButton(target, false);
+    tick();
+
+    expect(component.skipButton.nativeElement.focus).toHaveBeenCalled();
+  }));
+  it('should check if hacky translation is displayed correctly', () => {
+    spyOn(i18nLanguageCodeService, 'isHackyTranslationAvailable')
+      .and.returnValues(false, true, false, true);
+    spyOn(i18nLanguageCodeService, 'isCurrentLanguageEnglish')
+      .and.returnValues(false, false, true, false);
+
+    let hackyStoryTitleTranslationIsDisplayed =
+      component.isHackyStoryTitleTranslationDisplayed();
+    expect(hackyStoryTitleTranslationIsDisplayed).toBe(false);
+    let hackyStoryDescTranslationIsDisplayed =
+      component.isHackyStoryDescTranslationDisplayed();
+    expect(hackyStoryDescTranslationIsDisplayed).toBe(true);
+    let hackyStoryNodeTitleTranslationIsDisplayed =
+      component.isHackyStoryNodeTitleTranslationDisplayed(0);
+    expect(hackyStoryNodeTitleTranslationIsDisplayed).toBe(false);
+    let hackyStoryNodeDescTranslationIsDisplayed =
+      component.isHackyStoryNodeDescTranslationDisplayed(0);
+    expect(hackyStoryNodeDescTranslationIsDisplayed).toBe(true);
   });
 });

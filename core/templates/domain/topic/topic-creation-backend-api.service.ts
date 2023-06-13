@@ -37,7 +37,7 @@ export class TopicCreationBackendApiService {
 
   _createTopic(
       successCallback: (value: TopicCreationResponse) => void,
-      errorCallback:(reason: string) => void,
+      errorCallback: (reason: string) => void,
       topic: NewlyCreatedTopic, imagesData: ImageData[],
       bgColor: string): void {
     let postData = {
@@ -46,10 +46,14 @@ export class TopicCreationBackendApiService {
       thumbnailBgColor: bgColor,
       filename: imagesData[0].filename,
       url_fragment: topic.urlFragment,
+      page_title_fragment: topic.pageTitleFragment
     };
 
     let body = new FormData();
     body.append('payload', JSON.stringify(postData));
+    if (imagesData[0].imageBlob === null) {
+      throw new Error('Image blob is null');
+    }
     body.append('image', imagesData[0].imageBlob);
 
     this.http.post<TopicCreationResponse>(
@@ -67,7 +71,7 @@ export class TopicCreationBackendApiService {
       });
   }
 
-  createTopic(
+  async createTopicAsync(
       topic: NewlyCreatedTopic, imagesData: ImageData[],
       bgColor: string): Promise<TopicCreationResponse> {
     return new Promise((resolve, reject) => {

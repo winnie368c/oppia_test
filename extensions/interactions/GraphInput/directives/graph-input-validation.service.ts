@@ -82,7 +82,7 @@ export class GraphInputValidationService {
       answerGroups: AnswerGroup[], defaultOutcome: Outcome): Warning[] {
     var ISOMORPHISM_VERTICES_LIMIT = 10;
 
-    var warningsList = [];
+    var warningsList: Warning[] = [];
 
     warningsList = warningsList.concat(
       this.getCustomizationArgsWarnings(customizationArgs));
@@ -95,7 +95,7 @@ export class GraphInputValidationService {
       var rules = answerGroups[i].rules;
       for (var j = 0; j < rules.length; j++) {
         var rule = rules[j];
-        var gInputs = (<GraphAnswer>rule.inputs.g);
+        var gInputs = rule.inputs.g as GraphAnswer;
         try {
           if (rule.type === 'HasGraphProperty') {
             continue;
@@ -104,17 +104,18 @@ export class GraphInputValidationService {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.CRITICAL,
               message: (
-                'The graph used in the rule ' + (j + 1) + ' in group ' +
-                (i + 1) + ' exceeds supported maximum number of vertices ' +
-                'of ' + ISOMORPHISM_VERTICES_LIMIT +
-                ' for isomorphism check.')
+                'The graph used in the learner answer ' + (j + 1) +
+                ' in Oppia response ' + (i + 1) +
+                ' exceeds supported maximum number of vertices ' + 'of ' +
+                ISOMORPHISM_VERTICES_LIMIT + ' for isomorphism check.')
             });
           } else if (gInputs.vertices.length > this.VERTICES_LIMIT) {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.CRITICAL,
               message: (
-                'The graph used in the rule ' + (j + 1) + ' in group ' +
-                (i + 1) + ' exceeds supported maximum number of vertices ' +
+                'The graph used in the learner answer ' + (j + 1) +
+                ' in Oppia response ' + (i + 1) +
+                ' exceeds supported maximum number of vertices ' +
                 'of ' + this.VERTICES_LIMIT + '.')
             });
           }
@@ -122,7 +123,7 @@ export class GraphInputValidationService {
           warningsList.push({
             type: AppConstants.WARNING_TYPES.CRITICAL,
             message: (
-              'The rule ' + (j + 1) + ' in group ' + (i + 1) +
+              'Learner answer ' + (j + 1) + ' in Oppia response ' + (i + 1) +
               ' is invalid.')
           });
         }

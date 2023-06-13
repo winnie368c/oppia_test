@@ -33,10 +33,13 @@ import { LearnerExplorationSummary } from
   providedIn: 'root'
 })
 export class ExplorationRecommendationsService {
-  isIframed: boolean = null;
-  isInEditorPage: boolean = null;
-  isInEditorPreviewMode: boolean = null;
-  explorationId: string = null;
+  isIframed: boolean = false;
+  isInEditorPage: boolean = false;
+  isInEditorPreviewMode: boolean = false;
+  // This property is initialized using Angular lifecycle hooks
+  // and we need to do non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  explorationId!: string;
 
   constructor(
     private contextService: ContextService,
@@ -70,9 +73,10 @@ export class ExplorationRecommendationsService {
       includeSystemRecommendations = 'true';
     }
 
-    this.expRecommendationBackendApiService.getRecommendedSummaryDicts(
-      authorRecommendedExpIds, includeSystemRecommendations, collectionId,
-      storyId, currentNodeId, this.explorationId).then(expSummaries => {
+    this.expRecommendationBackendApiService.getRecommendedSummaryDictsAsync(
+      authorRecommendedExpIds, includeSystemRecommendations,
+      collectionId, storyId, currentNodeId, this.explorationId
+    ).then(expSummaries => {
       successCallback(expSummaries);
     });
   }

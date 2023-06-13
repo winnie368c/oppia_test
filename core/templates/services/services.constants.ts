@@ -16,9 +16,12 @@
  * @fileoverview Constants for shared services across Oppia.
  */
 
+import RTE_COMPONENT_SPECS from 'assets/rich_text_components_definitions';
+
 export const ServicesConstants = {
   PAGE_CONTEXT: {
     COLLECTION_EDITOR: 'collection_editor',
+    LEARNER_GROUP_EDITOR: 'learner_group_editor',
     EXPLORATION_EDITOR: 'editor',
     EXPLORATION_PLAYER: 'learner',
     QUESTION_EDITOR: 'question_editor',
@@ -28,6 +31,7 @@ export const ServicesConstants = {
     TOPIC_EDITOR: 'topic_editor',
     TOPICS_AND_SKILLS_DASHBOARD: 'topics_and_skills_dashboard',
     CONTRIBUTOR_DASHBOARD: 'contributor_dashboard',
+    BLOG_DASHBOARD: 'blog_dashboard',
     OTHER: 'other'
   },
 
@@ -70,6 +74,14 @@ export const ServicesConstants = {
   STATE_ANSWER_STATS_URL:
     '/createhandler/state_answer_stats/<exploration_id>',
 
-  RTE_COMPONENT_SPECS: (
-    require('rich_text_components_definitions.ts')),
+  RTE_COMPONENT_SPECS: RTE_COMPONENT_SPECS,
+
+  MESSENGER_PAYLOAD: {
+    HEIGHT_CHANGE: 'heightChange',
+    EXPLORATION_LOADED: 'explorationLoaded',
+    STATE_TRANSITION: 'stateTransition',
+    EXPLORATION_RESET: 'explorationReset',
+    EXPLORATION_COMPLETED: 'explorationCompleted'
+  },
+
 } as const;

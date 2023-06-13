@@ -22,11 +22,13 @@ import { UrlService } from 'services/contextual/url.service';
 import { WindowRef } from './window-ref.service';
 
 describe('Url Service', () => {
-  let urlService: UrlService = null;
-  let windowRef: WindowRef = null;
+  let urlService: UrlService;
+  let windowRef: WindowRef;
   let sampleHash = 'sampleHash';
   let pathname = '/embed';
-  let mockLocation = null;
+  // Check https://www.typescriptlang.org/docs/handbook/utility-types.html#picktype-keys
+  let mockLocation:
+    Pick<Location, 'href' | 'origin' | 'pathname' | 'hash' | 'search'>;
   let origin = 'http://sample.com';
 
   beforeEach(() => {
@@ -41,7 +43,8 @@ describe('Url Service', () => {
     urlService = TestBed.get(UrlService);
     windowRef = TestBed.get(WindowRef);
     spyOnProperty(windowRef, 'nativeWindow').and.callFake(() => ({
-      location: mockLocation}));
+      location: mockLocation as Location
+    } as Window));
   });
 
   it('should return correct query value list for each query field', () => {
@@ -123,6 +126,55 @@ describe('Url Service', () => {
     }).toThrowError('Invalid topic id url');
   });
 
+  it('should correctly retrieve blog post id from url', () => {
+    mockLocation.pathname = '/blog-dashboard';
+    mockLocation.hash = '/blog_post_editor/abcdefgijklm';
+    expect(
+      urlService.getBlogPostIdFromUrl()
+    ).toBe('abcdefgijklm');
+
+    mockLocation.pathname = '/blog-dashboard';
+    mockLocation.hash = '/blog_post_editor/abcdefgij';
+    expect(function() {
+      urlService.getBlogPostIdFromUrl();
+    }).toThrowError('Invalid Blog Post Id.');
+  });
+
+  it('should correctly retrieve blog post url from url', () => {
+    mockLocation.pathname = '/blog/sample-blog-post-123';
+    expect(urlService.getBlogPostUrlFromUrl()).toBe('sample-blog-post-123');
+
+    mockLocation.pathname = '/blog/invalid/blog-post-1234';
+    expect(function() {
+      urlService.getBlogPostUrlFromUrl();
+    }).toThrowError('Invalid Blog Post Url.');
+
+    mockLocation.pathname = '/invalid/blog-post-1234';
+    expect(function() {
+      urlService.getBlogPostUrlFromUrl();
+    }).toThrowError('Invalid Blog Post Url.');
+  });
+
+  it('should correctly retrieve author username from url', () => {
+    // Checking with valid blog author profile page url.
+    mockLocation.pathname = '/blog/author/username';
+    expect(urlService.getBlogAuthorUsernameFromUrl()).toBe('username');
+
+    // Checking with invalid blog author profile page url. The url has extra an
+    // url segment.
+    mockLocation.pathname = '/blog/author/invalid/username';
+    expect(function() {
+      urlService.getBlogAuthorUsernameFromUrl();
+    }).toThrowError('Invalid Blog Author Profile Page Url.');
+
+    // Checking with invalid blog author profile page url. The url does not
+    // start with 'blog/author'.
+    mockLocation.pathname = 'blog/invalid/username';
+    expect(function() {
+      urlService.getBlogAuthorUsernameFromUrl();
+    }).toThrowError('Invalid Blog Author Profile Page Url.');
+  });
+
   it('should correctly retrieve story url fragment from url', () => {
     mockLocation.pathname = '/learn/math/abcdefgijklm/story/bakery';
     expect(
@@ -178,6 +230,12 @@ describe('Url Service', () => {
     expect(
       urlService.getTopicUrlFragmentFromLearnerUrl()
     ).toBe('topic-name');
+    mockLocation.pathname = '/explore/16';
+    mockLocation.search = (
+      '?topic_url_fragment=topic');
+    expect(
+      urlService.getTopicUrlFragmentFromLearnerUrl()
+    ).toBe('topic');
     mockLocation.pathname = '/topc/abcdefgijklm';
     expect(function() {
       urlService.getTopicUrlFragmentFromLearnerUrl();
@@ -186,6 +244,12 @@ describe('Url Service', () => {
 
   it('should correctly retrieve classroom name from url', () => {
     mockLocation.pathname = '/learn/math/abcdefgijklm';
+    expect(
+      urlService.getClassroomUrlFragmentFromLearnerUrl()
+    ).toBe('math');
+    mockLocation.pathname = '/explore/16';
+    mockLocation.search = (
+      '&classroom_url_fragment=math');
     expect(
       urlService.getClassroomUrlFragmentFromLearnerUrl()
     ).toBe('math');
@@ -326,6 +390,17 @@ describe('Url Service', () => {
 
     mockLocation.search = '?another=1';
     expect(urlService.getExplorationVersionFromUrl()).toBe(null);
+  });
+
+  it('should correctly retrieve unique progress ID from the URL', () => {
+    mockLocation.search = '?pid=123456';
+    expect(urlService.getPidFromUrl()).toBe('123456');
+
+    mockLocation.search = '?someparam=otherval&pid=123456';
+    expect(urlService.getPidFromUrl()).toBe('123456');
+
+    mockLocation.search = '?another=1';
+    expect(urlService.getPidFromUrl()).toBe(null);
   });
 
   it('should correctly retrieve username from url', () => {

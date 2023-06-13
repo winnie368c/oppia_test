@@ -21,9 +21,12 @@ import { downgradeInjectable } from '@angular/upgrade/static';
 
 import { MathInteractionsService } from 'services/math-interactions.service';
 
-class GuppyObject {
-  divId = null;
-  guppyInstance = null;
+export class GuppyObject {
+  // These properties are initialized using constructor function
+  // and we need to do non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  divId!: string;
+  guppyInstance!: Guppy;
   constructor(divId: string, guppyInstance: Guppy) {
     this.divId = divId;
     this.guppyInstance = guppyInstance;
@@ -37,7 +40,7 @@ export class GuppyInitializationService {
   private guppyInstances: GuppyObject[] = [];
   private onScreenKeyboardShown = false;
   static interactionType: string;
-  private static customOskLetters: string[] = [];
+  private static allowedVariables: string[] = [];
 
   init(guppyDivClassName: string, placeholderText: string, initialValue = ''):
       void {
@@ -57,8 +60,7 @@ export class GuppyInitializationService {
         '\\color{grey}{\\text{\\small{' + placeholderText + '}}}');
 
       // Initialize it with a value for the creator's view.
-      if (guppyDivClassName === 'guppy-div-creator' &&
-        initialValue.length !== 0) {
+      if (initialValue.length !== 0) {
         if (initialValue.indexOf('=') !== -1) {
           let splitByEquals = initialValue.split('=');
           splitByEquals[0] = mathInteractionsService.insertMultiplicationSigns(
@@ -97,12 +99,12 @@ export class GuppyInitializationService {
     this.onScreenKeyboardShown = value;
   }
 
-  getCustomOskLetters(): string[] {
-    return GuppyInitializationService.customOskLetters;
+  getAllowedVariables(): string[] {
+    return GuppyInitializationService.allowedVariables;
   }
 
-  setCustomOskLetters(customOskLetters: string[]): void {
-    GuppyInitializationService.customOskLetters = customOskLetters;
+  setAllowedVariables(allowedVariables: string[]): void {
+    GuppyInitializationService.allowedVariables = allowedVariables;
   }
 }
 

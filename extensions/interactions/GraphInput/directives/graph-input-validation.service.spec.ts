@@ -26,7 +26,7 @@ import { GraphInputValidationService } from
   'interactions/GraphInput/directives/graph-input-validation.service';
 import { Outcome, OutcomeObjectFactory } from
   'domain/exploration/OutcomeObjectFactory';
-import { RuleObjectFactory } from 'domain/exploration/RuleObjectFactory';
+import { Rule } from 'domain/exploration/rule.model';
 import { GraphAnswer } from 'interactions/answer-defs';
 
 import { AppConstants } from 'app.constants';
@@ -40,7 +40,6 @@ describe('GraphInputValidationService', () => {
   let customizationArguments: GraphInputCustomizationArgs;
   let answerGroups: AnswerGroup[], goodDefaultOutcome: Outcome;
   let oof: OutcomeObjectFactory, agof: AnswerGroupObjectFactory;
-  let rof: RuleObjectFactory;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -51,10 +50,10 @@ describe('GraphInputValidationService', () => {
     validatorService = TestBed.get(GraphInputValidationService);
     oof = TestBed.get(OutcomeObjectFactory);
     agof = TestBed.get(AnswerGroupObjectFactory);
-    rof = TestBed.get(RuleObjectFactory);
     currentState = 'First State';
     goodDefaultOutcome = oof.createFromBackendDict({
       dest: 'Second State',
+      dest_if_really_stuck: null,
       feedback: {
         html: '',
         content_id: ''
@@ -99,23 +98,23 @@ describe('GraphInputValidationService', () => {
     };
 
     var answerGroup = agof.createNew(
-      [rof.createFromBackendDict({
+      [Rule.createFromBackendDict({
         inputs: {
           g: {
             vertices: new Array(10)
           }
         },
         rule_type: 'IsIsomorphicTo'
-      }), rof.createFromBackendDict({
+      }, 'GraphInput'), Rule.createFromBackendDict({
         inputs: {
           g: {
             vertices: new Array(10)
           }
         },
         rule_type: 'IsIsomorphicTo'
-      })],
+      }, 'GraphInput')],
       goodDefaultOutcome,
-      null,
+      [],
       null);
     answerGroups = [answerGroup, cloneDeep(answerGroup)];
   });
@@ -130,10 +129,10 @@ describe('GraphInputValidationService', () => {
   it('should expect graph and edit customization arguments', () => {
     expect(() => {
       validatorService.getAllWarnings(
-        // This throws "Argument of type '{}' is not assignable to
-        // parameter of type 'GraphInputCustomizationArgs'." We are purposely
-        // assigning the wrong type of customization args in order to test
-        // validations.
+        // This throws "Argument of type '{}'. We need to suppress this error
+        // because ..  oppia/comment-style is not assignable to parameter of
+        // type 'GraphInputCustomizationArgs'." We are purposely assigning the
+        // wrong type of customization args in order to test validations.
         // @ts-expect-error
         currentState, {}, answerGroups, goodDefaultOutcome);
     }).toThrowError(
@@ -155,24 +154,27 @@ describe('GraphInputValidationService', () => {
 
   it('should validate the maximum number of vertices in the graph for an ' +
     'isomorphism check', () => {
-    (<GraphAnswer> answerGroups[0].rules[0].inputs.g).vertices = new Array(11);
-    (<GraphAnswer> answerGroups[0].rules[1].inputs.g).vertices = new Array(11);
-    (<GraphAnswer> answerGroups[1].rules[0].inputs.g).vertices = new Array(11);
+    (answerGroups[0].rules[0].inputs.g as GraphAnswer).vertices = new Array(11);
+    (answerGroups[0].rules[1].inputs.g as GraphAnswer).vertices = new Array(11);
+    (answerGroups[1].rules[0].inputs.g as GraphAnswer).vertices = new Array(11);
     var warnings = validatorService.getAllWarnings(
       currentState, customizationArguments, answerGroups,
       goodDefaultOutcome);
     expect(warnings).toEqual([{
       type: WARNING_TYPES.CRITICAL,
-      message: 'The graph used in the rule 1 in group 1 exceeds supported ' +
-          'maximum number of vertices of 10 for isomorphism check.'
+      message: 'The graph used in the learner answer 1 in Oppia response ' +
+          '1 exceeds supported maximum number of vertices of ' +
+          '10 for isomorphism check.'
     }, {
       type: WARNING_TYPES.CRITICAL,
-      message: 'The graph used in the rule 2 in group 1 exceeds supported ' +
-          'maximum number of vertices of 10 for isomorphism check.'
+      message: 'The graph used in the learner answer 2 in Oppia response ' +
+          '1 exceeds supported maximum number of vertices of ' +
+          '10 for isomorphism check.'
     }, {
       type: WARNING_TYPES.CRITICAL,
-      message: 'The graph used in the rule 1 in group 2 exceeds supported ' +
-          'maximum number of vertices of 10 for isomorphism check.'
+      message: 'The graph used in the learner answer 1 in Oppia response ' +
+          '2 exceeds supported maximum number of vertices of ' +
+          '10 for isomorphism check.'
     }]);
   });
 
@@ -199,6 +201,72 @@ describe('GraphInputValidationService', () => {
       type: WARNING_TYPES.CRITICAL,
       message: (
         'The learner cannot edit vertex labels for an unlabeled graph.')
+    }]);
+  });
+
+  it('should not verify vertex graph that has \'HasGraphProperty\'' +
+  ' rule type', () => {
+    var answerGroup = agof.createNew(
+      [Rule.createNew('HasGraphProperty', {
+        g: {
+          vertices: new Array(10)
+        }
+      }, { g: ''})],
+      goodDefaultOutcome,
+      [],
+      null);
+    answerGroups = [answerGroup, cloneDeep(answerGroup)];
+    var warnings = validatorService.getAllWarnings(
+      currentState, customizationArguments, answerGroups,
+      goodDefaultOutcome);
+    expect(warnings).toEqual([]);
+  });
+
+  it('should validate the maximum number of vertices in the graph', () => {
+    var answerGroup = agof.createNew(
+      [Rule.createNew('rule', {
+        g: {
+          vertices: new Array(52)
+        }
+      }, { g: ''})],
+      goodDefaultOutcome,
+      [],
+      null);
+    answerGroups = [answerGroup, cloneDeep(answerGroup)];
+    var warnings = validatorService.getAllWarnings(
+      currentState, customizationArguments, answerGroups,
+      goodDefaultOutcome);
+    expect(warnings).toEqual([{
+      type: AppConstants.WARNING_TYPES.CRITICAL,
+      message: (
+        'The graph used in the learner answer 1 in Oppia response 1 ' +
+        'exceeds supported maximum number of vertices of 50.')
+    }, {
+      type: AppConstants.WARNING_TYPES.CRITICAL,
+      message: (
+        'The graph used in the learner answer 1 in Oppia response 2 ' +
+        'exceeds supported maximum number of vertices of 50.')
+    }]);
+  });
+
+  it('should throw error when rule is invalid', () => {
+    var answerGroup = agof.createNew(
+      [new Rule(new Error('Error') as unknown as string, {}, {})],
+      goodDefaultOutcome,
+      [],
+      null);
+    answerGroups = [answerGroup, cloneDeep(answerGroup)];
+    var warnings = validatorService.getAllWarnings(
+      currentState, customizationArguments, answerGroups,
+      goodDefaultOutcome);
+    expect(warnings).toEqual([{
+      type: AppConstants.WARNING_TYPES.CRITICAL,
+      message: (
+        'Learner answer 1 in Oppia response 1 is invalid.')
+    }, {
+      type: AppConstants.WARNING_TYPES.CRITICAL,
+      message: (
+        'Learner answer 1 in Oppia response 2 is invalid.')
     }]);
   });
 });

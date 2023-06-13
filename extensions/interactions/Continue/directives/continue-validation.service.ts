@@ -44,10 +44,17 @@ export class ContinueValidationService {
     this.baseInteractionValidationServiceInstance.requireCustomizationArguments(
       customizationArgs, ['buttonText']);
 
-    if (customizationArgs.buttonText.value.getUnicode().length === 0) {
+    if (customizationArgs.buttonText.value.unicode.trim().length === 0) {
       warningsList.push({
         type: AppConstants.WARNING_TYPES.CRITICAL,
         message: 'The button text should not be empty.'
+      });
+    }
+
+    if (customizationArgs.buttonText.value.unicode.length > 20) {
+      warningsList.push({
+        type: AppConstants.WARNING_TYPES.CRITICAL,
+        message: 'The button text should be at most 20 characters.'
       });
     }
     return warningsList;

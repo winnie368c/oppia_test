@@ -22,7 +22,7 @@ import {
 } from 'domain/story_viewer/read-only-story-node.model';
 
 export interface StoryPlaythroughBackendDict {
-  'story_id': string,
+  'story_id': string;
   'story_nodes': StoryNodeBackendDict[];
   'story_title': string;
   'story_description': string;
@@ -90,6 +90,7 @@ export class StoryPlaythrough {
         return this.nodes[i].getId();
       }
     }
+    throw new Error('No story nodes found!');
   }
 
   hasStartedStory(): boolean {

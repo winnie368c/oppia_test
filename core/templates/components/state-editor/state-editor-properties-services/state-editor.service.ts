@@ -18,13 +18,16 @@
  */
 
 import cloneDeep from 'lodash/cloneDeep';
+import { Observable } from 'rxjs';
 
 import { downgradeInjectable } from '@angular/upgrade/static';
 import { EventEmitter, Injectable } from '@angular/core';
 
 import { AnswerGroup } from
   'domain/exploration/AnswerGroupObjectFactory';
-import { Hint } from 'domain/exploration/HintObjectFactory';
+import { Hint } from 'domain/exploration/hint-object.model';
+import { SubtitledHtml } from
+  'domain/exploration/subtitled-html.model';
 import {
   DragAndDropSortInputCustomizationArgs,
   ImageClickInputCustomizationArgs,
@@ -40,9 +43,12 @@ import { SolutionValidityService } from
 import { State } from 'domain/state/StateObjectFactory';
 
 export interface AnswerChoice {
-  val: string | number;
+  val: string | number | SubtitledHtml;
   label: string;
 }
+
+type CustomizationArgs = (
+  ItemSelectionInputCustomizationArgs | DragAndDropSortInputCustomizationArgs);
 
 @Injectable({
   providedIn: 'root'
@@ -53,26 +59,38 @@ export class StateEditorService {
   private _stateEditorInitializedEventEmitter = new EventEmitter<State>();
   private _stateEditorDirectiveInitializedEventEmitter =
     new EventEmitter<void>();
+
   private _interactionEditorInitializedEventEmitter = new EventEmitter<void>();
   private _showTranslationTabBusyModalEventEmitter = new EventEmitter<void>();
   private _refreshStateTranslationEventEmitter = new EventEmitter<void>();
-  private _updateAnswerChoicesEventEmitter = new EventEmitter<AnswerChoice[]>();
+  private _updateAnswerChoicesEventEmitter =
+    new EventEmitter<AnswerChoice[]>();
+
   private _saveOutcomeDestDetailsEventEmitter = new EventEmitter<void>();
+  private _saveOutcomeDestIfStuckDetailsEventEmitter = new EventEmitter<void>();
   private _handleCustomArgsUpdateEventEmitter =
     new EventEmitter<AnswerChoice[]>();
 
-  activeStateName: string = null;
-  stateNames: string[] = [];
-  correctnessFeedbackEnabled: boolean = null;
-  inQuestionMode: boolean = null;
+  private _stateNamesChangedEventEmitter = new EventEmitter<void>();
+  private _objectFormValidityChangeEventEmitter = new EventEmitter<boolean>();
+
+  activeStateName: string | null = null;
+  // These properties are initialized using Angular lifecycle hooks
+  // and we need to do non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
   // Currently, the only place where this is used in the state editor
   // is in solution verification. So, once the interaction is set in this
   // service, the given solutions would be automatically verified for the set
   // interaction.
-  interaction: Interaction = null;
+  interaction!: Interaction;
+  linkedSkillId!: string;
+  stateNames: string[] = [];
+  correctnessFeedbackEnabled: boolean = false;
+  inQuestionMode: boolean = false;
   misconceptionsBySkill: {} = {};
   explorationIsWhitelisted: boolean = false;
-  solicitAnswerDetails: boolean = null;
+  solicitAnswerDetails: boolean = false;
+  cardIsCheckpoint: boolean = false;
   stateContentEditorInitialised: boolean = false;
   stateInteractionEditorInitialised: boolean = false;
   stateResponsesInitialised: boolean = false;
@@ -110,6 +128,10 @@ export class StateEditorService {
     this.currentRuleInputIsValid = value;
   }
 
+  get onStateNamesChanged(): Observable<void> {
+    return this._stateNamesChangedEventEmitter;
+  }
+
   checkCurrentRuleInputIsValid(): boolean {
     return this.currentRuleInputIsValid;
   }
@@ -121,7 +143,7 @@ export class StateEditorService {
       this.stateEditorDirectiveInitialised);
   }
 
-  getActiveStateName(): string {
+  getActiveStateName(): string | null {
     return this.activeStateName;
   }
 
@@ -157,6 +179,14 @@ export class StateEditorService {
     this.interaction.setId(newId);
   }
 
+  setLinkedSkillId(newLinkedSkillId: string): void {
+    this.linkedSkillId = newLinkedSkillId;
+  }
+
+  getLinkedSkillId(): string {
+    return this.linkedSkillId;
+  }
+
   setInteractionAnswerGroups(newAnswerGroups: AnswerGroup[]): void {
     this.interaction.setAnswerGroups(newAnswerGroups);
   }
@@ -182,20 +212,27 @@ export class StateEditorService {
     return cloneDeep(this.interaction);
   }
 
+  // Function will return null if interactionId does not exist or is not
+  // equivalent to 'MultipleChoiceInput', 'ItemSelectionInput',
+  // 'DragAndDropSortInput'.
   getAnswerChoices(
       interactionId: string,
-      customizationArgs: InteractionCustomizationArgs): AnswerChoice[] {
+      customizationArgs: InteractionCustomizationArgs
+  ): AnswerChoice[] | null {
     if (!interactionId) {
       return null;
     }
     // Special cases for multiple choice input and image click input.
     if (interactionId === 'MultipleChoiceInput') {
-      return (<MultipleChoiceInputCustomizationArgs> customizationArgs)
-        .choices.value.map((val, ind) => ({ val: ind, label: val.getHtml() }));
+      return (
+        customizationArgs as MultipleChoiceInputCustomizationArgs
+      ).choices.value.map((val, ind) => (
+        { val: ind, label: val.html }
+      )) as AnswerChoice[];
     } else if (interactionId === 'ImageClickInput') {
       var _answerChoices = [];
       var imageWithRegions = (
-        <ImageClickInputCustomizationArgs> customizationArgs)
+        customizationArgs as ImageClickInputCustomizationArgs)
         .imageAndRegions.value;
       for (
         var j = 0; j < imageWithRegions.labeledRegions.length; j++) {
@@ -205,18 +242,17 @@ export class StateEditorService {
         });
       }
       return _answerChoices;
-    } else if (interactionId === 'ItemSelectionInput') {
+    } else if (
+      interactionId === 'ItemSelectionInput' ||
+      interactionId === 'DragAndDropSortInput'
+    ) {
       return (
-        <ItemSelectionInputCustomizationArgs> customizationArgs)
-        .choices.value.map(val => (
-          { val: val.getHtml(), label: val.getHtml() }
-        ));
-    } else if (interactionId === 'DragAndDropSortInput') {
-      return (
-        <DragAndDropSortInputCustomizationArgs> customizationArgs)
-        .choices.value.map(val => (
-          { val: val.getHtml(), label: val.getHtml() }
-        ));
+        customizationArgs as CustomizationArgs
+      ).choices.value.map(
+        val => ({
+          val: val.contentId, label: val.html}
+        )
+      ) as AnswerChoice[];
     } else {
       return null;
     }
@@ -246,8 +282,17 @@ export class StateEditorService {
     return this.solicitAnswerDetails;
   }
 
+  setCardIsCheckpoint(newCardIsCheckpoint: boolean): void {
+    this.cardIsCheckpoint = newCardIsCheckpoint;
+  }
+
+  getCardIsCheckpoint(): boolean {
+    return this.cardIsCheckpoint;
+  }
+
   setStateNames(newStateNames: string[]): void {
     this.stateNames = newStateNames;
+    this._stateNamesChangedEventEmitter.emit();
   }
 
   getStateNames(): string[] {
@@ -265,10 +310,16 @@ export class StateEditorService {
   }
 
   isCurrentSolutionValid(): boolean {
+    if (this.activeStateName === null) {
+      return false;
+    }
     return this.solutionValidityService.isSolutionValid(this.activeStateName);
   }
 
   deleteCurrentSolutionValidity(): void {
+    if (this.activeStateName === null) {
+      throw new Error('Active State for this solution is not set');
+    }
     this.solutionValidityService.deleteSolutionValidity(this.activeStateName);
   }
 
@@ -300,8 +351,16 @@ export class StateEditorService {
     return this._saveOutcomeDestDetailsEventEmitter;
   }
 
+  get onSaveOutcomeDestIfStuckDetails(): EventEmitter<void> {
+    return this._saveOutcomeDestIfStuckDetailsEventEmitter;
+  }
+
   get onHandleCustomArgsUpdate(): EventEmitter<AnswerChoice[]> {
     return this._handleCustomArgsUpdateEventEmitter;
+  }
+
+  get onObjectFormValidityChange(): EventEmitter<boolean> {
+    return this._objectFormValidityChangeEventEmitter;
   }
 }
 

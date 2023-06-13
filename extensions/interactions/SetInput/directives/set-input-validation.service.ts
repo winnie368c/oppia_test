@@ -29,7 +29,8 @@ import { SetInputCustomizationArgs } from
 import { Outcome } from
   'domain/exploration/OutcomeObjectFactory';
 import { Rule } from
-  'domain/exploration/RuleObjectFactory';
+  'domain/exploration/rule.model';
+import { TranslatableSetOfUnicodeString } from 'interactions/rule-input-defs';
 
 interface PreviousRule {
   answerGroupIndex: number;
@@ -82,7 +83,9 @@ export class SetInputValidationService {
    */
   private areSameRule(ruleA: Rule, ruleB: Rule): boolean {
     return ruleA.type === ruleB.type &&
-      this.areSameSet(<string[]>ruleA.inputs.x, <string[]>ruleB.inputs.x);
+      this.areSameSet(
+        (ruleA.inputs.x as TranslatableSetOfUnicodeString).unicodeStrSet,
+        (ruleB.inputs.x as TranslatableSetOfUnicodeString).unicodeStrSet);
   }
 
   getCustomizationArgsWarnings(
@@ -91,12 +94,12 @@ export class SetInputValidationService {
 
     let buttonText = (
       customizationArgs.buttonText && customizationArgs.buttonText.value);
-    if (!buttonText || !angular.isString(buttonText.getUnicode())) {
+    if (!buttonText || !angular.isString(buttonText.unicode)) {
       warningsList.push({
         type: AppConstants.WARNING_TYPES.ERROR,
         message: 'Button text must be a string.'
       });
-    } else if (buttonText.getUnicode().length === 0) {
+    } else if (buttonText.unicode.length === 0) {
       warningsList.push({
         message: 'Label for this button should not be empty.',
         type: AppConstants.WARNING_TYPES.ERROR
@@ -124,10 +127,10 @@ export class SetInputValidationService {
           if (this.areSameRule(prevRule.rule, rule)) {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
-              message: `Rule ${ruleIndex + 1} from answer group ` +
-                `${answerGroupIndex + 1} is the same as ` +
-                `rule ${prevRule.ruleIndex + 1} from ` +
-                `answer group ${prevRule.answerGroupIndex + 1}`
+              message: `Learner answer ${ruleIndex + 1} from Oppia response ` +
+              `${answerGroupIndex + 1} is the same as ` +
+              `answer ${prevRule.ruleIndex + 1} from ` +
+              `Oppia response ${prevRule.answerGroupIndex + 1}`
             });
           } else if (prevRule.rule.type === rule.type) {
             /*
@@ -139,8 +142,9 @@ export class SetInputValidationService {
                 depending on their rule types.
             */
             let isRuleCoveredByAnyPrevRule = false;
-            let ruleInput = <string[]>rule.inputs.x;
-            let prevRuleInput = <string[]>prevRule.rule.inputs.x;
+            let ruleInput = rule.inputs.x as TranslatableSetOfUnicodeString;
+            let prevRuleInput = (
+              prevRule.rule.inputs.x as TranslatableSetOfUnicodeString);
             switch (rule.type) {
               case 'Equals':
                 // An 'Equals' rule is made redundant by another only when
@@ -151,14 +155,16 @@ export class SetInputValidationService {
               case 'HasElementsIn':
               case 'IsDisjointFrom':
                 isRuleCoveredByAnyPrevRule = this.isSubset(
-                  ruleInput, prevRuleInput
+                  ruleInput.unicodeStrSet,
+                  prevRuleInput.unicodeStrSet
                 );
                 break;
               case 'IsSupersetOf':
               case 'HasElementsNotIn':
               case 'OmitsElementsIn':
                 isRuleCoveredByAnyPrevRule = this.isSubset(
-                  prevRuleInput, ruleInput
+                  prevRuleInput.unicodeStrSet,
+                  ruleInput.unicodeStrSet
                 );
                 break;
               default:
@@ -167,10 +173,11 @@ export class SetInputValidationService {
             if (isRuleCoveredByAnyPrevRule) {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
-                message: `Rule ${ruleIndex + 1} from answer group ` +
-                  `${answerGroupIndex + 1} will never be matched because it ` +
-                  `is made redundant by rule ${prevRule.ruleIndex + 1}` +
-                  ` from answer group ${prevRule.answerGroupIndex + 1}.`
+                message:
+                `Learner answer ${ruleIndex + 1} from Oppia response ` +
+                `${answerGroupIndex + 1} will never be matched because it ` +
+                `is made redundant by answer ${prevRule.ruleIndex + 1} ` +
+                `from Oppia response ${prevRule.answerGroupIndex + 1}.`
               });
             }
           }

@@ -15,15 +15,13 @@
 /**
  * @fileoverview Keyboard shortcut service for Oppia webpages.
  */
-import Mousetrap from 'mousetrap';
 
+import Mousetrap from 'mousetrap';
 import { Injectable, ApplicationRef } from '@angular/core';
 import { downgradeInjectable } from '@angular/upgrade/static';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
-import { KeyboardShortcutHelpModalComponent } from
-  // eslint-disable-next-line max-len
-  'components/keyboard-shortcut-help/keyboard-shortcut-help-modal.component.ts';
-import { WindowRef } from 'services/contextual/window-ref.service.ts';
+import { KeyboardShortcutHelpModalComponent } from 'components/keyboard-shortcut-help/keyboard-shortcut-help-modal.component';
+import { WindowRef } from 'services/contextual/window-ref.service';
 
 
 @Injectable({
@@ -43,27 +41,27 @@ export class KeyboardShortcutService {
   }
 
   bindExplorationPlayerShortcuts(): void {
-    Mousetrap.bind('s', function() {
-      var skipButton = <HTMLElement>document.querySelector(
-        '.oppia-skip-to-content');
+    Mousetrap.bind('s', () => {
+      var skipButton = document.querySelector(
+        '.oppia-skip-to-content') as HTMLElement;
       if (skipButton !== null) {
         skipButton.focus();
       }
     });
 
-    Mousetrap.bind('k', function() {
-      var previousButton = <HTMLElement>document.querySelector(
-        '.oppia-back-button');
+    Mousetrap.bind('k', () => {
+      var previousButton = document.querySelector(
+        '.oppia-back-button') as HTMLElement;
       if (previousButton !== null) {
         previousButton.focus();
       }
     });
 
-    Mousetrap.bind('j', function() {
-      var nextButton = <HTMLElement>document.querySelector(
-        '.oppia-next-button');
-      var continueButton = <HTMLElement>document.querySelector(
-        '.oppia-learner-confirm-button');
+    Mousetrap.bind('j', () => {
+      var nextButton = document.querySelector(
+        '.oppia-next-button') as HTMLElement;
+      var continueButton = document.querySelector(
+        '.oppia-learner-confirm-button') as HTMLElement;
       if (nextButton !== null) {
         nextButton.focus();
       }
@@ -78,22 +76,22 @@ export class KeyboardShortcutService {
   }
 
   bindLibraryPageShortcuts(): void {
-    Mousetrap.bind('/', function() {
-      var searchBar = <HTMLElement>document.querySelector(
-        '.oppia-search-bar-text-input');
+    Mousetrap.bind('/', () => {
+      var searchBar = document.querySelector(
+        '.oppia-search-bar-text-input') as HTMLElement;
       searchBar.focus();
       return false;
     });
 
-    Mousetrap.bind('c', function() {
-      var categoryBar = <HTMLElement>document.querySelector(
-        '.oppia-search-bar-dropdown-toggle');
+    Mousetrap.bind('c', () => {
+      var categoryBar = document.querySelector(
+        '.oppia-search-bar-dropdown-toggle') as HTMLElement;
       categoryBar.focus();
     });
 
-    Mousetrap.bind('s', function() {
-      var skipButton = <HTMLElement>document.querySelector(
-        '.oppia-skip-to-content');
+    Mousetrap.bind('s', () => {
+      var skipButton = document.querySelector(
+        '.oppia-skip-to-content') as HTMLElement;
       if (skipButton !== null) {
         skipButton.focus();
       }
@@ -106,7 +104,7 @@ export class KeyboardShortcutService {
 
 
   bindNavigationShortcuts(): void {
-    Mousetrap.bind('ctrl+0', () => {
+    Mousetrap.bind('ctrl+6', () => {
       this.windowRef.nativeWindow.location.href = '/get-started';
     });
 
@@ -127,10 +125,6 @@ export class KeyboardShortcutService {
     });
 
     Mousetrap.bind('ctrl+5', () => {
-      this.windowRef.nativeWindow.location.href = '/notifications';
-    });
-
-    Mousetrap.bind('ctrl+6', () => {
       this.windowRef.nativeWindow.location.href = '/preferences';
     });
   }

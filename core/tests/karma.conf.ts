@@ -1,9 +1,19 @@
-var argv = require('yargs').argv;
+var argv = require('yargs').positional('terminalEnabled', {
+  type: 'boolean',
+  'default': false
+}).argv;
+var path = require('path');
 var generatedJs = 'third_party/generated/js/third_party.js';
 if (argv.prodEnv) {
   generatedJs = (
     'third_party/generated/js/third_party.min.js');
 }
+
+// Generate a random number between 0 and 999 to use as the seed for the
+// frontend test execution order.
+let jasmineSeed = Math.floor(Math.random() * 1000);
+// eslint-disable-next-line no-console
+console.log(`Seed for Frontend Test Execution Order ${jasmineSeed}`);
 
 module.exports = function(config) {
   config.set({
@@ -17,6 +27,7 @@ module.exports = function(config) {
       'third_party/static/angularjs-1.8.2/angular.js',
       'core/templates/karma.module.ts',
       'third_party/static/angularjs-1.8.2/angular-mocks.js',
+      '/third_party/static/lamejs-1.2.0/worker-example/worker-realtime.js',
       generatedJs,
       // Note that unexpected errors occur ("Cannot read property 'num' of
       // undefined" in MusicNotesInput.js) if the order of core/templates/...
@@ -31,6 +42,12 @@ module.exports = function(config) {
       // unknown reason.
       'core/templates/combined-tests.spec.ts',
       {
+        pattern: 'assets/**',
+        watched: false,
+        served: true,
+        included: false
+      },
+      {
         pattern: 'extensions/**/*.png',
         watched: false,
         served: true,
@@ -38,19 +55,14 @@ module.exports = function(config) {
       },
       'extensions/interactions/**/*.directive.html',
       'extensions/interactions/**/*.component.html',
-      'extensions/interactions/rule_templates.json',
-      'core/tests/data/*.json',
-      {
-        pattern: 'assets/i18n/**/*.json',
-        watched: true,
-        served: true,
-        included: false
-      }
+      'extensions/interactions/*.json',
+      'core/tests/data/*.json'
     ],
     exclude: [
       'local_compiled_js/core/templates/**/*-e2e.js',
       'local_compiled_js/extensions/**/protractor.js',
       'backend_prod_files/extensions/**',
+      'extensions/classifiers/proto/*'
     ],
     proxies: {
       // Karma serves files under the /base directory.
@@ -72,12 +84,19 @@ module.exports = function(config) {
       'core/templates/**/*.template.html': ['ng-html2js'],
       'extensions/interactions/**/*.directive.html': ['ng-html2js'],
       'extensions/interactions/**/*.component.html': ['ng-html2js'],
-      'extensions/interactions/rule_templates.json': ['json_fixtures'],
+      'extensions/interactions/*.json': ['json_fixtures'],
       'core/tests/data/*.json': ['json_fixtures']
     },
+    client: {
+      jasmine: {
+        random: true,
+        seed: jasmineSeed,
+      },
+    },
+    crossOriginAttribute: true,
     reporters: ['progress', 'coverage-istanbul'],
     coverageIstanbulReporter: {
-      reports: ['html', 'lcovonly'],
+      reports: ['html', 'json', 'lcovonly'],
       dir: '../karma_coverage_reports/',
       fixWebpackSourcePaths: true,
       'report-config': {
@@ -94,7 +113,7 @@ module.exports = function(config) {
     browserConsoleLogOptions: {
       level: 'log',
       format: '%b %T: %m',
-      terminal: true
+      terminal: argv.terminalEnabled
     },
     // Continue running in the background after running tests.
     singleRun: true,
@@ -108,7 +127,7 @@ module.exports = function(config) {
           '--no-sandbox',
           '--disable-gpu',
           '--disable-dev-shm-usage',
-          '--js-flags=--max-old-space-size=2048'
+          '--js-flags=--max-old-space-size=4096'
         ]
       }
     },
@@ -150,11 +169,11 @@ module.exports = function(config) {
         ],
         extensions: ['.ts', '.js', '.json', '.html', '.svg', '.png'],
         alias: {
-          // This is needed because in app.constants.ts we need to import
-          // assets/constants.ts. We can't directly write import 'constants'
-          // because a module named 'constants' is defined in '@types/node'
-          // package.
-          'assets/constants': 'constants.ts'
+          // These both are used so that we can refer to them in imports using
+          // their full path: 'assets/{{filename}}'.
+          'assets/constants': 'constants.ts',
+          'assets/rich_text_components_definitions':
+            'rich_text_components_definitions.ts'
         }
       },
       devtool: 'inline-cheap-source-map',
@@ -172,7 +191,8 @@ module.exports = function(config) {
                 }
               },
               {
-                loader: 'angular2-template-loader'
+                loader: path.resolve(
+                  'angular-template-style-url-replacer.webpack-loader')
               }
             ]
           },

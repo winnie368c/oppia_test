@@ -1,4 +1,4 @@
-// Copyright 2020 The Oppia Authors. All Rights Reserved.
+// Copyright 2021 The Oppia Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,688 +16,1022 @@
  * @fileoverview Unit tests for learner dashboard parge.
  */
 
-// TODO(#7222): Remove the following block of unnnecessary imports once
-// the code corresponding to the spec is upgraded to Angular 8.
+
 import { Collection, CollectionBackendDict } from 'domain/collection/collection.model';
-import { LearnerExplorationSummary, LearnerExplorationSummaryBackendDict } from 'domain/summary/learner-exploration-summary.model';
-import { UpgradedServices } from 'services/UpgradedServices';
-// ^^^ This block is to be removed.
+import { LearnerExplorationSummary } from 'domain/summary/learner-exploration-summary.model';
+
 
 import { CollectionSummary } from 'domain/collection/collection-summary.model';
 import { ProfileSummary } from 'domain/user/profile-summary.model';
-import { NonExistentActivities } from 'domain/learner_dashboard/non-existent-activities.model';
 import { FeedbackThreadSummary } from
   'domain/feedback_thread/feedback-thread-summary.model';
 
-require(
-  'pages/learner-dashboard-page/learner-dashboard-page.component.ts');
+import { LearnerDashboardPageComponent } from './learner-dashboard-page.component';
+import { async, ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MaterialModule } from 'modules/material.module';
+import { FormsModule } from '@angular/forms';
+import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { Component, EventEmitter, NO_ERRORS_SCHEMA, Pipe } from '@angular/core';
+import { TranslateService } from '@ngx-translate/core';
 
-describe('Learner dashboard page', function() {
-  var ctrl = null;
-  var $httpBackend = null;
-  var $q = null;
-  var $rootScope = null;
-  var $scope = null;
-  var $uibModal = null;
-  var AlertsService = null;
-  var CsrfTokenService = null;
-  var DateTimeFormatService = null;
-  var ExplorationObjectFactory = null;
-  var LearnerDashboardBackendApiService = null;
-  var SuggestionModalForLearnerDashboardService = null;
-  var UserService = null;
+import { AlertsService } from 'services/alerts.service';
+import { CsrfTokenService } from 'services/csrf-token.service';
+import { FocusManagerService } from 'services/stateful/focus-manager.service';
+import { DateTimeFormatService } from 'services/date-time-format.service';
+import { ExplorationBackendDict, ExplorationObjectFactory } from 'domain/exploration/ExplorationObjectFactory';
+import { LearnerDashboardBackendApiService } from 'domain/learner_dashboard/learner-dashboard-backend-api.service';
+import { LearnerDashboardActivityBackendApiService } from 'domain/learner_dashboard/learner-dashboard-activity-backend-api.service';
+import { SuggestionModalForLearnerDashboardService } from './suggestion-modal/suggestion-modal-for-learner-dashboard.service';
+import { SortByPipe } from 'filters/string-utility-filters/sort-by.pipe';
+import { UserService } from 'services/user.service';
+import { UrlInterpolationService } from 'domain/utilities/url-interpolation.service';
+import { MockTranslatePipe } from 'tests/unit-test-utils';
+import { StorySummary } from 'domain/story/story-summary.model';
+import { LearnerTopicSummary } from 'domain/topic/learner-topic-summary.model';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { NonExistentTopicsAndStories } from 'domain/learner_dashboard/non-existent-topics-and-stories.model';
+import { NonExistentCollections } from 'domain/learner_dashboard/non-existent-collections.model';
+import { NonExistentExplorations } from 'domain/learner_dashboard/non-existent-explorations.model';
+import { WindowDimensionsService } from 'services/contextual/window-dimensions.service';
+import { PageTitleService } from 'services/page-title.service';
+import { LearnerGroupBackendApiService } from 'domain/learner_group/learner-group-backend-api.service';
+import { UrlService } from 'services/contextual/url.service';
+import { UserInfo } from 'domain/user/user-info.model';
 
-  var profilePictureDataUrl = 'profile-picture-url';
-  var userInfo = {
-    getUsername: () => 'username1'
-  };
-  var learnerDashboardData = null;
+@Pipe({name: 'slice'})
+class MockSlicePipe {
+  transform(value: string, params: Object | undefined): string {
+    return value;
+  }
+}
 
-  beforeEach(angular.mock.module('oppia', function($provide) {
-    var ugs = new UpgradedServices();
-    for (let [key, value] of Object.entries(ugs.getUpgradedServices())) {
-      $provide.value(key, value);
+@Pipe({name: 'truncate'})
+class MockTrunctePipe {
+  transform(value: string, params: Object | undefined): string {
+    return value;
+  }
+}
+
+class MockLearnerDashboardActivityBackendApiService {
+  async removeActivityModalAsync(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      resolve();
+    });
+  }
+}
+
+class MockTranslateService {
+  onLangChange: EventEmitter<string> = new EventEmitter();
+  instant(key: string): string {
+    return key;
+  }
+}
+
+@Component({selector: 'background-banner', template: ''})
+class BackgroundBannerComponentStub {
+}
+
+@Component({selector: 'exploration-summary-tile', template: ''})
+class ExplorationSummaryTileComponentStub {
+}
+
+@Component({selector: 'collection-summary-tile', template: ''})
+class CollectionSummaryTileComponentStub {
+}
+
+@Component({selector: 'loading-dots', template: ''})
+class LoadingDotsComponentStub {
+}
+
+describe('Learner dashboard page', () => {
+  let component: LearnerDashboardPageComponent;
+  let fixture: ComponentFixture<LearnerDashboardPageComponent>;
+  let alertsService: AlertsService = null;
+  let csrfTokenService: CsrfTokenService = null;
+  let dateTimeFormatService: DateTimeFormatService = null;
+  let explorationObjectFactory: ExplorationObjectFactory = null;
+  let focusManagerService: FocusManagerService;
+  let learnerDashboardBackendApiService:
+    LearnerDashboardBackendApiService = null;
+  let suggestionModalForLearnerDashboardService:
+    SuggestionModalForLearnerDashboardService = null;
+  let windowDimensionsService: WindowDimensionsService;
+  let mockResizeEmitter: EventEmitter<void>;
+  let userService: UserService = null;
+  let translateService: TranslateService = null;
+  let pageTitleService: PageTitleService = null;
+  let learnerGroupBackendApiService: LearnerGroupBackendApiService;
+  let urlService: UrlService;
+
+  let explorationDict: ExplorationBackendDict = {
+    init_state_name: 'Introduction',
+    language_code: 'en',
+    states: {},
+    param_changes: [],
+    param_specs: {},
+    is_version_of_draft_valid: true,
+    correctness_feedback_enabled: false,
+    draft_changes: [],
+    version: 1,
+    draft_change_list_id: 3,
+    title: 'Test Exploration',
+    next_content_id_index: 3,
+    auto_tts_enabled: true,
+    exploration_metadata: {
+      title: 'Exploration',
+      category: 'Algebra',
+      objective: 'To learn',
+      language_code: 'en',
+      tags: [],
+      blurb: '',
+      author_notes: '',
+      states_schema_version: 50,
+      init_state_name: 'Introduction',
+      param_specs: {},
+      param_changes: [],
+      auto_tts_enabled: false,
+      correctness_feedback_enabled: true,
+      edits_allowed: true
     }
-  }));
+  };
 
-  describe('when succesfully fetching learner dashboard data', function() {
-    beforeEach(angular.mock.inject(function($injector, $componentController) {
-      $httpBackend = $injector.get('$httpBackend');
-      $q = $injector.get('$q');
-      var $rootScope = $injector.get('$rootScope');
-      $uibModal = $injector.get('$uibModal');
-      CsrfTokenService = $injector.get('CsrfTokenService');
-      DateTimeFormatService = $injector.get('DateTimeFormatService');
-      ExplorationObjectFactory = $injector.get('ExplorationObjectFactory');
-      LearnerDashboardBackendApiService = $injector.get(
-        'LearnerDashboardBackendApiService');
-      SuggestionModalForLearnerDashboardService = $injector.get(
-        'SuggestionModalForLearnerDashboardService');
-      UserService = $injector.get('UserService');
+  let titleList = [
+    'World War III', 'Quantum Mechanics', 'Algebra',
+    'Nouns', 'Counting Stars', 'Hip Hop', 'Consiousness',
+    'Database Management', 'Plant Cell', 'Zebra'
+  ];
 
-      spyOn(CsrfTokenService, 'getTokenAsync').and.returnValue(
-        $q.resolve('sample-csrf-token'));
+  let categoryList = [
+    'Social', 'Science', 'Mathematics', 'English',
+    'French', 'Arts', 'Pyschology',
+    'Computer Science', 'Biology', 'Zoo'
+  ];
 
-      var explorationDict = {
-        init_state_name: 'Introduction',
-        language_code: 'en',
-        states: {
-          Introduction: {
-            param_changes: [],
-            content: {
-              html: '',
-              audio_translations: {}
-            },
-            recorded_voiceovers: {
-              voiceovers_mapping: {}
-            },
-            written_translations: {
-              translations_mapping: {}
-            },
-            unresolved_answers: {},
-            interaction: {
-              customization_args: {},
-              answer_groups: [],
-              default_outcome: {
-                param_changes: [],
-                dest: 'Introduction',
-                feedback: {
-                  html: '',
-                  audio_translations: {}
-                }
-              },
-              hints: [],
-              confirmed_unclassified_answers: [],
-              id: null
+  let threadSummaryList = [{
+    status: 'open',
+    original_author_id: '1',
+    last_updated_msecs: 1000,
+    last_message_text: 'Last Message',
+    total_message_count: 5,
+    last_message_is_read: false,
+    second_last_message_is_read: true,
+    author_last_message: '2',
+    author_second_last_message: 'Last Message',
+    exploration_title: 'Biology',
+    exploration_id: 'exp1',
+    thread_id: 'thread_1'
+  },
+  {
+    status: 'open',
+    original_author_id: '2',
+    last_updated_msecs: 1001,
+    last_message_text: 'Last Message',
+    total_message_count: 5,
+    last_message_is_read: false,
+    second_last_message_is_read: true,
+    author_last_message: '2',
+    author_second_last_message: 'Last Message',
+    exploration_title: 'Algebra',
+    exploration_id: 'exp1',
+    thread_id: 'thread_1'
+  },
+  {
+    status: 'open',
+    original_author_id: '3',
+    last_updated_msecs: 1002,
+    last_message_text: 'Last Message',
+    total_message_count: 5,
+    last_message_is_read: false,
+    second_last_message_is_read: true,
+    author_last_message: '2',
+    author_second_last_message: 'Last Message',
+    exploration_title: 'Three Balls',
+    exploration_id: 'exp1',
+    thread_id: 'thread_1'
+  },
+  {
+    status: 'open',
+    original_author_id: '4',
+    last_updated_msecs: 1003,
+    last_message_text: 'Last Message',
+    total_message_count: 5,
+    last_message_is_read: false,
+    second_last_message_is_read: true,
+    author_last_message: '2',
+    author_second_last_message: 'Last Message',
+    exploration_title: 'Zebra',
+    exploration_id: 'exp1',
+    thread_id: 'thread_1'
+  }
+  ];
+
+  let subscriptionsList = [{
+    creator_impact: 0,
+    creator_username: 'Bucky',
+  },
+  {
+    creator_impact: 1,
+    creator_username: 'Arrow',
+  },
+  {
+    creator_impact: 3,
+    creator_username: 'Deadpool',
+  },
+  {
+    creator_impact: 2,
+    creator_username: 'Captain America',
+  }];
+
+  let collectionDict: CollectionBackendDict = {
+    id: 'sample_collection_id',
+    title: 'a title',
+    objective: 'an objective',
+    category: 'a category',
+    version: 0,
+    nodes: [],
+    language_code: null,
+    schema_version: null,
+    tags: null,
+    playthrough_dict: {
+      next_exploration_id: 'expId',
+      completed_exploration_ids: ['expId2']
+    }
+  };
+
+
+  let learnerDashboardTopicAndStoriesData = {
+    completed_stories_list: [],
+    learnt_topic_list: [],
+    partially_learnt_topics_list: [],
+    topics_to_learn_list: [],
+    all_topics_list: [],
+    untracked_topics: {},
+    completed_to_incomplete_stories: [],
+    learnt_to_partially_learnt_topics: [],
+    number_of_nonexistent_topics_and_stories: {
+      partially_learnt_topics: 0,
+      completed_stories: 0,
+      learnt_topics: 0,
+      topics_to_learn: 0,
+    },
+  };
+
+
+  let learnerDashboardCollectionsData = {
+    completed_collections_list: [],
+    incomplete_collections_list: [],
+    completed_to_incomplete_collections: [],
+    number_of_nonexistent_collections: {
+      incomplete_collections: 0,
+      completed_collections: 0,
+      collection_playlist: 0
+    },
+    collection_playlist: []
+  };
+
+
+  let learnerDashboardExplorationsData = {
+    completed_explorations_list: [],
+    incomplete_explorations_list: [],
+    subscription_list: subscriptionsList,
+    number_of_nonexistent_explorations: {
+      incomplete_explorations: 0,
+      completed_explorations: 0,
+      exploration_playlist: 0,
+    },
+    exploration_playlist: [],
+  };
+
+  let learnerDashboardFeedbackUpdatesData = {
+    thread_summaries: threadSummaryList,
+    number_of_unread_threads: 10,
+  };
+
+  let userInfo = {
+    _roles: ['USER_ROLE'],
+    _isModerator: true,
+    _isCurriculumAdmin: false,
+    _isTopicManager: false,
+    _isSuperAdmin: false,
+    _canCreateCollections: true,
+    _preferredSiteLanguageCode: 'en',
+    _username: 'username1',
+    _email: 'tester@example.org',
+    _isLoggedIn: true,
+    isModerator: () => true,
+    isCurriculumAdmin: () => false,
+    isSuperAdmin: () => false,
+    isTopicManager: () => false,
+    isTranslationAdmin: () => false,
+    isBlogAdmin: () => false,
+    isBlogPostEditor: () => false,
+    isQuestionAdmin: () => false,
+    canCreateCollections: () => true,
+    getPreferredSiteLanguageCode: () =>'en',
+    getUsername: () => 'username1',
+    getEmail: () => 'tester@example.org',
+    isLoggedIn: () => true
+  };
+
+  describe('when succesfully fetching learner dashboard data', () => {
+    beforeEach(async(() => {
+      mockResizeEmitter = new EventEmitter();
+      TestBed.configureTestingModule({
+        imports: [
+          BrowserAnimationsModule,
+          MaterialModule,
+          FormsModule,
+          HttpClientTestingModule
+        ],
+        declarations: [
+          LearnerDashboardPageComponent,
+          MockTranslatePipe,
+          SortByPipe,
+          MockSlicePipe,
+          MockTrunctePipe,
+          BackgroundBannerComponentStub,
+          ExplorationSummaryTileComponentStub,
+          CollectionSummaryTileComponentStub,
+          LoadingDotsComponentStub,
+        ],
+        providers: [
+          AlertsService,
+          DateTimeFormatService,
+          ExplorationObjectFactory,
+          FocusManagerService,
+          LearnerDashboardBackendApiService,
+          {
+            provide: LearnerDashboardActivityBackendApiService,
+            useClass: MockLearnerDashboardActivityBackendApiService
+          },
+          {
+            provide: WindowDimensionsService,
+            useValue: {
+              isWindowNarrow: () => true,
+              getResizeEvent: () => mockResizeEmitter,
             }
+          },
+          SuggestionModalForLearnerDashboardService,
+          UrlInterpolationService,
+          UserService,
+          PageTitleService,
+          {
+            provide: TranslateService,
+            useClass: MockTranslateService
           }
-        },
-        param_changes: [],
-        param_specs: {},
-        version: 1
-      };
-      var collectionDict = {
-        objective: '',
-        category: '',
-        version: '0',
-        nodes: [],
-        playthrough_dict: {
-          next_exploration_id: 'expId',
-          completed_exploration_ids: ['expId2']
-        }
-      };
-      learnerDashboardData = {
-        completed_explorations_list: [],
-        completed_collections_list: [],
-        incomplete_explorations_list: [],
-        incomplete_collections_list: [],
-        subscription_list: [{
-          creator_impact: null,
-          creator_picture_data_url: 'creator1-url',
-          creator_username: 'username1',
-        }, {
-          creator_impact: null,
-          creator_picture_data_url: 'creator1-url',
-          creator_username: 'username1',
-        }],
-        number_of_nonexistent_activities: {
-          incomplete_explorations: 0,
-          incomplete_collections: 0,
-          completed_explorations: 0,
-          completed_collections: 0,
-          exploration_playlist: 0,
-          collection_playlist: 0
-        },
-        completed_to_incomplete_collections: [],
-        thread_summaries: [{
-          status: 'open',
-          original_author_id: '1',
-          last_updated_msecs: 1000,
-          last_message_text: 'Last Message',
-          total_message_count: 5,
-          last_message_is_read: false,
-          second_last_message_is_read: true,
-          author_last_message: '2',
-          author_second_last_message: 'Last Message',
-          exploration_title: 'Exploration Title',
-          exploration_id: 'exp1',
-          thread_id: 'thread_1'
-        }],
-        number_of_unread_threads: 10,
-        exploration_playlist: [],
-        collection_playlist: []
-      };
+        ],
+        schemas: [NO_ERRORS_SCHEMA]
+      }).compileComponents();
+    }));
 
+    beforeEach(fakeAsync(() => {
+      fixture = TestBed.createComponent(LearnerDashboardPageComponent);
+      component = fixture.componentInstance;
+
+      alertsService = TestBed.inject(AlertsService);
+      csrfTokenService = TestBed.inject(CsrfTokenService);
+      dateTimeFormatService = TestBed.inject(DateTimeFormatService);
+      explorationObjectFactory = TestBed.inject(ExplorationObjectFactory);
+      focusManagerService = TestBed.inject(FocusManagerService);
+      windowDimensionsService = TestBed.inject(WindowDimensionsService);
+      learnerDashboardBackendApiService =
+        TestBed.inject(LearnerDashboardBackendApiService);
+      suggestionModalForLearnerDashboardService =
+        TestBed.inject(SuggestionModalForLearnerDashboardService);
+      userService = TestBed.inject(UserService);
+      translateService = TestBed.inject(TranslateService);
+      pageTitleService = TestBed.inject(PageTitleService);
+      urlService = TestBed.inject(UrlService);
+      learnerGroupBackendApiService = TestBed.inject(
+        LearnerGroupBackendApiService);
+
+      spyOn(csrfTokenService, 'getTokenAsync').and.callFake(async() => {
+        return Promise.resolve('sample-csrf-token');
+      });
       // Generate completed explorations and exploration playlist.
       for (let i = 0; i < 10; i++) {
-        learnerDashboardData.completed_explorations_list[i] = (
-          ExplorationObjectFactory.createFromBackendDict(
+        learnerDashboardExplorationsData.completed_explorations_list[i] = (
+          explorationObjectFactory.createFromBackendDict(
             Object.assign(explorationDict, {
-              exploration_id: i + 1,
-              title: 'Exploration Title ' + (i + 1),
-              category: 'Astronomy'
+              id: i + 1,
+              title: titleList[i],
+              category: categoryList[i]
             })
           ));
-        learnerDashboardData.exploration_playlist[i] = ({
+        learnerDashboardExplorationsData.exploration_playlist[i] = ({
           id: Number(i + 1).toString()
         });
       }
 
-      // Generate incomplete explorations.
+      // Generate incomplete explorations and incomplete exploration playlist.
       for (let i = 0; i < 12; i++) {
-        learnerDashboardData.incomplete_explorations_list[i] = (
-          ExplorationObjectFactory.createFromBackendDict(
+        learnerDashboardExplorationsData.incomplete_explorations_list[i] = (
+          explorationObjectFactory.createFromBackendDict(
             Object.assign(explorationDict, {
-              // Create ids from 10 to 22.
+              // Create ids from 11 to 22.
               // (1 to 10 is the complete explorations).
-              exploration_id: i + 11,
-              title: 'Exploration Title ' + (i + 11),
-              category: 'Astronomy'
+              id: Number(i + 11).toString(),
+              title: titleList[i],
+              category: categoryList[i]
             })
           ));
       }
 
       // Generate completed collections and collection playlist.
       for (let i = 0; i < 8; i++) {
-        learnerDashboardData.completed_collections_list[i] = (
+        learnerDashboardCollectionsData.completed_collections_list[i] = (
           // TODO(#10875): Fix type mismatch.
           Collection.create(
             Object.assign(collectionDict, {
-              id: i + 1,
-              title: 'Collection Title ' + (i + 1),
-            }) as unknown as CollectionBackendDict
+              title: titleList[i],
+              category: categoryList[i]
+            }) as CollectionBackendDict
           ));
-        learnerDashboardData.collection_playlist[i] = ({
+        learnerDashboardCollectionsData.collection_playlist[i] = ({
           id: Number(i + 1).toString()
         });
       }
 
       // Generate incomplete collections.
       for (let i = 0; i < 8; i++) {
-        learnerDashboardData.incomplete_collections_list[i] = (
+        learnerDashboardCollectionsData.incomplete_collections_list[i] = (
           // TODO(#10875): Fix type mismatch.
           Collection.create(
             Object.assign(collectionDict, {
-              // Create ids from 9 to 17.
-              // (0 to 8 is the complete collections).
-              id: i + 10,
+              // Create ids from 9 to 16.
+              // (1 to 8 is the complete collections).
+              id: Number(i + 9).toString(),
               title: 'Collection Title ' + (i + 7),
-            }) as unknown as CollectionBackendDict
+            }) as CollectionBackendDict
           ));
       }
 
-      spyOn(UserService, 'getProfileImageDataUrlAsync').and
-        .returnValue($q.resolve(profilePictureDataUrl));
-      spyOn(UserService, 'getUserInfoAsync').and.returnValue(
-        $q.resolve(userInfo));
-      spyOn(LearnerDashboardBackendApiService, 'fetchLearnerDashboardDataAsync')
-        .and.returnValue($q.resolve({
-          completedExplorationsList: (
-            learnerDashboardData.completed_explorations_list.map(
-              expSummary => LearnerExplorationSummary.createFromBackendDict(
-                expSummary))),
-          incompleteExplorationsList: (
-            learnerDashboardData.incomplete_explorations_list.map(
-              expSummary => LearnerExplorationSummary.createFromBackendDict(
-                expSummary))),
-          explorationPlaylist: (
-            learnerDashboardData.exploration_playlist.map(
-              expSummary => LearnerExplorationSummary.createFromBackendDict(
-                expSummary))),
-          completedCollectionsList: (
-            learnerDashboardData.completed_collections_list.map(
-              collectionSummary => CollectionSummary
-                .createFromBackendDict(collectionSummary))),
-          incompleteCollectionsList: (
-            learnerDashboardData.incomplete_collections_list.map(
-              collectionSummary => CollectionSummary
-                .createFromBackendDict(collectionSummary))),
-          collectionPlaylist: (
-            learnerDashboardData.collection_playlist.map(
-              collectionSummary => CollectionSummary
-                .createFromBackendDict(collectionSummary))),
-          numberOfUnreadThreads: learnerDashboardData.number_of_unread_threads,
-          threadSummaries: (
-            learnerDashboardData.thread_summaries.map(
-              threadSummary => FeedbackThreadSummary
-                .createFromBackendDict(threadSummary))),
-          completedToIncompleteCollections: (
-            learnerDashboardData.completed_to_incomplete_collections),
-          numberOfNonexistentActivities: (
-            NonExistentActivities.createFromBackendDict(
-              learnerDashboardData.number_of_nonexistent_activities)),
-          subscriptionList: (
-            learnerDashboardData.subscription_list.map(
-              profileSummary => ProfileSummary
-                .createFromCreatorBackendDict(profileSummary)))
+      spyOn(userService, 'getProfileImageDataUrl').and.returnValue(
+        ['profile-image-url-png', 'profile-image-url-webp']);
+
+      spyOn(
+        learnerDashboardBackendApiService,
+        'fetchLearnerDashboardTopicsAndStoriesDataAsync')
+        .and.returnValue(Promise.resolve({
+          completedStoriesList: (
+            learnerDashboardTopicAndStoriesData.completed_stories_list.map(
+              storySummary => StorySummary.createFromBackendDict(
+                storySummary))),
+          learntTopicsList: (
+            learnerDashboardTopicAndStoriesData.learnt_topic_list.map(
+              topicSummary => LearnerTopicSummary.createFromBackendDict(
+                topicSummary))),
+          partiallyLearntTopicsList: (
+            learnerDashboardTopicAndStoriesData
+              .partially_learnt_topics_list.map(
+                topicSummary => LearnerTopicSummary.createFromBackendDict(
+                  topicSummary))),
+          topicsToLearnList: (
+            learnerDashboardTopicAndStoriesData.topics_to_learn_list.map(
+              topicSummary => LearnerTopicSummary
+                .createFromBackendDict(topicSummary))),
+          allTopicsList: (
+            learnerDashboardTopicAndStoriesData.all_topics_list.map(
+              topicSummary => LearnerTopicSummary
+                .createFromBackendDict(topicSummary))),
+          untrackedTopics: learnerDashboardTopicAndStoriesData.untracked_topics,
+          completedToIncompleteStories: (
+            learnerDashboardTopicAndStoriesData
+              .completed_to_incomplete_stories),
+          learntToPartiallyLearntTopics: (
+            learnerDashboardTopicAndStoriesData
+              .learnt_to_partially_learnt_topics),
+          numberOfNonexistentTopicsAndStories: (
+            NonExistentTopicsAndStories.createFromBackendDict(
+              learnerDashboardTopicAndStoriesData.
+                number_of_nonexistent_topics_and_stories)),
         }));
 
-      $scope = $rootScope.$new();
-      ctrl = $componentController('learnerDashboardPage', {
-        $rootScope: $scope
+      spyOn(
+        learnerDashboardBackendApiService,
+        'fetchLearnerDashboardFeedbackUpdatesDataAsync')
+        .and.returnValue(Promise.resolve({
+          numberOfUnreadThreads: learnerDashboardFeedbackUpdatesData.
+            number_of_unread_threads,
+          threadSummaries: (
+            learnerDashboardFeedbackUpdatesData.thread_summaries.map(
+              threadSummary => FeedbackThreadSummary
+                .createFromBackendDict(threadSummary))),
+          paginatedThreadsList: []
+        }));
+
+      spyOn(learnerGroupBackendApiService, 'isLearnerGroupFeatureEnabledAsync')
+        .and.returnValue(Promise.resolve(true));
+
+      spyOn(urlService, 'getUrlParams').and.returnValue({
+        active_tab: 'learner-groups',
       });
-      ctrl.$onInit();
-      $scope.$apply();
+
+      component.ngOnInit();
+      flush();
+      fixture.detectChanges();
+      flush();
     }));
 
-    it('should initialize correctly controller properties after its' +
-    ' initialization and get data from backend', function() {
-      expect(ctrl.profilePictureDataUrl).toBe(profilePictureDataUrl);
-      expect(ctrl.username).toBe(userInfo.getUsername());
+    it('should initialize correctly component properties after its' +
+    ' initialization and get data from backend', fakeAsync(() => {
+      spyOn(userService, 'getUserInfoAsync').and
+        .callFake(async() => {
+          return Promise.resolve(userInfo);
+        });
+      component.ngOnInit();
+      flush();
 
-      expect(ctrl.noExplorationActivity).toBe(false);
-      expect(ctrl.noCollectionActivity).toBe(false);
-      expect(ctrl.noActivity).toBe(false);
-    });
+      expect(component.profilePicturePngDataUrl).toEqual(
+        'profile-image-url-png');
+      expect(component.profilePictureWebpDataUrl).toEqual(
+        'profile-image-url-webp');
+      expect(component.username).toBe(userInfo.getUsername());
+      expect(component.windowIsNarrow).toBeTrue();
+    }));
 
-    it('should set ui height when sorting collection playlist', function() {
-      var mockedUi = {
-        placeholder: {
-          height: (setHeight) => {
-            if (setHeight) {
-              return setHeight;
-            }
-            return 0;
-          }
-        },
-        item: {
-          height: () => 50
-        }
-      };
-      spyOn(mockedUi.placeholder, 'height').and.callThrough();
-
-      ctrl.collectionPlaylistSortableOptions.start(null, mockedUi);
-      expect(mockedUi.placeholder.height).toHaveBeenCalled();
-    });
-
-    it('should set ui top to 0 when stop collection playlist sorting',
-      function() {
-        var mockedUi = {
-          helper: {
-            css: () => {}
-          }
+    it('should get default profile pictures when username is null',
+      fakeAsync(() => {
+        let userInfo = {
+          getUsername: () => null,
+          isSuperAdmin: () => true,
+          getEmail: () => 'test_email@example.com'
         };
-        spyOn(mockedUi.helper, 'css').and.callThrough();
+        spyOn(userService, 'getUserInfoAsync')
+          .and.resolveTo(userInfo as UserInfo);
+        component.ngOnInit();
+        flush();
 
-        ctrl.collectionPlaylistSortableOptions.stop(null, null);
-        ctrl.collectionPlaylistSortableOptions.sort(null, mockedUi);
-        expect(mockedUi.helper.css).toHaveBeenCalledWith({top: '0 px'});
-      });
+        expect(component.profilePicturePngDataUrl).toEqual(
+          '/assets/images/avatar/user_blue_150px.png');
+        expect(component.profilePictureWebpDataUrl).toEqual(
+          '/assets/images/avatar/user_blue_150px.webp');
+      }));
 
-    it('should sort collection playlist by index', function() {
-      var mockedUi = {
-        item: {
-          sortable: {
-            index: 1
-          }
-        }
-      };
-      $httpBackend.expect(
-        'POST', '/learnerplaylistactivityhandler/collection/' +
-        (mockedUi.item.sortable.index + 1)).respond(200);
-      ctrl.collectionPlaylistSortableOptions.update(null, mockedUi);
-      $httpBackend.flush();
+    it('should check whether window is narrow on resizing the screen', () => {
+      spyOn(windowDimensionsService, 'isWindowNarrow').and.returnValue(false);
 
-      $httpBackend.verifyNoOutstandingExpectation();
-      $httpBackend.verifyNoOutstandingRequest();
+      expect(component.windowIsNarrow).toBeTrue();
+
+      mockResizeEmitter.emit();
+
+      expect(component.windowIsNarrow).toBeFalse();
     });
 
-    it('should get static image url', function() {
-      var imagePath = '/path/to/image.png';
-      expect(ctrl.getStaticImageUrl(imagePath)).toBe(
+    it('should set focus without scroll on browse lesson btn', fakeAsync(() => {
+      const focusSpy = spyOn(focusManagerService, 'setFocusWithoutScroll');
+      spyOn(userService, 'getUserInfoAsync').and
+        .callFake(async() => {
+          return Promise.resolve(userInfo);
+        });
+
+      component.ngOnInit();
+      flush();
+
+      expect(focusSpy).toHaveBeenCalledWith('ourLessonsBtn');
+    }));
+
+    it('should subscribe to onLangChange upon initialisation and set page ' +
+    'title whenever language changes', fakeAsync(() => {
+      spyOn(component.directiveSubscriptions, 'add');
+      spyOn(translateService.onLangChange, 'subscribe');
+      spyOn(component, 'setPageTitle');
+
+      component.ngOnInit();
+      flush();
+
+      expect(component.directiveSubscriptions.add).toHaveBeenCalled();
+      expect(translateService.onLangChange.subscribe).toHaveBeenCalled();
+
+      translateService.onLangChange.emit();
+
+      expect(component.setPageTitle).toHaveBeenCalled();
+    }));
+
+    it('should obtain translated page title and set it', () => {
+      spyOn(translateService, 'instant').and.callThrough();
+      spyOn(pageTitleService, 'setDocumentTitle');
+
+      component.setPageTitle();
+
+      expect(translateService.instant).toHaveBeenCalledWith(
+        'I18N_LEARNER_DASHBOARD_PAGE_TITLE');
+      expect(pageTitleService.setDocumentTitle).toHaveBeenCalledWith(
+        'I18N_LEARNER_DASHBOARD_PAGE_TITLE');
+    });
+
+    it('should get static image url', () => {
+      let imagePath = '/path/to/image.png';
+
+      expect(component.getStaticImageUrl(imagePath)).toBe(
         '/assets/images/path/to/image.png');
     });
 
-    it('should set a new section as active when fetching message summary' +
-      ' list from backend', function() {
-      var threadStatus = 'open';
-      var explorationId = 'exp1';
-      var threadId = 'thread_1';
-      var explorationTitle = 'Exploration Title';
-      var threadMessages = [{
-        message_id: '1',
-        text: 'Feedback 1',
-        updated_status: 'open',
-        suggestion_html: 'An instead of a',
-        current_content_html: 'A orange',
-        description: 'Suggestion for english grammar',
-        author_username: 'username2',
-        author_picture_data_url: 'foo',
-        created_on_msecs: 1200
-      }];
+    it('should get user profile image png data url correctly', () => {
+      expect(component.getauthorPicturePngDataUrl('username')).toBe(
+        'profile-image-url-png');
+    });
 
-      expect(ctrl.numberOfUnreadThreads).toBe(10);
-
-      $httpBackend.expect('GET', '/learnerdashboardthreadhandler/thread_1')
-        .respond({
-          message_summary_list: threadMessages
-        });
-      ctrl.onClickThread(
-        threadStatus, explorationId, threadId, explorationTitle);
-      $httpBackend.flush();
-      expect(ctrl.feedbackThreadActive).toBe(true);
-
-      var newActiveSectionName = 'I18N_LEARNER_DASHBOARD_FEEDBACK_SECTION';
-      ctrl.setActiveSection(newActiveSectionName);
-
-      expect(ctrl.activeSection).toBe(newActiveSectionName);
-      expect(ctrl.feedbackThreadActive).toBe(false);
-
-      var newActiveSectionName2 = 'I18N_LEARNER_DASHBOARD_PLAYLIST_SECTION';
-      ctrl.setActiveSection(newActiveSectionName2);
-
-      expect(ctrl.activeSection).toBe(newActiveSectionName2);
-      expect(ctrl.feedbackThreadActive).toBe(false);
+    it('should get user profile image webp data url correctly', () => {
+      expect(component.getauthorPictureWebpDataUrl('username')).toBe(
+        'profile-image-url-webp');
     });
 
     it('should toggle active subsection type when changing subsection type',
-      function() {
-        // Active subsection is set as I18N_DASHBOARD_EXPLORATIONS when
-        // controller is initialized.
-        expect(ctrl.activeSubsection).toBe('I18N_DASHBOARD_EXPLORATIONS');
+      () => {
+        // Active subsection is set as I18N_DASHBOARD_SKILL_PROFICIENCY when
+        // component is initialized.
+        expect(component.activeSubsection).toBe(
+          'I18N_DASHBOARD_SKILL_PROFICIENCY');
 
-        var newActiveSubsection = 'I18N_DASHBOARD_COLLECTIONS';
-        ctrl.setActiveSubsection(newActiveSubsection);
-        expect(ctrl.activeSubsection).toBe(newActiveSubsection);
+        let newActiveSubsection2 = 'I18N_DASHBOARD_SKILL_PROFICIENCY';
+        component.setActiveSubsection(newActiveSubsection2);
 
-        var newActiveSubsection2 = 'I18N_DASHBOARD_EXPLORATIONS';
-        ctrl.setActiveSubsection(newActiveSubsection2);
-        expect(ctrl.activeSubsection).toBe(newActiveSubsection2);
+        expect(component.activeSubsection).toBe(newActiveSubsection2);
       });
 
-    it('should get the correct exploration page URL corresponding to a given' +
-      ' exploration ID.', function() {
-      expect(ctrl.getExplorationUrl('1')).toBe('/explore/1');
-      expect(ctrl.getExplorationUrl()).toBe('/explore/undefined');
-    });
-
-    it('should get the correct collection page URL corresponding to a given' +
-      ' collection ID.', function() {
-      expect(ctrl.getCollectionUrl('1')).toBe('/collection/1');
-      expect(ctrl.getCollectionUrl()).toBe('/collection/undefined');
-    });
-
-    it('should detect when application is being used on a mobile', function() {
-      expect(ctrl.checkMobileView()).toBe(false);
-
-      spyOnProperty(navigator, 'userAgent').and.returnValue('iPhone');
-      expect(ctrl.checkMobileView()).toBe(true);
-    });
-
-    it('should show username popover based on its length', function() {
-      expect(ctrl.showUsernamePopover('abcdefghijk')).toBe('mouseenter');
-      expect(ctrl.showUsernamePopover('abc')).toBe('none');
-    });
-
-    it('should change page when going through pages of incomplete explorations',
-      function() {
-        var section = 'I18N_LEARNER_DASHBOARD_INCOMPLETE_SECTION';
-        var subsection = 'I18N_DASHBOARD_EXPLORATIONS';
-
-        expect(ctrl.startIncompleteExpIndex).toBe(0);
-
-        ctrl.goToNextPage(section, subsection);
-        expect(ctrl.startIncompleteExpIndex).toBe(8);
-
-        ctrl.goToPreviousPage(section, subsection);
-        expect(ctrl.startIncompleteExpIndex).toBe(0);
-      });
-
-    it('should change page when going through pages of incomplete collections',
-      function() {
-        var section = 'I18N_LEARNER_DASHBOARD_INCOMPLETE_SECTION';
-        var subsection = 'I18N_DASHBOARD_COLLECTIONS';
-
-        expect(ctrl.startIncompleteCollectionIndex).toBe(0);
-
-        ctrl.goToNextPage(section, subsection);
-        expect(ctrl.startIncompleteCollectionIndex).toBe(8);
-
-        ctrl.goToPreviousPage(section, subsection);
-        expect(ctrl.startIncompleteCollectionIndex).toBe(0);
-      });
-
-    it('should change page when going through pages of complete explorations',
-      function() {
-        var section = 'I18N_LEARNER_DASHBOARD_COMPLETED_SECTION';
-        var subsection = 'I18N_DASHBOARD_EXPLORATIONS';
-
-        var completedExplorations = learnerDashboardData
-          .completed_explorations_list.map(
-            expSummary => LearnerExplorationSummary.createFromBackendDict(
-              expSummary));
-
-        expect(ctrl.startCompletedExpIndex).toBe(0);
-        expect(ctrl.getVisibleExplorationList(ctrl.startCompletedExpIndex))
-          .toEqual(completedExplorations.slice(0, 8));
-
-        ctrl.goToNextPage(section, subsection);
-        expect(ctrl.startCompletedExpIndex).toBe(8);
-        expect(ctrl.getVisibleExplorationList(ctrl.startCompletedExpIndex))
-          .toEqual(completedExplorations.slice(8));
-
-        ctrl.goToPreviousPage(section, subsection);
-        expect(ctrl.startCompletedExpIndex).toBe(0);
-        expect(ctrl.getVisibleExplorationList(ctrl.startCompletedExpIndex))
-          .toEqual(completedExplorations.slice(0, 8));
-      });
-
-    it('should change page when going through pages of completed collections',
-      function() {
-        var section = 'I18N_LEARNER_DASHBOARD_COMPLETED_SECTION';
-        var subsection = 'I18N_DASHBOARD_COLLECTIONS';
-
-        expect(ctrl.startCompletedCollectionIndex).toBe(0);
-
-        ctrl.goToNextPage(section, subsection);
-        expect(ctrl.startCompletedCollectionIndex).toBe(8);
-
-        ctrl.goToPreviousPage(section, subsection);
-        expect(ctrl.startCompletedCollectionIndex).toBe(0);
-      });
-
-    it('should change explorations sorting options by title when changing' +
-      ' sorting type', function() {
-      ctrl.setExplorationsSortingOptions('title');
-      expect(ctrl.currentExpSortType).toBe('title');
-      expect(ctrl.isCurrentExpSortDescending).toBe(true);
-    });
-
-    it('should change explorations sorting options by last played when' +
-      ' changing sorting type', function() {
-      expect(ctrl.isCurrentExpSortDescending).toBe(true);
-      expect(ctrl.currentExpSortType).toBe('last_played');
-      ctrl.setExplorationsSortingOptions('last_played');
-      expect(ctrl.isCurrentExpSortDescending).toBe(false);
-    });
-
-    it('should change subscription sorting options by username when changing' +
-      ' sorting type', function() {
-      expect(ctrl.isCurrentSubscriptionSortDescending).toBe(true);
-      expect(ctrl.currentSubscribersSortType).toBe('username');
-      ctrl.setSubscriptionSortingOptions('username');
-      expect(ctrl.isCurrentSubscriptionSortDescending).toBe(false);
-    });
-
-    it('should change subscription sorting options by impact when changing' +
-      ' sorting type', function() {
-      ctrl.setSubscriptionSortingOptions('impact');
-      expect(ctrl.currentSubscribersSortType).toBe('impact');
-      expect(ctrl.isCurrentSubscriptionSortDescending).toBe(true);
+    it('should show username popover based on its length', () => {
+      expect(component.showUsernamePopover('abcdefghijk')).toBe('mouseenter');
+      expect(component.showUsernamePopover('abc')).toBe('none');
     });
 
     it('should change feedback sorting options by last update msecs when' +
-      ' changing sorting type', function() {
-      expect(ctrl.isCurrentFeedbackSortDescending).toBe(true);
-      expect(ctrl.currentFeedbackThreadsSortType).toBe('lastUpdatedMsecs');
-      ctrl.setFeedbackSortingOptions('lastUpdatedMsecs');
-      expect(ctrl.isCurrentFeedbackSortDescending).toBe(false);
+      ' changing sorting type', () => {
+      expect(component.isCurrentFeedbackSortDescending).toBe(true);
+      expect(component.currentFeedbackThreadsSortType).toBe('lastUpdatedMsecs');
+
+      component.setFeedbackSortingOptions('lastUpdatedMsecs');
+
+      expect(component.isCurrentFeedbackSortDescending).toBe(false);
     });
 
     it('should change feedback sorting options by exploration when changing' +
-      ' sorting type', function() {
-      ctrl.setFeedbackSortingOptions('exploration');
-      expect(ctrl.currentFeedbackThreadsSortType).toBe('exploration');
-      expect(ctrl.isCurrentFeedbackSortDescending).toBe(true);
+      ' sorting type', () => {
+      component.setFeedbackSortingOptions('exploration');
+
+      expect(component.currentFeedbackThreadsSortType).toBe('exploration');
+      expect(component.isCurrentFeedbackSortDescending).toBe(true);
     });
 
-    it('should evaluate value of exploration sort key property as null when' +
-      ' sorting option is last played', function() {
-      // The default sort option is exploration last played.
-      expect(ctrl.currentExpSortType).toBe('last_played');
+    it('should sort feedback updates given sorting property as last updated' +
+      ' in ascending order', fakeAsync(() => {
+      // The default sort option for Feedback Updates is last updated.
+      expect(component.currentFeedbackThreadsSortType)
+        .toBe('lastUpdatedMsecs');
+      expect(component.isCurrentFeedbackSortDescending).toBeTrue();
+      expect(component.getValueOfFeedbackThreadSortKey())
+        .toBe('lastUpdatedMsecs');
+
+      tick();
+      fixture.detectChanges();
+
+      const feedbackListNameNodes =
+        fixture.debugElement.nativeElement
+          .querySelectorAll('.e2e-test-feedback-exploration');
 
       // The forEach loop is being used here because
-      // getValueOfExplorationSortKey is used in a ng-repeat directive.
-      ctrl.completedExplorationsList.forEach(function(exploration) {
-        expect(ctrl.getValueOfExplorationSortKey(exploration)).toBe(null);
+      // getValueOfSubscriptionSortKey is used in a *ngFor directive.
+      // Note that given subscription list is not sorted.
+      feedbackListNameNodes.forEach((titleNode, index) => {
+        if (index === 0) {
+          expect(titleNode.innerText).toContain('Biology');
+        }
+        if (index === 1) {
+          expect(titleNode.innerText).toContain('Algebra');
+        }
+        if (index === 2) {
+          expect(titleNode.innerText).toContain('Three Balls');
+        }
+        if (index === 3) {
+          expect(titleNode.innerText).toContain('Zebra');
+        }
       });
-    });
+    }));
 
-    it('should evaluate value of exploration sort key property as string' +
-      ' when sorting option is title', function() {
-      ctrl.setExplorationsSortingOptions('title');
-      expect(ctrl.currentExpSortType).toBe('title');
-      ctrl.completedExplorationsList.forEach(function(exploration, index) {
-        expect(ctrl.getValueOfExplorationSortKey(exploration)).toBe(
-          'Exploration Title ' + (index + 1));
-      });
-    });
+    it('should sort feedback updates given sorting property as last updated' +
+      ' in descending order', fakeAsync(() => {
+      // The default sort option for Feedback Updates is last updated.
+      expect(component.currentFeedbackThreadsSortType)
+        .toBe('lastUpdatedMsecs');
+      expect(component.isCurrentFeedbackSortDescending).toBeTrue();
+      expect(component.getValueOfFeedbackThreadSortKey())
+        .toBe('lastUpdatedMsecs');
 
-    it('should evaluate value of subscription sort key property as string' +
-      ' when sorting option is username', function() {
-      // The default sort option is exploration last played.
-      expect(ctrl.currentSubscribersSortType).toBe('username');
+      component.setFeedbackSortingOptions('lastUpdatedMsecs');
+
+      expect(component.isCurrentFeedbackSortDescending).toBeFalse();
+
+      tick();
+      fixture.detectChanges();
+
+      const feedbackListNameNodes =
+        fixture.debugElement.nativeElement
+          .querySelectorAll('.e2e-test-feedback-exploration');
 
       // The forEach loop is being used here because
-      // getValueOfSubscriptionSortKey is used in a ng-repeat directive.
-      ctrl.subscriptionsList.forEach(function(subscription) {
-        expect(ctrl.getValueOfSubscriptionSortKey(subscription)).toBe(
-          'username1');
+      // getValueOfSubscriptionSortKey is used in a *ngFor directive.
+      // Note that given subscription list is not sorted.
+      feedbackListNameNodes.forEach((titleNode, index) => {
+        if (index === 0) {
+          expect(titleNode.innerText).toContain('Zebra');
+        }
+        if (index === 1) {
+          expect(titleNode.innerText).toContain('Three Balls');
+        }
+        if (index === 2) {
+          expect(titleNode.innerText).toContain('Algebra');
+        }
+        if (index === 3) {
+          expect(titleNode.innerText).toContain('Biology');
+        }
       });
+    }));
 
-      ctrl.setSubscriptionSortingOptions('impact');
-      expect(ctrl.currentSubscribersSortType).toBe('impact');
-      ctrl.subscriptionsList.forEach(function(subscription) {
-        expect(ctrl.getValueOfSubscriptionSortKey(subscription)).toBe(0);
+    it('should sort feedback updates given sorting property as exploration' +
+      ' in ascending order', fakeAsync(() => {
+      // The default sort option for Feedback Updates is last updated.
+      expect(component.currentFeedbackThreadsSortType)
+        .toBe('lastUpdatedMsecs');
+      expect(component.isCurrentFeedbackSortDescending).toBeTrue();
+      expect(component.getValueOfFeedbackThreadSortKey())
+        .toBe('lastUpdatedMsecs');
+
+      component.setFeedbackSortingOptions('explorationTitle');
+
+      expect(component.currentFeedbackThreadsSortType)
+        .toBe('explorationTitle');
+      expect(component.getValueOfFeedbackThreadSortKey())
+        .toBe('explorationTitle');
+
+      tick();
+      fixture.detectChanges();
+
+      const feedbackListNameNodes =
+        fixture.debugElement.nativeElement
+          .querySelectorAll('.e2e-test-feedback-exploration');
+
+      // The forEach loop is being used here because
+      // getValueOfSubscriptionSortKey is used in a *ngFor directive.
+      // Note that given subscription list is not sorted.
+      feedbackListNameNodes.forEach((titleNode, index) => {
+        if (index === 0) {
+          expect(titleNode.innerText).toContain('Algebra');
+        }
+        if (index === 1) {
+          expect(titleNode.innerText).toContain('Biology');
+        }
+        if (index === 2) {
+          expect(titleNode.innerText).toContain('Three Balls');
+        }
+        if (index === 3) {
+          expect(titleNode.innerText).toContain('Zebra');
+        }
       });
-    });
+    }));
+
+    it('should sort feedback updates given sorting property as exploration' +
+      ' in descending order', fakeAsync(() => {
+      // The default sort option for Feedback Updates is last updated.
+      expect(component.currentFeedbackThreadsSortType)
+        .toBe('lastUpdatedMsecs');
+      expect(component.isCurrentFeedbackSortDescending).toBeTrue();
+      expect(component.getValueOfFeedbackThreadSortKey())
+        .toBe('lastUpdatedMsecs');
+
+      component.setFeedbackSortingOptions('explorationTitle');
+
+      expect(component.currentFeedbackThreadsSortType)
+        .toBe('explorationTitle');
+      expect(component.getValueOfFeedbackThreadSortKey())
+        .toBe('explorationTitle');
+
+      component.setFeedbackSortingOptions('explorationTitle');
+
+      expect(component.isCurrentFeedbackSortDescending).toBeFalse();
+
+      tick();
+      fixture.detectChanges();
+
+      const feedbackListNameNodes =
+        fixture.debugElement.nativeElement
+          .querySelectorAll('.e2e-test-feedback-exploration');
+
+      // The forEach loop is being used here because
+      // getValueOfSubscriptionSortKey is used in a *ngFor directive.
+      // Note that given subscription list is not sorted.
+      feedbackListNameNodes.forEach((titleNode, index) => {
+        if (index === 0) {
+          expect(titleNode.innerText).toContain('Zebra');
+        }
+        if (index === 1) {
+          expect(titleNode.innerText).toContain('Three Balls');
+        }
+        if (index === 2) {
+          expect(titleNode.innerText).toContain('Biology');
+        }
+        if (index === 3) {
+          expect(titleNode.innerText).toContain('Algebra');
+        }
+      });
+    }));
 
     it('should get messages in the thread from the backend when a thread is' +
-      ' selected', function() {
-      var threadStatus = 'open';
-      var explorationId = 'exp1';
-      var threadId = 'thread_1';
-      var explorationTitle = 'Exploration Title';
-      var threadMessages = [{
-        message_id: '1',
+      ' selected', fakeAsync(() => {
+      let threadStatus = 'open';
+      let explorationId = 'exp1';
+      let threadId = 'thread_1';
+      let explorationTitle = 'Exploration Title';
+      let threadMessages = [{
+        message_id: 1,
         text: 'Feedback 1',
         updated_status: 'open',
         suggestion_html: 'An instead of a',
         current_content_html: 'A orange',
         description: 'Suggestion for english grammar',
         author_username: 'username2',
-        author_picture_data_url: 'foo',
         created_on_msecs: 1200
       }];
+      const threadSpy = spyOn(
+        learnerDashboardBackendApiService, 'onClickThreadAsync')
+        .and.returnValue(Promise.resolve(threadMessages));
 
-      expect(ctrl.numberOfUnreadThreads).toBe(10);
+      expect(component.numberOfUnreadThreads).toBe(10);
+      expect(component.loadingFeedbacks).toBe(false);
 
-      $httpBackend.expect('GET', '/learnerdashboardthreadhandler/thread_1')
-        .respond({
-          message_summary_list: threadMessages
-        });
-      ctrl.onClickThread(
+      component.onClickThread(
         threadStatus, explorationId, threadId, explorationTitle);
 
-      expect(ctrl.loadingFeedbacks).toBe(true);
-      expect(ctrl.feedbackThreadActive).toBe(true);
-      expect(ctrl.numberOfUnreadThreads).toBe(9);
-      $httpBackend.flush();
+      expect(component.loadingFeedbacks).toBe(true);
 
-      expect(ctrl.messageSummaries.length).toBe(1);
-    });
+      tick();
+      fixture.detectChanges();
 
-    it('should show all threads when a thread is not selected', function() {
-      var threadStatus = 'open';
-      var explorationId = 'exp1';
-      var threadId = 'thread_1';
-      var explorationTitle = 'Exploration Title';
-      var threadMessages = [{
-        message_id: '1',
+      expect(component.loadingFeedbacks).toBe(false);
+      expect(component.feedbackThreadActive).toBe(true);
+      expect(component.numberOfUnreadThreads).toBe(6);
+      expect(component.messageSummaries.length).toBe(1);
+      expect(threadSpy).toHaveBeenCalled();
+    }));
+
+    it('should set a new section as active when fetching message summary' +
+      ' list from backend', fakeAsync(() => {
+      let threadStatus = 'open';
+      let explorationId = 'exp1';
+      let threadId = 'thread_1';
+      let explorationTitle = 'Exploration Title';
+      let threadMessages = [{
+        message_id: 1,
         text: 'Feedback 1',
         updated_status: 'open',
         suggestion_html: 'An instead of a',
         current_content_html: 'A orange',
         description: 'Suggestion for english grammar',
         author_username: 'username2',
-        author_picture_data_url: 'foo',
         created_on_msecs: 1200
       }];
+      const threadSpy = spyOn(
+        learnerDashboardBackendApiService, 'onClickThreadAsync')
+        .and.returnValue(Promise.resolve(threadMessages));
 
-      expect(ctrl.numberOfUnreadThreads).toBe(10);
+      expect(component.numberOfUnreadThreads).toBe(10);
+      expect(component.loadingFeedbacks).toBe(false);
 
-      $httpBackend.expect('GET', '/learnerdashboardthreadhandler/thread_1')
-        .respond({
-          message_summary_list: threadMessages
-        });
-      ctrl.onClickThread(
+      component.onClickThread(
         threadStatus, explorationId, threadId, explorationTitle);
-      $httpBackend.flush();
-      expect(ctrl.feedbackThreadActive).toBe(true);
 
-      ctrl.showAllThreads();
-      expect(ctrl.feedbackThreadActive).toBe(false);
+      expect(component.loadingFeedbacks).toBe(true);
 
-      expect(ctrl.numberOfUnreadThreads).toBe(9);
-    });
+      tick();
+      fixture.detectChanges();
 
-    it('should add a new message in a thread when there is a thread selected',
-      function() {
-        var threadStatus = 'open';
-        var explorationId = 'exp1';
-        var threadId = 'thread_1';
-        var explorationTitle = 'Exploration Title';
-        var threadMessages = [{
-          message_id: '1',
+      expect(component.loadingFeedbacks).toBe(false);
+      expect(component.feedbackThreadActive).toBe(true);
+      expect(component.numberOfUnreadThreads).toBe(6);
+      expect(component.messageSummaries.length).toBe(1);
+      expect(threadSpy).toHaveBeenCalled();
+
+      let newActiveSectionName = 'I18N_LEARNER_DASHBOARD_FEEDBACK_SECTION';
+      component.setActiveSection(newActiveSectionName);
+
+      expect(component.activeSection).toBe(newActiveSectionName);
+      expect(component.feedbackThreadActive).toBe(false);
+
+      let newActiveSectionName2 = 'I18N_LEARNER_DASHBOARD_PLAYLIST_SECTION';
+      component.setActiveSection(newActiveSectionName2);
+
+      expect(component.activeSection).toBe(newActiveSectionName2);
+      expect(component.feedbackThreadActive).toBe(false);
+    }));
+
+    it('should show all threads when a thread is not selected',
+      fakeAsync(() => {
+        let threadStatus = 'open';
+        let explorationId = 'exp1';
+        let threadId = 'thread_1';
+        let explorationTitle = 'Exploration Title';
+        let threadMessages = [{
+          message_id: 1,
           text: 'Feedback 1',
           updated_status: 'open',
           suggestion_html: 'An instead of a',
           current_content_html: 'A orange',
           description: 'Suggestion for english grammar',
           author_username: 'username2',
-          author_picture_data_url: 'foo',
           created_on_msecs: 1200
         }];
 
-        $httpBackend.expect('GET', '/learnerdashboardthreadhandler/thread_1')
-          .respond({
-            message_summary_list: threadMessages
-          });
-        ctrl.onClickThread(
+        const threadSpy =
+          spyOn(learnerDashboardBackendApiService, 'onClickThreadAsync')
+            .and.returnValue(Promise.resolve(threadMessages));
+
+        expect(component.numberOfUnreadThreads).toBe(10);
+        expect(component.loadingFeedbacks).toBe(false);
+
+        component.onClickThread(
           threadStatus, explorationId, threadId, explorationTitle);
-        $httpBackend.flush();
 
-        var threadId = 'thread_1';
-        var message = 'This is a new message';
-        $httpBackend.expect('POST', '/threadhandler/' + threadId).respond(200);
-        ctrl.addNewMessage(threadId, message);
+        expect(component.loadingFeedbacks).toBe(true);
 
-        expect(ctrl.messageSendingInProgress).toBe(true);
+        tick();
+        fixture.detectChanges();
 
-        $httpBackend.flush();
-        expect(ctrl.messageSendingInProgress).toBe(false);
-      });
+        expect(component.loadingFeedbacks).toBe(false);
+        expect(component.feedbackThreadActive).toBe(true);
+        expect(component.numberOfUnreadThreads).toBe(6);
+        expect(component.messageSummaries.length).toBe(1);
+        expect(threadSpy).toHaveBeenCalled();
+
+        component.showAllThreads();
+
+        expect(component.feedbackThreadActive).toBe(false);
+        expect(component.numberOfUnreadThreads).toBe(6);
+      }));
+
+    it('should add a new message in a thread when there is a thread selected',
+      fakeAsync(() => {
+        let threadStatus = 'open';
+        let explorationId = 'exp1';
+        let threadId = 'thread_1';
+        let explorationTitle = 'Exploration Title';
+        let message = 'This is a new message';
+        let threadMessages = [{
+          message_id: 1,
+          text: 'Feedback 1',
+          updated_status: 'open',
+          suggestion_html: 'An instead of a',
+          current_content_html: 'A orange',
+          description: 'Suggestion for english grammar',
+          author_username: 'username2',
+          created_on_msecs: 1200
+        }];
+
+        const threadSpy = spyOn(
+          learnerDashboardBackendApiService, 'onClickThreadAsync')
+          .and.returnValue(Promise.resolve(threadMessages));
+
+        const addMessageSpy = spyOn(
+          learnerDashboardBackendApiService, 'addNewMessageAsync')
+          .and.returnValue(Promise.resolve());
+
+        expect(component.numberOfUnreadThreads).toBe(10);
+        expect(component.loadingFeedbacks).toBe(false);
+
+        component.onClickThread(
+          threadStatus, explorationId, threadId, explorationTitle);
+
+        expect(component.loadingFeedbacks).toBe(true);
+
+        tick();
+        fixture.detectChanges();
+
+        expect(component.loadingFeedbacks).toBe(false);
+        expect(component.feedbackThreadActive).toBe(true);
+        expect(component.numberOfUnreadThreads).toBe(6);
+        expect(component.messageSummaries.length).toBe(1);
+        expect(threadSpy).toHaveBeenCalled();
+
+        component.addNewMessage(threadId, message);
+
+        expect(component.messageSendingInProgress).toBe(true);
+
+        tick();
+        fixture.detectChanges();
+
+        expect(component.messageSendingInProgress).toBe(false);
+        expect(addMessageSpy).toHaveBeenCalled();
+      }));
 
     it('should show new and old content when opening suggestion modal',
-      function() {
-        spyOn(SuggestionModalForLearnerDashboardService, 'showSuggestionModal')
-          .and.callThrough();
-        var newContent = 'New content';
-        var oldContent = 'Old content';
-        var description = 'Description';
-        ctrl.showSuggestionModal(newContent, oldContent, description);
+      () => {
+        spyOn(suggestionModalForLearnerDashboardService, 'showSuggestionModal')
+          .and.returnValue(null);
 
-        expect(SuggestionModalForLearnerDashboardService.showSuggestionModal)
+        let newContent = 'New content';
+        let oldContent = 'Old content';
+        let description = 'Description';
+        component.showSuggestionModal(newContent, oldContent, description);
+
+        expect(suggestionModalForLearnerDashboardService.showSuggestionModal)
           .toHaveBeenCalledWith('edit_exploration_state_content', {
             newContent: newContent,
             oldContent: oldContent,
@@ -705,217 +1039,352 @@ describe('Learner dashboard page', function() {
           });
       });
 
-    it('should open remove activity modal when removing activity', function() {
-      spyOn($uibModal, 'open').and.callThrough();
-
-      var sectionNameI18nId = 'I18N_LEARNER_DASHBOARD_INCOMPLETE_SECTION';
-      var subsectionName = 'I18N_DASHBOARD_EXPLORATIONS';
-      var activity = {};
-      ctrl.openRemoveActivityModal(sectionNameI18nId, subsectionName, activity);
-
-      expect($uibModal.open).toHaveBeenCalled();
+    it('should get css classes based on status', () => {
+      expect(component.getLabelClass('open')).toBe('badge badge-info');
+      expect(component.getLabelClass('compliment')).toBe('badge badge-success');
+      expect(component.getLabelClass('another')).toBe('badge badge-secondary');
     });
 
-    it('should remove an activity from incomplete exploration when closing' +
-      ' remove activity modal', function() {
-      spyOn($uibModal, 'open').and.returnValue({
-        result: $q.resolve()
-      });
-
-      expect(ctrl.incompleteExplorationsList.length).toBe(12);
-
-      var sectionNameI18nId = 'I18N_LEARNER_DASHBOARD_INCOMPLETE_SECTION';
-      var subsectionName = 'I18N_DASHBOARD_EXPLORATIONS';
-      // Get exploration with id 13.
-      var activity = LearnerExplorationSummary.createFromBackendDict(
-        learnerDashboardData.incomplete_explorations_list[2]);
-      ctrl.openRemoveActivityModal(sectionNameI18nId, subsectionName, activity);
-      $scope.$apply();
-
-      expect(ctrl.incompleteExplorationsList.length).toBe(11);
-    });
-
-    it('should not remove an activity if its not present', function() {
-      spyOn($uibModal, 'open').and.returnValue({
-        result: $q.resolve()
-      });
-
-      expect(ctrl.incompleteExplorationsList.length).toBe(12);
-
-      var sectionNameI18nId = 'I18N_LEARNER_DASHBOARD_INCOMPLETE_SECTION';
-      var subsectionName = 'I18N_DASHBOARD_EXPLORATIONS';
-      // Get exploration with id 13.
-      var activity = LearnerExplorationSummary.createFromBackendDict(
-        // TODO(#10875): Fix type mismatch.
-        {
-          id: '100'
-        } as unknown as LearnerExplorationSummaryBackendDict);
-      ctrl.openRemoveActivityModal(sectionNameI18nId, subsectionName, activity);
-      $scope.$apply();
-
-      expect(ctrl.incompleteExplorationsList.length).toBe(12);
-    });
-
-    it('should remove an activity from incomplete collection when closing' +
-    ' remove activity modal', function() {
-      spyOn($uibModal, 'open').and.returnValue({
-        result: $q.resolve()
-      });
-
-      expect(ctrl.incompleteCollectionsList.length).toBe(8);
-
-      var sectionNameI18nId = 'I18N_LEARNER_DASHBOARD_INCOMPLETE_SECTION';
-      var subsectionName = 'I18N_DASHBOARD_COLLECTIONS';
-      // Get collection with id 11.
-
-      var activity = CollectionSummary.createFromBackendDict(
-        learnerDashboardData.incomplete_collections_list[2]);
-
-      ctrl.openRemoveActivityModal(
-        sectionNameI18nId, subsectionName, activity);
-      $scope.$apply();
-
-      expect(ctrl.incompleteCollectionsList.length).toBe(7);
-    });
-
-    it('should remove an activity from exploration playlist when closing' +
-      ' remove activity modal', function() {
-      spyOn($uibModal, 'open').and.returnValue({
-        result: $q.resolve()
-      });
-
-      expect(ctrl.explorationPlaylist.length).toBe(10);
-
-      var sectionNameI18nId = 'I18N_LEARNER_DASHBOARD_PLAYLIST_SECTION';
-      var subsectionName = 'I18N_DASHBOARD_EXPLORATIONS';
-
-      // Exploration with id 2.
-      var activity = LearnerExplorationSummary.createFromBackendDict(
-        learnerDashboardData.exploration_playlist[1]);
-
-      ctrl.openRemoveActivityModal(
-        sectionNameI18nId, subsectionName, activity);
-      $scope.$apply();
-
-      expect(ctrl.explorationPlaylist.length).toBe(9);
-    });
-
-    it('should remove an activity from collection playlist when closing' +
-      ' remove activity modal', function() {
-      spyOn($uibModal, 'open').and.returnValue({
-        result: $q.resolve()
-      });
-
-      expect(ctrl.collectionPlaylist.length).toBe(8);
-
-      var sectionNameI18nId = 'I18N_LEARNER_DASHBOARD_PLAYLIST_SECTION';
-      var subsectionName = 'I18N_DASHBOARD_COLLECTIONS';
-      // Get collection with id 2.
-      var activity = CollectionSummary.createFromBackendDict(
-        learnerDashboardData.collection_playlist[1]);
-
-      ctrl.openRemoveActivityModal(
-        sectionNameI18nId, subsectionName, activity);
-      $scope.$apply();
-
-      expect(ctrl.collectionPlaylist.length).toBe(7);
-    });
-
-    it('should get css classes based on status', function() {
-      expect(ctrl.getLabelClass('open')).toBe('badge badge-info');
-      expect(ctrl.getLabelClass('compliment')).toBe('badge badge-success');
-      expect(ctrl.getLabelClass('another')).toBe('badge badge-secondary');
-    });
-
-    it('should get human readable status from provided status', function() {
-      expect(ctrl.getHumanReadableStatus('open')).toBe('Open');
-      expect(ctrl.getHumanReadableStatus('compliment')).toBe('Compliment');
-      expect(ctrl.getHumanReadableStatus('not_actionable')).toBe(
+    it('should get human readable status from provided status', () => {
+      expect(component.getHumanReadableStatus('open')).toBe('Open');
+      expect(component.getHumanReadableStatus('compliment')).toBe('Compliment');
+      expect(component.getHumanReadableStatus('not_actionable')).toBe(
         'Not Actionable');
     });
 
     it('should get formatted date string from the timestamp in milliseconds',
-      function() {
-        // This corresponds to Fri, 21 Nov 2014 09:45:00 GMT.
-        var NOW_MILLIS = 1416563100000;
-        spyOn(DateTimeFormatService, 'getLocaleAbbreviatedDatetimeString')
-          .withArgs(NOW_MILLIS).and.returnValue('11/21/2014');
-        expect(ctrl.getLocaleAbbreviatedDatetimeString(NOW_MILLIS)).toBe(
-          '11/21/2014');
+      () => {
+        // This corresponds to Fri, 2 Apr 2021 09:45:00 GMT.
+        let NOW_MILLIS = 1617393321345;
+        spyOn(dateTimeFormatService, 'getLocaleAbbreviatedDatetimeString')
+          .withArgs(NOW_MILLIS).and.returnValue('4/2/2021');
+
+        expect(component.getLocaleAbbreviatedDatetimeString(NOW_MILLIS))
+          .toBe('4/2/2021');
       });
-  });
 
-  describe('when fetching dashboard data fails', function() {
-    beforeEach(angular.mock.inject(function($injector, $componentController) {
-      $httpBackend = $injector.get('$httpBackend');
-      $q = $injector.get('$q');
-      var $rootScope = $injector.get('$rootScope');
-      AlertsService = $injector.get('AlertsService');
-      CsrfTokenService = $injector.get('CsrfTokenService');
-      LearnerDashboardBackendApiService = $injector.get(
-        'LearnerDashboardBackendApiService');
-      UserService = $injector.get('UserService');
+    it('should sanitize given png base64 data and generate url', () => {
+      let result = component.decodePngURIData('%D1%88%D0%B5%D0%BB%D0%BB%D1%8B');
 
-      spyOn(CsrfTokenService, 'getTokenAsync').and.returnValue(
-        $q.resolve('sample-csrf-token'));
+      fixture.detectChanges();
 
-      spyOn(UserService, 'getProfileImageDataUrlAsync')
-        .and.returnValue($q.resolve(profilePictureDataUrl));
-      spyOn(UserService, 'getUserInfoAsync').and.returnValue(
-        $q.resolve(userInfo));
-      spyOn(LearnerDashboardBackendApiService, 'fetchLearnerDashboardDataAsync')
-        .and.returnValue($q.reject({
-          status: 404
-        }));
-
-      $scope = $rootScope.$new();
-      ctrl = $componentController('learnerDashboardPage', {
-        $rootScope: $scope
-      });
-      ctrl.$onInit();
-    }));
-
-    it('should show an alert warning', function() {
-      spyOn(AlertsService, 'addWarning').and.callThrough();
-      $scope.$apply();
-
-      expect(AlertsService.addWarning).toHaveBeenCalledWith(
-        'Failed to get learner dashboard data');
+      expect(result).toBe('шеллы');
     });
   });
 
-  describe('when triggering animation', function() {
-    var $$animateJs = null;
-
-    beforeEach(angular.mock.inject(function($injector, $componentController) {
-      $$animateJs = $injector.get('$$animateJs');
-      $rootScope = $injector.get('$rootScope');
-
-      $scope = $rootScope.$new();
-      ctrl = $componentController('learnerDashboardPage', {
-        $rootScope: $scope
-      });
+  describe('when fetching dashboard data fails', () => {
+    beforeEach(async(() => {
+      TestBed.configureTestingModule({
+        imports: [
+          BrowserAnimationsModule,
+          MaterialModule,
+          FormsModule,
+          HttpClientTestingModule
+        ],
+        declarations: [
+          LearnerDashboardPageComponent,
+          MockTranslatePipe,
+          SortByPipe,
+          MockSlicePipe,
+          MockTrunctePipe,
+          BackgroundBannerComponentStub,
+          ExplorationSummaryTileComponentStub,
+          CollectionSummaryTileComponentStub,
+          LoadingDotsComponentStub,
+        ],
+        providers: [
+          AlertsService,
+          CsrfTokenService,
+          LearnerDashboardBackendApiService,
+          UserService,
+          PageTitleService,
+          {
+            provide: TranslateService,
+            useClass: MockTranslateService
+          }
+        ],
+        schemas: [NO_ERRORS_SCHEMA]
+      }).compileComponents();
     }));
 
-    it('should animate when adding and removing css classes', function() {
-      var element = angular.element(
-        '<div class="menu-sub-section"></div>');
-      var elementSlideUpSpy = spyOn(element, 'slideUp').and.callThrough();
-      var elementSlideDownSpy = spyOn(element, 'slideDown').and.callThrough();
+    beforeEach(fakeAsync(() => {
+      fixture = TestBed.createComponent(LearnerDashboardPageComponent);
+      component = fixture.componentInstance;
+      alertsService = TestBed.inject(AlertsService);
+      csrfTokenService = TestBed.inject(CsrfTokenService);
+      learnerDashboardBackendApiService =
+        TestBed.inject(LearnerDashboardBackendApiService);
+      userService = TestBed.inject(UserService);
+      translateService = TestBed.inject(TranslateService);
+      pageTitleService = TestBed.inject(PageTitleService);
 
-      // $$animateJs is a lower-level service which is used to simulate
-      // animation behavior.
-      // eslint-disable-next-line max-len
-      // Ref: https://stackoverflow.com/questions/33405666/nganimate-1-4-7-unit-test-not-calling-animation-functions
-      $$animateJs(element, 'addClass', {
-        addClass: 'ng-hide'
-      }).start();
-      expect(elementSlideUpSpy).toHaveBeenCalled();
+      spyOn(csrfTokenService, 'getTokenAsync').and.returnValue(
+        Promise.resolve('sample-csrf-token'));
 
-      $$animateJs(element, 'removeClass', {
-        removeClass: 'ng-hide'
-      }).start();
-      expect(elementSlideDownSpy).toHaveBeenCalled();
+      spyOn(userService, 'getProfileImageDataUrl').and.returnValue(
+        ['default-image-url-png', 'default-image-url-webp']);
+
+      spyOn(userService, 'getUserInfoAsync').and.returnValue(
+        Promise.resolve(userInfo));
+    }));
+
+    it('should show an alert warning when fails to get topics and' +
+     ' stories data', fakeAsync(() => {
+      const fetchDataSpy = spyOn(
+        learnerDashboardBackendApiService,
+        'fetchLearnerDashboardTopicsAndStoriesDataAsync')
+        .and.rejectWith(404);
+      const alertsSpy = spyOn(alertsService, 'addWarning').and.callThrough();
+
+      component.ngOnInit();
+
+      tick();
+      fixture.detectChanges();
+
+      expect(alertsSpy).toHaveBeenCalledWith(
+        'Failed to get learner dashboard topics and stories data');
+      expect(fetchDataSpy).toHaveBeenCalled();
+    }));
+
+    it('should show an alert warning when fails to get collections data' +
+      'in mobile view',
+    fakeAsync(() => {
+      const fetchDataSpy = spyOn(
+        learnerDashboardBackendApiService,
+        'fetchLearnerDashboardCollectionsDataAsync')
+        .and.rejectWith(404);
+      const alertsSpy = spyOn(alertsService, 'addWarning').and.callThrough();
+
+      let newActiveSectionName = 'I18N_DASHBOARD_LESSONS';
+      component.setActiveSubsection(newActiveSectionName);
+
+      tick();
+      fixture.detectChanges();
+
+      expect(alertsSpy).toHaveBeenCalledWith(
+        'Failed to get learner dashboard collections data');
+      expect(fetchDataSpy).toHaveBeenCalled();
+    }));
+
+    it('should show an alert warning when fails to get explorations data in' +
+    'mobile view',
+    fakeAsync(() => {
+      const fetchDataSpy = spyOn(
+        learnerDashboardBackendApiService,
+        'fetchLearnerDashboardExplorationsDataAsync')
+        .and.rejectWith(404);
+      const alertsSpy = spyOn(alertsService, 'addWarning').and.callThrough();
+
+      let newActiveSectionName = 'I18N_DASHBOARD_LESSONS';
+      component.setActiveSubsection(newActiveSectionName);
+
+      tick();
+      fixture.detectChanges();
+
+      expect(alertsSpy).toHaveBeenCalledWith(
+        'Failed to get learner dashboard explorations data');
+      expect(fetchDataSpy).toHaveBeenCalled();
+    }));
+
+    it('should get explorations and collections data when user clicks ' +
+    'communtiy lessons tab in mobile view',
+    fakeAsync(() => {
+      const fetchCollectionsDataSpy = spyOn(
+        learnerDashboardBackendApiService,
+        'fetchLearnerDashboardCollectionsDataAsync')
+        .and.returnValue(Promise.resolve({
+          completedCollectionsList: (
+            learnerDashboardCollectionsData.completed_collections_list.map(
+              collectionSummary => CollectionSummary
+                .createFromBackendDict(collectionSummary))),
+          incompleteCollectionsList: (
+            learnerDashboardCollectionsData.incomplete_collections_list.map(
+              collectionSummary => CollectionSummary
+                .createFromBackendDict(collectionSummary))),
+          collectionPlaylist: (
+            learnerDashboardCollectionsData.collection_playlist.map(
+              collectionSummary => CollectionSummary
+                .createFromBackendDict(collectionSummary))),
+          completedToIncompleteCollections: (
+            learnerDashboardCollectionsData
+              .completed_to_incomplete_collections),
+          numberOfNonexistentCollections: (
+            NonExistentCollections.createFromBackendDict(
+              learnerDashboardCollectionsData
+                .number_of_nonexistent_collections)),
+        }));
+
+      const fetchExplorationsDataSpy = spyOn(
+        learnerDashboardBackendApiService,
+        'fetchLearnerDashboardExplorationsDataAsync')
+        .and.returnValue(Promise.resolve({
+          completedExplorationsList: (
+            learnerDashboardExplorationsData.completed_explorations_list.map(
+              expSummary => LearnerExplorationSummary.createFromBackendDict(
+                expSummary))),
+          incompleteExplorationsList: (
+            learnerDashboardExplorationsData.incomplete_explorations_list.map(
+              expSummary => LearnerExplorationSummary.createFromBackendDict(
+                expSummary))),
+          explorationPlaylist: (
+            learnerDashboardExplorationsData.exploration_playlist.map(
+              expSummary => LearnerExplorationSummary.createFromBackendDict(
+                expSummary))),
+          numberOfNonexistentExplorations: (
+            NonExistentExplorations.createFromBackendDict(
+              learnerDashboardExplorationsData
+                .number_of_nonexistent_explorations)),
+          subscriptionList: (
+            learnerDashboardExplorationsData.subscription_list.map(
+              profileSummary => ProfileSummary
+                .createFromCreatorBackendDict(profileSummary)))
+        }));
+
+      let newActiveSectionName = 'I18N_DASHBOARD_LESSONS';
+      component.setActiveSubsection(newActiveSectionName);
+
+      tick();
+      fixture.detectChanges();
+
+      expect(fetchCollectionsDataSpy).toHaveBeenCalled();
+      flush();
+      expect(fetchExplorationsDataSpy).toHaveBeenCalled();
+      expect(component.communtiyLessonsDataLoaded).toEqual(true);
+    }));
+
+    it('should show an alert warning when fails to get collections data ' +
+      'in web view',
+    fakeAsync(() => {
+      const fetchDataSpy = spyOn(
+        learnerDashboardBackendApiService,
+        'fetchLearnerDashboardCollectionsDataAsync')
+        .and.rejectWith(404);
+      const alertsSpy = spyOn(alertsService, 'addWarning').and.callThrough();
+
+      let newActiveSectionName = (
+        'I18N_LEARNER_DASHBOARD_COMMUNITY_LESSONS_SECTION');
+      component.setActiveSection(newActiveSectionName);
+
+      tick();
+      fixture.detectChanges();
+
+      expect(alertsSpy).toHaveBeenCalledWith(
+        'Failed to get learner dashboard collections data');
+      expect(fetchDataSpy).toHaveBeenCalled();
+    }));
+
+    it('should show an alert warning when fails to get explorations data in ' +
+    'web view',
+    fakeAsync(() => {
+      const fetchDataSpy = spyOn(
+        learnerDashboardBackendApiService,
+        'fetchLearnerDashboardExplorationsDataAsync')
+        .and.rejectWith(404);
+      const alertsSpy = spyOn(alertsService, 'addWarning').and.callThrough();
+
+      let newActiveSectionName = (
+        'I18N_LEARNER_DASHBOARD_COMMUNITY_LESSONS_SECTION');
+      component.setActiveSection(newActiveSectionName);
+
+      tick();
+      fixture.detectChanges();
+
+      expect(alertsSpy).toHaveBeenCalledWith(
+        'Failed to get learner dashboard explorations data');
+      expect(fetchDataSpy).toHaveBeenCalled();
+    }));
+
+    it('should get explorations and collections data when user clicks ' +
+    'communtiy lessons tab in web view',
+    fakeAsync(() => {
+      const fetchCollectionsDataSpy = spyOn(
+        learnerDashboardBackendApiService,
+        'fetchLearnerDashboardCollectionsDataAsync')
+        .and.returnValue(Promise.resolve({
+          completedCollectionsList: (
+            learnerDashboardCollectionsData.completed_collections_list.map(
+              collectionSummary => CollectionSummary
+                .createFromBackendDict(collectionSummary))),
+          incompleteCollectionsList: (
+            learnerDashboardCollectionsData.incomplete_collections_list.map(
+              collectionSummary => CollectionSummary
+                .createFromBackendDict(collectionSummary))),
+          collectionPlaylist: (
+            learnerDashboardCollectionsData.collection_playlist.map(
+              collectionSummary => CollectionSummary
+                .createFromBackendDict(collectionSummary))),
+          completedToIncompleteCollections: (
+            learnerDashboardCollectionsData
+              .completed_to_incomplete_collections),
+          numberOfNonexistentCollections: (
+            NonExistentCollections.createFromBackendDict(
+              learnerDashboardCollectionsData
+                .number_of_nonexistent_collections)),
+        }));
+
+      const fetchExplorationsDataSpy = spyOn(
+        learnerDashboardBackendApiService,
+        'fetchLearnerDashboardExplorationsDataAsync')
+        .and.returnValue(Promise.resolve({
+          completedExplorationsList: (
+            learnerDashboardExplorationsData.completed_explorations_list.map(
+              expSummary => LearnerExplorationSummary.createFromBackendDict(
+                expSummary))),
+          incompleteExplorationsList: (
+            learnerDashboardExplorationsData.incomplete_explorations_list.map(
+              expSummary => LearnerExplorationSummary.createFromBackendDict(
+                expSummary))),
+          explorationPlaylist: (
+            learnerDashboardExplorationsData.exploration_playlist.map(
+              expSummary => LearnerExplorationSummary.createFromBackendDict(
+                expSummary))),
+          numberOfNonexistentExplorations: (
+            NonExistentExplorations.createFromBackendDict(
+              learnerDashboardExplorationsData
+                .number_of_nonexistent_explorations)),
+          subscriptionList: (
+            learnerDashboardExplorationsData.subscription_list.map(
+              profileSummary => ProfileSummary
+                .createFromCreatorBackendDict(profileSummary)))
+        }));
+
+      let newActiveSectionName = (
+        'I18N_LEARNER_DASHBOARD_COMMUNITY_LESSONS_SECTION');
+      component.setActiveSection(newActiveSectionName);
+
+      tick();
+      fixture.detectChanges();
+
+      expect(fetchCollectionsDataSpy).toHaveBeenCalled();
+      flush();
+      expect(fetchExplorationsDataSpy).toHaveBeenCalled();
+      expect(component.communtiyLessonsDataLoaded).toEqual(true);
+    }));
+
+    it('should show an alert warning when fails to get feedback updates data',
+      fakeAsync(() => {
+        const fetchDataSpy = spyOn(
+          learnerDashboardBackendApiService,
+          'fetchLearnerDashboardFeedbackUpdatesDataAsync')
+          .and.rejectWith(404);
+        const alertsSpy = spyOn(alertsService, 'addWarning').and.callThrough();
+
+        component.ngOnInit();
+
+        tick();
+        fixture.detectChanges();
+
+        expect(alertsSpy).toHaveBeenCalledWith(
+          'Failed to get learner dashboard feedback updates data');
+        expect(fetchDataSpy).toHaveBeenCalled();
+      }));
+
+    it('should unsubscribe upon component destruction', () => {
+      spyOn(component.directiveSubscriptions, 'unsubscribe');
+
+      component.ngOnDestroy();
+
+      expect(component.directiveSubscriptions.unsubscribe).toHaveBeenCalled();
     });
   });
 });

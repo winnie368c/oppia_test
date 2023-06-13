@@ -16,12 +16,10 @@
 
 """Tests for methods in the visualization registry."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import importlib
 import inspect
-import os
 import re
 
 from core.domain import visualization_registry
@@ -31,31 +29,31 @@ from core.tests import test_utils
 class VisualizationRegistryUnitTests(test_utils.GenericTestBase):
     """Test for the visualization registry."""
 
-    def test_visualization_registry(self):
+    def test_visualization_registry(self) -> None:
         """Sanity checks on the visualization registry."""
         self.assertGreater(
             len(visualization_registry.Registry.get_all_visualization_ids()),
             0)
 
-    def test_get_visualization_class_with_invalid_id_raises_error(self):
-        with self.assertRaisesRegexp(
+    def test_get_visualization_class_with_invalid_id_raises_error(self) -> None:
+        with self.assertRaisesRegex(
             TypeError, 'is not a valid visualization id.'):
             visualization_registry.Registry.get_visualization_class(
                 'invalid_visualization_id')
 
-    def test_visualization_class_with_invalid_option_names(self):
+    def test_visualization_class_with_invalid_option_names(self) -> None:
         sorted_tiles = visualization_registry.Registry.get_visualization_class(
             'SortedTiles')
         sorted_tiles_instance = sorted_tiles('AnswerFrequencies', {}, True)
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             Exception,
             re.escape(
                 'For visualization SortedTiles, expected option names '
                 '[\'header\', \'use_percentages\']; received names []')):
             sorted_tiles_instance.validate()
 
-    def test_visualization_class_with_invalid_option_value(self):
+    def test_visualization_class_with_invalid_option_value(self) -> None:
         sorted_tiles = visualization_registry.Registry.get_visualization_class(
             'SortedTiles')
         option_names = {
@@ -65,12 +63,16 @@ class VisualizationRegistryUnitTests(test_utils.GenericTestBase):
         sorted_tiles_instance = sorted_tiles(
             'AnswerFrequencies', option_names, True)
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             Exception, 'Expected bool, received invalid_value'):
             sorted_tiles_instance.validate()
 
+    # TODO(#13059): Here we use MyPy ignore because after we fully type
+    # the codebase we plan to get rid of the tests that intentionally test
+    # wrong inputs that we can normally catch by typing.
     def test_visualization_class_with_invalid_addressed_info_is_supported_value(
-            self):
+        self
+    ) -> None:
         sorted_tiles = visualization_registry.Registry.get_visualization_class(
             'SortedTiles')
         option_names = {
@@ -78,15 +80,15 @@ class VisualizationRegistryUnitTests(test_utils.GenericTestBase):
             'use_percentages': True
         }
         sorted_tiles_instance = sorted_tiles(
-            'AnswerFrequencies', option_names, 'invalid_value')
+            'AnswerFrequencies', option_names, 'invalid_value')  # type: ignore[arg-type]
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             Exception,
             'For visualization SortedTiles, expected a bool value for '
             'addressed_info_is_supported; received invalid_value'):
             sorted_tiles_instance.validate()
 
-    def test_get_all_visualization_ids(self):
+    def test_get_all_visualization_ids(self) -> None:
         visualization_ids = (
             visualization_registry.Registry.get_all_visualization_ids())
         expected_visualizations = ['FrequencyTable', 'ClickHexbins',
@@ -98,30 +100,10 @@ class VisualizationRegistryUnitTests(test_utils.GenericTestBase):
 
 class VisualizationsNameTests(test_utils.GenericTestBase):
 
-    def _get_all_python_files(self):
-        """Recursively collects all Python files in the core/ and extensions/
-        directory.
-
-        Returns:
-            list(str). A list of Python files.
-        """
-        current_dir = os.getcwd()
-        files_in_directory = []
-        for _dir, _, files in os.walk(current_dir):
-            for file_name in files:
-                filepath = os.path.relpath(
-                    os.path.join(_dir, file_name), current_dir)
-                if filepath.endswith('.py') and (
-                        filepath.startswith('core/') or (
-                            filepath.startswith('extensions/'))):
-                    module = filepath[:-3].replace('/', '.')
-                    files_in_directory.append(module)
-        return files_in_directory
-
-    def test_visualization_names(self):
+    def test_visualization_names(self) -> None:
         """This function checks for duplicate visualizations."""
 
-        all_python_files = self._get_all_python_files()
+        all_python_files = self.get_all_python_files()
         all_visualizations = []
 
         for file_name in all_python_files:

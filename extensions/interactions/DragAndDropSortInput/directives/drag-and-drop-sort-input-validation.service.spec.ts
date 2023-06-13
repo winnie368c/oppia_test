@@ -23,10 +23,10 @@ import { AnswerGroup, AnswerGroupObjectFactory } from
 import { DragAndDropSortInputValidationService } from 'interactions/DragAndDropSortInput/directives/drag-and-drop-sort-input-validation.service';
 import { Outcome, OutcomeObjectFactory } from
   'domain/exploration/OutcomeObjectFactory';
-import { Rule, RuleObjectFactory } from
-  'domain/exploration/RuleObjectFactory';
+import { Rule } from
+  'domain/exploration/rule.model';
 import { SubtitledHtml } from
-  'domain/exploration/SubtitledHtmlObjectFactory';
+  'domain/exploration/subtitled-html.model';
 
 import { AppConstants } from 'app.constants';
 import { DragAndDropSortInputCustomizationArgs } from
@@ -39,13 +39,13 @@ describe('DragAndDropSortInputValidationService', () => {
   let currentState: string;
   let answerGroups: AnswerGroup[], goodDefaultOutcome: Outcome;
   let customOutcome: Outcome;
-  let equalsListWithEmptyValuesRule: Rule, equalsListWithDuplicatesRule: Rule,
+  let equalsListWithEmptyListRule: Rule, equalsListWithDuplicatesRule: Rule,
     equalsListWithAllowedValuesRule: Rule, equalsListWithValuesRule: Rule,
     goodRule1: Rule, goodRule2: Rule, hasXBeforeYRule: Rule,
     hasElementXAtPositionYRule: Rule;
-  let customizationArgs: DragAndDropSortInputCustomizationArgs;
-  let oof: OutcomeObjectFactory, agof: AnswerGroupObjectFactory,
-    rof: RuleObjectFactory;
+  let customizationArgs: DragAndDropSortInputCustomizationArgs,
+    badCustomizationArgs: DragAndDropSortInputCustomizationArgs;
+  let oof: OutcomeObjectFactory, agof: AnswerGroupObjectFactory;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -55,13 +55,13 @@ describe('DragAndDropSortInputValidationService', () => {
     validatorService = TestBed.get(DragAndDropSortInputValidationService);
     oof = TestBed.get(OutcomeObjectFactory);
     agof = TestBed.get(AnswerGroupObjectFactory);
-    rof = TestBed.get(RuleObjectFactory);
     WARNING_TYPES = AppConstants.WARNING_TYPES;
 
     currentState = 'First State';
 
     goodDefaultOutcome = oof.createFromBackendDict({
       dest: 'Second State',
+      dest_if_really_stuck: null,
       feedback: {
         html: '',
         content_id: ''
@@ -74,6 +74,7 @@ describe('DragAndDropSortInputValidationService', () => {
 
     customOutcome = oof.createFromBackendDict({
       dest: 'Third State',
+      dest_if_really_stuck: null,
       feedback: {
         html: '<p>great job!</p>',
         content_id: ''
@@ -87,10 +88,10 @@ describe('DragAndDropSortInputValidationService', () => {
     customizationArgs = {
       choices: {
         value: [
-          new SubtitledHtml('a', ''),
-          new SubtitledHtml('b', ''),
-          new SubtitledHtml('c', ''),
-          new SubtitledHtml('d', '')
+          new SubtitledHtml('a', 'ca_0'),
+          new SubtitledHtml('b', 'ca_1'),
+          new SubtitledHtml('c', 'ca_2'),
+          new SubtitledHtml('d', 'ca_3')
         ]
       },
       allowMultipleItemsInSamePosition: {
@@ -98,74 +99,98 @@ describe('DragAndDropSortInputValidationService', () => {
       }
     };
 
-    goodRule1 = rof.createFromBackendDict({
+    badCustomizationArgs = {
+      choices: {
+        value: [
+          new SubtitledHtml('a', 'ca_0'),
+          new SubtitledHtml('b', null),
+          new SubtitledHtml('c', 'ca_2'),
+        ]
+      },
+      allowMultipleItemsInSamePosition: {
+        value: true
+      }
+    };
+
+    goodRule1 = Rule.createFromBackendDict({
       rule_type: 'IsEqualToOrdering',
       inputs: {
-        x: [['a'], ['b'], ['c'], ['d']]
+        x: [
+          ['ca_0'], ['ca_1'], ['ca_2'], ['ca_3']
+        ]
       }
-    });
+    }, 'DragAndDropSortInput');
 
-    goodRule2 = rof.createFromBackendDict({
+    goodRule2 = Rule.createFromBackendDict({
       rule_type: 'IsEqualToOrdering',
       inputs: {
-        x: [['d'], ['c'], ['b'], ['a']]
+        x: [
+          ['ca_3'], ['ca_2'], ['ca_1'], ['ca_0']
+        ]
       }
-    });
+    }, 'DragAndDropSortInput');
 
-    equalsListWithAllowedValuesRule = rof.createFromBackendDict({
+    equalsListWithAllowedValuesRule = Rule.createFromBackendDict({
       rule_type: 'IsEqualToOrdering',
       inputs: {
-        x: [['a', 'b'], ['d'], ['c']]
+        x: [
+          ['ca_0', 'ca_1'], ['ca_3'], ['ca_2']
+        ]
       }
-    });
+    }, 'DragAndDropSortInput');
 
-    equalsListWithValuesRule = rof.createFromBackendDict({
+    equalsListWithValuesRule = Rule.createFromBackendDict({
       rule_type: 'IsEqualToOrderingWithOneItemAtIncorrectPosition',
       inputs: {
-        x: [['a'], ['d'], ['c'], ['b']]
+        x: [
+          ['ca_0'], ['ca_3'], ['ca_2'], ['ca_1']
+        ]
       }
-    });
+    }, 'DragAndDropSortInput');
 
-    equalsListWithEmptyValuesRule = rof.createFromBackendDict({
+    equalsListWithEmptyListRule = Rule.createFromBackendDict({
       rule_type: 'IsEqualToOrdering',
       inputs: {
-        x: [['a', ''], [], ['c', 'b', 'd']]
+        x: [['ca_0'], [], ['ca_2', 'ca_1', 'ca_3']]
       }
-    });
+    }, 'DragAndDropSortInput');
 
-    equalsListWithDuplicatesRule = rof.createFromBackendDict({
+    equalsListWithDuplicatesRule = Rule.createFromBackendDict({
       rule_type: 'IsEqualToOrderingWithOneItemAtIncorrectPosition',
       inputs: {
-        x: [['a', 'b'], ['b'], ['c', 'a', 'd']]
+        x: [
+          ['ca_0', 'ca_1'], ['ca_1'],
+          ['ca_2', 'ca_0', 'ca_3']
+        ]
       }
-    });
+    }, 'DragAndDropSortInput');
 
-    hasXBeforeYRule = rof.createFromBackendDict({
+    hasXBeforeYRule = Rule.createFromBackendDict({
       rule_type: 'HasElementXBeforeElementY',
       inputs: {
-        x: 'b',
-        y: 'b'
+        x: 'ca_1',
+        y: 'ca_1'
       }
-    });
+    }, 'DragAndDropSortInput');
 
-    hasElementXAtPositionYRule = rof.createFromBackendDict({
+    hasElementXAtPositionYRule = Rule.createFromBackendDict({
       rule_type: 'HasElementXAtPositionY',
       inputs: {
-        x: 'x',
+        x: 'ca_5',
         y: '5'
       }
-    });
+    }, 'DragAndDropSortInput');
 
     answerGroups = [
       agof.createNew(
         [equalsListWithAllowedValuesRule],
         goodDefaultOutcome,
-        null,
+        [],
         null
       ), agof.createNew(
         [goodRule1, goodRule2],
         customOutcome,
-        null,
+        [],
         null
       )
     ];
@@ -179,15 +204,15 @@ describe('DragAndDropSortInputValidationService', () => {
 
   it('should not allow multiple items in same position', () => {
     customizationArgs.allowMultipleItemsInSamePosition.value = false;
-    var rules = [rof.createFromBackendDict({
+    var rules = [Rule.createFromBackendDict({
       rule_type: 'IsEqualToOrdering',
       inputs: {
-        x: [['a', 'b'], ['c', 'd']]
+        x: [['ca_0', 'ca_1'], ['ca_2', 'ca_3']]
       }
-    })];
+    }, 'DragAndDropSortInput')];
     answerGroups = [
-      agof.createNew(rules, customOutcome, null, null),
-      agof.createNew(rules, customOutcome, null, null)
+      agof.createNew(rules, customOutcome, [], null),
+      agof.createNew(rules, customOutcome, [], null)
     ];
     var warnings = validatorService.getAllWarnings(
       currentState, customizationArgs, answerGroups, goodDefaultOutcome);
@@ -201,19 +226,15 @@ describe('DragAndDropSortInputValidationService', () => {
     customizationArgs.allowMultipleItemsInSamePosition.value = true;
   });
 
-  it('should expect all items to be nonempty', () => {
+  it('should expect all lists to be nonempty', () => {
     // Add rule containing empty items.
-    answerGroups[0].rules = [equalsListWithEmptyValuesRule];
+    answerGroups[0].rules = [equalsListWithEmptyListRule];
 
     var warnings = validatorService.getAllWarnings(
       currentState, customizationArgs, answerGroups, goodDefaultOutcome);
     expect(warnings).toEqual([{
       type: WARNING_TYPES.ERROR,
-      message: 'Please ensure the items are nonempty.'
-    }, {
-      type: WARNING_TYPES.ERROR,
-      message: 'Rule 1 from answer group 1 options do not match ' +
-        'customization argument choices.'
+      message: 'Please ensure the list is nonempty.'
     }]);
   });
 
@@ -228,7 +249,7 @@ describe('DragAndDropSortInputValidationService', () => {
       message: 'Please ensure the items are unique.'
     }, {
       type: WARNING_TYPES.ERROR,
-      message: 'Rule 1 from answer group 1 options do not match ' +
+      message: 'Learner answer 1 from Oppia response 1 options do not match ' +
         'customization argument choices.'
     }]);
   });
@@ -248,7 +269,7 @@ describe('DragAndDropSortInputValidationService', () => {
 
   it('should expect all choices to be nonempty', () => {
     // Set the first choice to empty.
-    customizationArgs.choices.value[0].setHtml('');
+    customizationArgs.choices.value[0].html = '';
 
     var warnings = validatorService.getAllWarnings(
       currentState, customizationArgs, [], goodDefaultOutcome);
@@ -257,6 +278,15 @@ describe('DragAndDropSortInputValidationService', () => {
       message: 'Please ensure that the choices are nonempty.'
     }]);
   });
+
+  it('should throw error if contentId of choice in customizationArguments' +
+  ' does not exist', () => {
+    expect(() => {
+      validatorService.getAllWarnings(
+        currentState, badCustomizationArgs, answerGroups, goodDefaultOutcome);
+    }).toThrowError('ContentId of choice does not exist');
+  });
+
 
   it('should expect all choices to be unique', () => {
     // Repeat the last choice.
@@ -278,8 +308,8 @@ describe('DragAndDropSortInputValidationService', () => {
       currentState, customizationArgs, answerGroups, goodDefaultOutcome);
     expect(warnings).toEqual([{
       type: WARNING_TYPES.ERROR,
-      message: 'Rule 2 from answer group 1 will never be matched ' +
-          'because it is made redundant by rule 1 from answer group 1.'
+      message: 'Learner answer 2 from Oppia response 1 will never be ' +
+          'matched because it is made redundant by answer 1 from response 1.'
     }]);
   });
 
@@ -290,8 +320,8 @@ describe('DragAndDropSortInputValidationService', () => {
       currentState, customizationArgs, answerGroups, goodDefaultOutcome);
     expect(warnings).toEqual([{
       type: WARNING_TYPES.ERROR,
-      message: 'Rule 1 from answer group 1 will never be matched ' +
-          'because both the selected elements are same.'
+      message: 'Learner answer 1 from Oppia response 1 will never be ' +
+          'matched because both the selected elements are same.'
     }]);
   });
 
@@ -304,8 +334,9 @@ describe('DragAndDropSortInputValidationService', () => {
         currentState, customizationArgs, answerGroups, goodDefaultOutcome);
       expect(warnings).toEqual([{
         type: WARNING_TYPES.ERROR,
-        message: 'Rule 1 from answer group 1 contains choices that do ' +
-          'not match any of the choices in the customization arguments.'
+        message: 'Learner answer 1 from Oppia response 1 contains choices ' +
+          'that do not match any of the choices in the customization ' +
+          'arguments.'
       }]);
     });
 
@@ -318,12 +349,13 @@ describe('DragAndDropSortInputValidationService', () => {
         currentState, customizationArgs, answerGroups, goodDefaultOutcome);
       expect(warnings).toEqual([{
         type: WARNING_TYPES.ERROR,
-        message: 'Rule 1 from answer group 1 contains a choice that does ' +
-          'not match any of the choices in the customization arguments.'
+        message: 'Learner answer 1 from Oppia response 1 contains a choice ' +
+          'that does not match any of the choices in the customization ' +
+          'arguments.'
       }, {
         type: WARNING_TYPES.ERROR,
-        message: 'Rule 1 from answer group 1 refers to an invalid choice ' +
-          'position.'
+        message: 'Learner answer 1 from Oppia response 1 refers to an ' +
+          'invalid choice position.'
       }]);
     });
 
@@ -338,9 +370,9 @@ describe('DragAndDropSortInputValidationService', () => {
         currentState, customizationArgs, answerGroups, goodDefaultOutcome);
       expect(warnings).toEqual([{
         type: WARNING_TYPES.ERROR,
-        message: 'Rule 1 from answer group 1 will never be matched because ' +
-          'there will be at least 2 elements at incorrect positions if ' +
-          'multiple elements cannot occupy the same position.'
+        message: 'Learner answer 1 from Oppia response 1 will never be ' +
+          'matched because there will be at least 2 elements at incorrect ' +
+          'positions if multiple elements cannot occupy the same position.'
       }]);
       customizationArgs.allowMultipleItemsInSamePosition.value = true;
     });

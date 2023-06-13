@@ -23,7 +23,7 @@ import { GuppyInitializationService } from
 
 declare global {
   interface Window {
-    Guppy: Object;
+    Guppy: Guppy;
   }
 }
 
@@ -34,26 +34,28 @@ class MockGuppy {
     end: () => {}
   };
 
-  render(_): void {}
+  render(): void {}
   'import_text'(): void {}
   asciimath(): string {
     return 'Dummy value';
   }
+
   configure(name: string, val: Object): void {}
   static event(name: string, handler: Function): void {
     handler({focused: true});
   }
+
   static configure(name: string, val: Object): void {}
   static 'remove_global_symbol'(symbol: string): void {}
   static 'add_global_symbol'(name: string, symbol: Object): void {}
 }
 
 describe('GuppyInitializationService', () => {
-  let guppyInitializationService: GuppyInitializationService = null;
+  let guppyInitializationService: GuppyInitializationService;
 
   beforeEach(() => {
-    guppyInitializationService = TestBed.get(GuppyInitializationService);
-    window.Guppy = MockGuppy;
+    guppyInitializationService = TestBed.inject(GuppyInitializationService);
+    window.Guppy = MockGuppy as unknown as Guppy;
   });
 
   it('should assign a random id to the guppy divs', function() {

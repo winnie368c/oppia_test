@@ -59,15 +59,24 @@ export class EndExplorationValidationService {
           type: AppConstants.WARNING_TYPES.ERROR,
           message: 'Recommended exploration ID must be a string.'
         });
+        break;
+      }
+      if (recommendedExplorationIds[i].trim().length === 0) {
+        warningsList.push({
+          type: AppConstants.WARNING_TYPES.ERROR,
+          message: 'Recommended exploration ID must be non-empty.'
+        });
+        break;
       }
     }
+
     return warningsList;
   }
 
   getAllWarnings(
       stateName: string, customizationArgs: EndExplorationCustomizationArgs,
-      answerGroups: AnswerGroup[], defaultOutcome: Outcome): Warning[] {
-    var warningsList = [];
+      answerGroups: AnswerGroup[], defaultOutcome: Outcome | null): Warning[] {
+    var warningsList: Warning[] = [];
 
     warningsList = warningsList.concat(
       this.getCustomizationArgsWarnings(customizationArgs));
@@ -76,7 +85,7 @@ export class EndExplorationValidationService {
       warningsList.push({
         type: AppConstants.WARNING_TYPES.ERROR,
         message: 'Please make sure end exploration interactions do not ' +
-          'have any answer groups.'
+          'have any Oppia responses.'
       });
     }
     if (defaultOutcome) {

@@ -23,12 +23,13 @@ import cloneDeep from 'lodash/cloneDeep';
 
 import { QuestionDomainConstants } from
   'domain/question/question-domain.constants';
-import { QuestionBackendDict } from
+import { QuestionObjectFactory, QuestionBackendDict } from
   'domain/question/QuestionObjectFactory';
 import { UrlInterpolationService } from
   'domain/utilities/url-interpolation.service';
 import { QuestionSummaryForOneSkillBackendDict } from
-  'domain/question/QuestionSummaryForOneSkillObjectFactory';
+  'domain/question/question-summary-for-one-skill-object.model';
+import { DiagnosticTestQuestionsModel } from './diagnostic-test-questions.model';
 
 interface QuestionCountBackendResponse {
   'total_question_count': number;
@@ -40,12 +41,25 @@ interface QuestionsBackendResponse {
 
 interface QuestionSummariesBackendResponse {
   'question_summary_dicts': QuestionSummaryForOneSkillBackendDict[];
-  'next_start_cursor': string;
+  'more': boolean;
 }
 
 interface QuestionSummariesResponse {
   questionSummaries: QuestionSummaryForOneSkillBackendDict[];
-  nextCursor: string;
+  more: boolean;
+}
+
+interface SkillIdToQuestionsBackendResponse {
+  'skill_id_to_questions_dict': {
+    [skillId: string]: {
+      main_question: QuestionBackendDict;
+      backup_question: QuestionBackendDict;
+    };
+  };
+}
+
+export interface SkillIdToQuestionsResponse {
+  [skillId: string]: DiagnosticTestQuestionsModel;
 }
 
 @Injectable({
@@ -54,7 +68,9 @@ interface QuestionSummariesResponse {
 export class QuestionBackendApiService {
   constructor(
     private http: HttpClient,
-    private urlInterpolationService: UrlInterpolationService) {}
+    private urlInterpolationService: UrlInterpolationService,
+    private questionObjectFactory: QuestionObjectFactory
+  ) {}
 
   private _fetchQuestions(
       skillIds: string[], questionCount: number,
@@ -106,7 +122,7 @@ export class QuestionBackendApiService {
   }
 
   private _fetchQuestionSummaries(
-      skillId: string, cursor: string,
+      skillId: string, offset: number,
       successCallback: (value: QuestionSummariesResponse) => void,
       errorCallback: (reason: string) => void): void|boolean {
     const skillIds = [skillId];
@@ -114,18 +130,17 @@ export class QuestionBackendApiService {
     var questionsDataUrl = this.urlInterpolationService.interpolateUrl(
       QuestionDomainConstants.QUESTIONS_LIST_URL_TEMPLATE, {
         comma_separated_skill_ids: skillIds.join(','),
-        cursor: cursor
+        offset: offset.toString()
       });
     this.http.get<QuestionSummariesBackendResponse>(
       questionsDataUrl
     ).toPromise().then(response => {
       var questionSummaries = cloneDeep(
         response.question_summary_dicts);
-      var nextCursor = response.next_start_cursor;
       if (successCallback) {
         successCallback({
           questionSummaries: questionSummaries,
-          nextCursor: nextCursor
+          more: response.more
         });
       }
     }, (errorResponse) => {
@@ -181,7 +196,7 @@ export class QuestionBackendApiService {
    * Returns a list of questions based on the list of skill ids and number
    * of questions requested.
    */
-  fetchQuestions(
+  async fetchQuestionsAsync(
       skillIds: string[], questionCount: number,
       questionsSortedByDifficulty: boolean): Promise<QuestionBackendDict[]> {
     return new Promise((resolve, reject) => {
@@ -191,17 +206,53 @@ export class QuestionBackendApiService {
     });
   }
 
-  fetchTotalQuestionCountForSkillIds(skillIds: string[]): Promise<number> {
+  async fetchTotalQuestionCountForSkillIdsAsync(
+      skillIds: string[]): Promise<number> {
     return new Promise((resolve, reject) => {
       this._fetchTotalQuestionCountForSkillIds(skillIds, resolve, reject);
     });
   }
 
-  fetchQuestionSummaries(
+  async fetchQuestionSummariesAsync(
       skillId: string,
-      cursor: string = ''): Promise<QuestionSummariesResponse> {
+      offset: number = 0): Promise<QuestionSummariesResponse> {
     return new Promise((resolve, reject) => {
-      this._fetchQuestionSummaries(skillId, cursor, resolve, reject);
+      this._fetchQuestionSummaries(skillId, offset, resolve, reject);
+    });
+  }
+
+  async fetchDiagnosticTestQuestionsAsync(
+      topicId: string, excludeQuestionIds: string[]
+  ): Promise<SkillIdToQuestionsResponse> {
+    return new Promise((resolve, reject) => {
+      const diagnosticTestQuestionsURL = (
+        this.urlInterpolationService.interpolateUrl(
+          '/diagnostic_test_questions_handler_url/<topic_id>' +
+          '?excluded_question_ids=<excluded_question_ids>', {
+            topic_id: topicId,
+            excluded_question_ids: excludeQuestionIds.join(',')
+          }));
+
+      this.http.get<SkillIdToQuestionsBackendResponse>(
+        diagnosticTestQuestionsURL).toPromise().then((response) => {
+        let skillIdToQuestionsDict: SkillIdToQuestionsResponse = {};
+
+        for (let skillId in response.skill_id_to_questions_dict) {
+          const mainQuestion = (
+            this.questionObjectFactory.createFromBackendDict(
+              response.skill_id_to_questions_dict[skillId].main_question));
+          const backupQuestion = (
+            this.questionObjectFactory.createFromBackendDict(
+              response.skill_id_to_questions_dict[skillId].backup_question));
+
+          skillIdToQuestionsDict[skillId] = new DiagnosticTestQuestionsModel(
+            mainQuestion, backupQuestion);
+        }
+
+        resolve(skillIdToQuestionsDict);
+      }, errorResponse => {
+        reject(errorResponse.error.error);
+      });
     });
   }
 }

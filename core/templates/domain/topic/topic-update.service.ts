@@ -30,12 +30,12 @@ import cloneDeep from 'lodash/cloneDeep';
 import { Change, TopicChange } from 'domain/editor/undo_redo/change.model';
 import { UndoRedoService } from 'domain/editor/undo_redo/undo-redo.service';
 import { TopicDomainConstants } from 'domain/topic/topic-domain.constants';
-import { Topic } from 'core/templates/domain/topic/TopicObjectFactory';
-import { ShortSkillSummary } from 'core/templates/domain/skill/ShortSkillSummaryObjectFactory';
-import { SubtitledHtml } from 'core/templates/domain/exploration/SubtitledHtmlObjectFactory';
-import { SubtopicPage } from 'core/templates/domain/topic/SubtopicPageObjectFactory';
-import { RecordedVoiceovers } from 'core/templates/domain/exploration/RecordedVoiceoversObjectFactory';
-import { Subtopic } from 'domain/topic/SubtopicObjectFactory';
+import { Topic } from 'domain/topic/topic-object.model';
+import { ShortSkillSummary } from 'core/templates/domain/skill/short-skill-summary.model';
+import { SubtitledHtml } from 'core/templates/domain/exploration/subtitled-html.model';
+import { SubtopicPage } from 'core/templates/domain/topic/subtopic-page.model';
+import { RecordedVoiceovers } from 'core/templates/domain/exploration/recorded-voiceovers.model';
+import { Subtopic } from 'domain/topic/subtopic.model';
 
 type TopicUpdateApply = (topicChange: TopicChange, topic: Topic) => void;
 type TopicUpdateReverse = (topicChange: TopicChange, topic: Topic) => void;
@@ -48,7 +48,7 @@ type SubtopicUpdateReverse = (
   providedIn: 'root'
 })
 export class TopicUpdateService {
-  constructor(private undoRedoService:UndoRedoService) {}
+  constructor(private undoRedoService: UndoRedoService) {}
   // Creates a change using an apply function, reverse function, a change
   // command and related parameters. The change is applied to a given
   // topic.
@@ -71,8 +71,8 @@ export class TopicUpdateService {
   // Applies a topic property change, specifically. See _applyChange()
   // for details on the other behavior of this function.
   private _applyTopicPropertyChange(
-      topic :Topic, propertyName: string, newValue: string|boolean,
-      oldValue: string|boolean,
+      topic: Topic, propertyName: string, newValue: string|string[]|boolean,
+      oldValue: string|string[]|boolean,
       apply: TopicUpdateApply, reverse: TopicUpdateReverse) {
     this._applyChange(topic, TopicDomainConstants.CMD_UPDATE_TOPIC_PROPERTY, {
       property_name: propertyName,
@@ -242,6 +242,7 @@ export class TopicUpdateService {
         topic.setUrlFragment(oldUrlFragment);
       });
   }
+
   /**
    * Changes the thumbnail filename of a topic and records the change in the
    * undo/redo service.
@@ -329,11 +330,12 @@ export class TopicUpdateService {
    * the undo/redo service.
    */
   addSubtopic(
-      topic: Topic, title: string): void {
+      topic: Topic, title: string, urlFragment: string): void {
     let nextSubtopicId = topic.getNextSubtopicId();
     this._applyChange(topic, TopicDomainConstants.CMD_ADD_SUBTOPIC, {
       subtopic_id: nextSubtopicId,
-      title: title
+      title: title,
+      url_fragment: urlFragment
     }, (changeDict, topic) => {
       // ---- Apply ----
       topic.addSubtopic(title);
@@ -352,7 +354,7 @@ export class TopicUpdateService {
       topic: Topic, subtopicId: number): void {
     let subtopic = topic.getSubtopicById(subtopicId);
     if (!subtopic) {
-      throw new Error('Subtopic doesn\'t exist');
+      throw new Error(`Subtopic with id ${subtopicId} doesn\'t exist`);
     }
     let newlyCreated = false;
     let changeList =
@@ -545,7 +547,7 @@ export class TopicUpdateService {
       topic: Topic, subtopicId: number, thumbnailFilename: string): void {
     let subtopic = topic.getSubtopicById(subtopicId);
     if (!subtopic) {
-      throw new Error('Subtopic doesn\'t exist');
+      throw new Error(`Subtopic with id ${subtopicId} doesn\'t exist`);
     }
     let oldThumbnailFilename = cloneDeep(
       subtopic.getThumbnailFilename());
@@ -568,11 +570,10 @@ export class TopicUpdateService {
    * the undo/redo service.
    */
   setSubtopicUrlFragment(
-      topic: Topic, subtopicId: number, urlFragment: string)
-  : void {
+      topic: Topic, subtopicId: number, urlFragment: string): void {
     let subtopic = topic.getSubtopicById(subtopicId);
     if (!subtopic) {
-      throw new Error('Subtopic doesn\'t exist');
+      throw new Error(`Subtopic with id ${subtopicId} doesn\'t exist`);
     }
     let oldUrlFragment = cloneDeep(subtopic.getUrlFragment());
     this._applySubtopicPropertyChange(
@@ -597,7 +598,7 @@ export class TopicUpdateService {
       topic: Topic, subtopicId: number, thumbnailBgColor: string): void {
     let subtopic = topic.getSubtopicById(subtopicId);
     if (!subtopic) {
-      throw new Error('Subtopic doesn\'t exist');
+      throw new Error(`Subtopic with id ${subtopicId} doesn\'t exist`);
     }
     let oldThumbnailBgColor = cloneDeep(
       subtopic.getThumbnailBgColor());
@@ -623,7 +624,7 @@ export class TopicUpdateService {
       topic: Topic, subtopicId: number, title: string): void {
     let subtopic = topic.getSubtopicById(subtopicId);
     if (!subtopic) {
-      throw new Error('Subtopic doesn\'t exist');
+      throw new Error(`Subtopic with id ${subtopicId} doesn\'t exist`);
     }
     let oldTitle = cloneDeep(subtopic.getTitle());
     this._applySubtopicPropertyChange(
@@ -792,6 +793,39 @@ export class TopicUpdateService {
           changeDict, 'uncategorized_skill_id');
         topic.addUncategorizedSkill(
           newSkillId, skillSummary.getDescription());
+      });
+  }
+
+  /**
+   * Update the skill ids for the diagnostic test from a topic and records
+   * the change in the undo/redo service.
+   */
+  updateDiagnosticTestSkills(
+      topic: Topic,
+      newSkillSummariesForDiagnosticTest: ShortSkillSummary[]
+  ): void {
+    let oldSkillSummariesForDiagnosticTest = cloneDeep(
+      topic.getSkillSummariesForDiagnosticTest());
+    let oldSkillIdsForDiagnosticTest = oldSkillSummariesForDiagnosticTest.map((
+        skillSummary: ShortSkillSummary) => {
+      return skillSummary.getId();
+    });
+    let newSkillIdsForDiagnosticTest = newSkillSummariesForDiagnosticTest.map((
+        skillSummary: ShortSkillSummary) => {
+      return skillSummary.getId();
+    });
+
+    this._applyTopicPropertyChange(
+      topic,
+      TopicDomainConstants.TOPIC_PROPERTY_SKILL_IDS_FOR_DIAGNOSTIC_TEST,
+      newSkillIdsForDiagnosticTest,
+      oldSkillIdsForDiagnosticTest,
+      (changeDict, topic) => {
+        topic.setSkillSummariesForDiagnosticTest(
+          newSkillSummariesForDiagnosticTest);
+      }, (changeDict, topic) => {
+        topic.setSkillSummariesForDiagnosticTest(
+          oldSkillSummariesForDiagnosticTest);
       });
   }
 }

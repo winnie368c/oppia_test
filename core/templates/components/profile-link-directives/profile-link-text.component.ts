@@ -13,11 +13,12 @@
 // limitations under the License.
 
 /**
- * @fileoverview Directives for creating text links to a user's profile page.
+ * @fileoverview Component for creating text links to a user's profile page.
  */
 
 import { Component, Input } from '@angular/core';
 import { downgradeComponent } from '@angular/upgrade/static';
+import { AppConstants } from 'app.constants';
 
 @Component({
   selector: 'profile-link-text',
@@ -25,7 +26,29 @@ import { downgradeComponent } from '@angular/upgrade/static';
   styleUrls: []
 })
 export class ProfileLinkTextComponent {
-  @Input() username: string;
+  // This property is initialized using Angular lifecycle hooks
+  // and we need to do non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  private _profileUrl!: string;
+  private _username!: string;
+
+  @Input() set username(username: string) {
+    this._username = username;
+    this._profileUrl = (
+      '/' + AppConstants.PAGES_REGISTERED_WITH_FRONTEND.PROFILE.ROUTE.replace(
+        ':username_fragment', username
+      )
+    );
+  }
+
+  get username(): string {
+    return this._username;
+  }
+
+  get profileUrl(): string {
+    return this._profileUrl;
+  }
+
   constructor() {}
   isUsernameLinkable(username: string): boolean {
     return ['admin', 'OppiaMigrationBot'].indexOf(username) === -1;

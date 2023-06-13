@@ -16,20 +16,61 @@
 
 """Lint checks used by all the linters."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import os
 import re
 
-import python_utils
+from typing import Dict, Final, List, Pattern, Tuple, TypedDict
 
 from . import js_ts_linter
+from . import linter_utils
 from . import warranted_angular_security_bypasses
+
+from .. import build
 from .. import common
 from .. import concurrent_task_utils
 
-EXCLUDED_PATHS = (
+MYPY = False
+if MYPY:  # pragma: no cover
+    from scripts.linters import pre_commit_linter
+
+
+class BadPatternRegexpDict(TypedDict):
+    """Dictionary representation of bad pattern regular expressions."""
+
+    regexp: Pattern[str]
+    message: str
+    excluded_files: Tuple[str, ...]
+    excluded_dirs: Tuple[str, ...]
+
+
+class BadPatternsDict(TypedDict):
+    """Dictionary representation of bad patterns."""
+
+    message: str
+    excluded_files: Tuple[str, ...]
+    excluded_dirs: Tuple[str, ...]
+
+
+class MandatoryPatternsRegexpDict(TypedDict):
+    """Dictionary representation of mandatory pattern regular expressions."""
+
+    regexp: Pattern[str]
+    message: str
+    included_types: Tuple[str, ...]
+    excluded_files: Tuple[str, ...]
+    excluded_dirs: Tuple[str, ...]
+
+
+class BadStringsConstantsDict(TypedDict):
+    """Type for the dictionary representation of BAD_STRINGS_CONSTANTS dict."""
+
+    message: str
+    excluded_files: Tuple[str, ...]
+
+
+EXCLUDED_PATHS: Final = (
     'third_party/*', 'build/*', '.git/*', '*.pyc', 'CHANGELOG',
     'integrations/*', 'integrations_dev/*', '*.svg', '*.gif', '*.png',
     '*.webp', '*.zip', '*.ico', '*.jpg', '*.min.js', 'backend_prod_files/*',
@@ -37,22 +78,20 @@ EXCLUDED_PATHS = (
     'core/tests/build_sources/*', '*.mp3', '*.mp4', 'node_modules/*',
     'typings/*', 'local_compiled_js/*', 'webpack_bundles/*',
     'core/tests/services_sources/*', 'core/tests/release_sources/tmp_unzip.zip',
-    'scripts/linters/test_files/*', 'proto/*',
+    'scripts/linters/test_files/*', 'proto_files/*',
     'core/tests/release_sources/tmp_unzip.tar.gz',
     'core/templates/combined-tests.spec.ts',
     'core/templates/css/oppia-material.css',
     'core/templates/google-analytics.initializer.ts',
-    'auth.json.enc',
+    'extensions/classifiers/proto/*',
     '%s/*' % js_ts_linter.COMPILED_TYPESCRIPT_TMP_PATH)
 
-GENERATED_FILE_PATHS = (
-    'extensions/interactions/LogicProof/static/js/generatedDefaultData.ts',
-    'extensions/interactions/LogicProof/static/js/generatedParser.ts',
-    'core/templates/expressions/parser.js')
+GENERATED_FILE_PATHS: Final = (
+    'core/templates/expressions/parser.js',)
 
-CONFIG_FILE_PATHS = (
+CONFIG_FILE_PATHS: Final = (
     'core/tests/.browserstack.env.example',
-    'core/tests/protractor.conf.js',
+    'core/tests/wdio.conf.js',
     'core/tests/karma.conf.ts',
     'core/templates/mathjaxConfig.ts',
     'assets/constants.ts',
@@ -61,15 +100,20 @@ CONFIG_FILE_PATHS = (
     'webpack.dev.config.ts',
     'webpack.prod.config.ts')
 
-REQUIRED_STRINGS_CONSTANTS = {
-    'DEV_MODE: true': {
-        'message': 'Please set the DEV_MODE variable in constants.ts'
+BAD_STRINGS_CONSTANTS: Dict[str, BadStringsConstantsDict] = {
+    '"DEV_MODE": false': {
+        'message': 'Please set the DEV_MODE variable in constants.ts '
+                   'to true before committing.',
+        'excluded_files': ()
+    },
+    '"EMULATOR_MODE": false': {
+        'message': 'Please set the EMULATOR_MODE variable in constants.ts '
                    'to true before committing.',
         'excluded_files': ()
     }
 }
 
-BAD_PATTERNS = {
+BAD_PATTERNS: Dict[str, BadPatternsDict] = {
     '\t': {
         'message': 'Please use spaces instead of tabs.',
         'excluded_files': (),
@@ -94,206 +138,17 @@ BAD_PATTERNS = {
         'excluded_dirs': ()}
 }
 
-BAD_PATTERNS_REGEXP = [
+BAD_PATTERNS_REGEXP: List[BadPatternRegexpDict] = [
     {
         'regexp': re.compile(r'TODO[^\(]*[^\)][^:]*[^A-Z]+[^\w]*$'),
-        'message': 'Please assign TODO comments to a user '
-                   'in the format TODO(username): XXX. ',
+        'message': 'Please link TODO comments to an issue '
+                   'in the format TODO(#issuenum): XXX. ',
         'excluded_files': (),
         'excluded_dirs': ()
     }
 ]
 
-BAD_PATTERNS_JS_AND_TS_REGEXP = [
-    {
-        'regexp': re.compile(r'\b(browser.explore)\('),
-        'message': 'In tests, please do not use browser.explore().',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\b(browser.pause)\('),
-        'message': 'In tests, please do not use browser.pause().',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\b(browser.sleep)\('),
-        'message': 'In tests, please do not use browser.sleep().',
-        'excluded_files': (
-            # TODO(#7622): Remove the file from the excluded list. Remove the
-            # TODO in core/tests/protractor_desktop/embedding.js pointing to the
-            # same issue. The following was placed due to a necessary sleep as
-            # a temporary measure to keep the embedding tests from failing.
-            'core/tests/protractor_desktop/embedding.js',
-        ),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\b(browser.waitForAngular)\('),
-        'message': 'In tests, please do not use browser.waitForAngular().',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'bypass'),
-        'message': 'The use of the word "bypass" is not allowed, ' +
-                   'particularly with regards to bypassSecurityTrustHTML() ' +
-                   'and similar functions in Angular.',
-        'excluded_files': (
-            warranted_angular_security_bypasses
-            .EXCLUDED_BYPASS_SECURITY_TRUST_FILES),
-        'excluded_dirs': (
-            warranted_angular_security_bypasses
-            .EXCLUDED_BYPASS_SECURITY_TRUST_DIRECTORIES)
-    },
-    {
-        'regexp': re.compile(r'\b(ddescribe|fdescribe)\('),
-        'message': 'In tests, please use \'describe\' instead of \'ddescribe\''
-                   'or \'fdescribe\'',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\b(iit|fit)\('),
-        'message': 'In tests, please use \'it\' instead of \'iit\' or \'fit\'',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\b(beforeEach\(inject\(function)\('),
-        'message': 'In tests, please use \'angular.mock.inject\' instead of '
-                   '\'inject\'',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'templateUrl: \''),
-        'message': 'The directives must be directly referenced.',
-        'excluded_files': (
-            'core/templates/pages/exploration-player-page/'
-            'FeedbackPopupDirective.js',
-            '.component.ts'
-        ),
-        'excluded_dirs': (
-            'extensions/answer_summarizers/',
-            'extensions/classifiers/',
-            'extensions/dependencies/',
-            'extensions/value_generators/',
-            'extensions/visualizations/')
-    },
-    {
-        'regexp': re.compile(r'toThrow[(]'),
-        'message': 'Please use \'toThrowError\' instead of '
-                   '\'toThrow\'',
-        'excluded_files': (
-            # Note to developers: In the excluded_files below,
-            # we use custom errors which cannot be caught by regex.
-            # The Logic Proof interaction which uses these custom errors
-            # will be deprecated soon (see #9198).
-            'extensions/interactions/LogicProof/static/js/student.spec.ts',
-            'extensions/interactions/LogicProof/static/js/complete.spec.ts',
-            'extensions/interactions/LogicProof/static/js/teacher.spec.ts'),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(
-            r'(?!catch\s(\n|.)*throw\s\w+;\n.*})'
-            r'throw\s\b(\bError|\bTypeError|\bRangeError'
-            r'\bSyntaxError|\bDimensionError)\('),
-        'message': 'Please use \'throw new\' instead of \'throw\'',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(
-            r'(?!catch\s(\n|.)*throw\s\w+;\n.*})throw\s\'.*\';'),
-        'message': 'Please use '
-                   '\'throw new Error\' instead of \'throw\'',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\$parent'),
-        'message': 'Please do not access parent properties ' +
-                   'using $parent. Use the scope object' +
-                   'for this purpose.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'require\(.*\.\..*\);'),
-        'message': 'Please, don\'t use relative imports in require().',
-        'excluded_files': (),
-        'excluded_dirs': ('core/tests/',)
-    },
-    {
-        'regexp': re.compile(r'innerHTML'),
-        'message': 'Please do not use innerHTML property.',
-        'excluded_files': (
-            'core/templates/Polyfills.ts',
-            'core/templates/filters/translate.pipe.spec.ts',
-            'core/templates/components/ck-editor-helpers/' +
-            'ck-editor-copy-content-service.spec.ts',
-            'core/templates/tests/unit-test-utils.ts'),
-        'excluded_dirs': ('core/tests/',)
-    },
-    {
-        'regexp': re.compile(
-            r'eslint-(disable|enable)(-next-line)? camelcase'),
-        'message': (
-            'Please do not use eslint disable for camelcase. '
-            'If you are using this statement to define properties '
-            'in an interface for a backend dict. Wrap the property '
-            'name in single quotes instead.'),
-        'excluded_files': (
-            'typings/guppy-defs-b5055b963fdbea5c6c1e92dbf58fdaf3ea0cd8ba.d.ts',
-            'core/templates/services/UpgradedServices.ts'),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'no-explicit-any'),
-        'message': (
-            'Please do not define "any" types. You can refer '
-            'https://github.com/oppia/oppia/wiki/Guide-on-defining-types '
-            'if you\'re having trouble declaring types.'),
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\$broadcast'),
-        'message': (
-            'Please do not use $broadcast/$on for propagating events. '
-            'Use @Input/@Output instead.'),
-        'excluded_files': (
-            'core/templates/pages/exploration-editor-page/translation-tab/'
-            'audio-translation-bar/audio-translation-bar.directive.spec.ts',
-            'core/templates/pages/library-page/search-bar/'
-            'search-bar.component.spec.ts'),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'import \{.*\} from \'lodash\''),
-        'message': (
-            'Please do not use "import { someFunction } from \'lodash\'". '
-            'Use "import someFunction from \'lodash/someFunction\'" instead.'),
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r':\n? *HttpClient'),
-        'message': (
-            'An instance of HttpClient is found in this file. You are not '
-            'allowed to create http requests from files that are not backend '
-            'api services.'),
-        'excluded_files': (
-            'backend-api.service.ts',
-            'core/templates/services/request-interceptor.service.spec.ts',),
-        'excluded_dirs': ()
-    }
-]
-
-MANDATORY_PATTERNS_REGEXP = [
+MANDATORY_PATTERNS_REGEXP: List[MandatoryPatternsRegexpDict] = [
     {
         'regexp': re.compile(
             r'Copyright \d{4} The Oppia Authors\. All Rights Reserved\.'),
@@ -305,17 +160,17 @@ MANDATORY_PATTERNS_REGEXP = [
         'excluded_dirs': EXCLUDED_PATHS
     },
     {
-        'regexp': re.compile('from __future__ import unicode_literals'),
-        'message': 'Please ensure this file should contain unicode_literals '
+        'regexp': re.compile('from __future__ import annotations'),
+        'message': 'Please ensure this file should contain annotations '
                    'future import.',
-        'included_types': ('.py'),
+        'included_types': ('.py',),
         'excluded_files': GENERATED_FILE_PATHS + CONFIG_FILE_PATHS + (
             '__init__.py',),
         'excluded_dirs': EXCLUDED_PATHS
     }
 ]
 
-MANDATORY_PATTERNS_JS_REGEXP = [
+MANDATORY_PATTERNS_JS_REGEXP: List[MandatoryPatternsRegexpDict] = [
     {
         'regexp': re.compile(r'^\s\*\s@fileoverview\s[a-zA-Z0-9_]+'),
         'message': 'Please ensure this file should contain a file '
@@ -326,7 +181,7 @@ MANDATORY_PATTERNS_JS_REGEXP = [
     }
 ]
 
-BAD_LINE_PATTERNS_HTML_REGEXP = [
+BAD_LINE_PATTERNS_HTML_REGEXP: List[BadPatternRegexpDict] = [
     {
         'regexp': re.compile(r'text\/ng-template'),
         'message': 'The directives must be directly referenced.',
@@ -359,17 +214,10 @@ BAD_LINE_PATTERNS_HTML_REGEXP = [
     }
 ]
 
-BAD_PATTERNS_PYTHON_REGEXP = [
+BAD_PATTERNS_PYTHON_REGEXP: List[BadPatternRegexpDict] = [
     {
         'regexp': re.compile(r'__author__'),
         'message': 'Please remove author tags from this file.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'datetime.datetime.now\(\)'),
-        'message': 'Please use datetime.datetime.utcnow() instead of '
-                   'datetime.datetime.now().',
         'excluded_files': (),
         'excluded_dirs': ()
     },
@@ -390,14 +238,9 @@ BAD_PATTERNS_PYTHON_REGEXP = [
         'message': 'Please do not use print statement.',
         'excluded_files': (
             'core/tests/test_utils.py',
-            'core/tests/performance_framework/perf_domain.py'),
+            'core/tests/performance_framework/perf_domain.py',
+            'core/tests/test_utils_test.py'),
         'excluded_dirs': ('scripts/',)
-    },
-    {
-        'regexp': re.compile(r'\sprint\('),
-        'message': 'Please use python_utils.PRINT().',
-        'excluded_files': ('python_utils.py',),
-        'excluded_dirs': ()
     },
     {
         'regexp': re.compile(r'# pylint:\s*disable=[A-Z][0-9]{4}'),
@@ -409,191 +252,29 @@ BAD_PATTERNS_PYTHON_REGEXP = [
         'excluded_dirs': ()
     },
     {
-        'regexp': re.compile(r'self.assertEquals\('),
-        'message': 'Please do not use self.assertEquals method. ' +
-                   'This method has been deprecated. Instead use ' +
-                   'self.assertEqual method.',
+        'regexp': re.compile(r'urlretrieve\('),
+        'message': 'Please use scripts.common.url_retrieve instead of '
+                   'urllib.request.urlretrieve.',
         'excluded_files': (),
-        'excluded_dirs': ()
+        'excluded_dirs': (
+            'assets/',
+            'core/',
+            'data/',
+            'extensions/',
+            'jobs/',
+        ),
     },
-    {
-        'regexp': re.compile(r'with open\(|= open\('),
-        'message': 'Please use python_utils.open_file() instead of open().',
-        'excluded_files': ('python_utils.py',),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'StringIO'),
-        'message': 'Please use python_utils.string_io() instead of ' +
-                   'import StringIO.',
-        'excluded_files': ('python_utils.py', 'python_utils_test.py'),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'urllib\..*quote\('),
-        'message': 'Please use python_utils.url_quote().',
-        'excluded_files': ('python_utils.py', 'python_utils_test.py'),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'urllib\..*unquote_plus\('),
-        'message': 'Please use python_utils.url_unquote_plus().',
-        'excluded_files': ('python_utils.py', 'python_utils_test.py'),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'urllib\..*urlencode\('),
-        'message': 'Please use python_utils.url_encode().',
-        'excluded_files': ('python_utils.py', 'python_utils_test.py'),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'urllib\..*urlretrieve\('),
-        'message': 'Please use python_utils.url_retrieve().',
-        'excluded_files': ('python_utils.py', 'python_utils_test.py'),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'urllib(2)?\..*urlopen\('),
-        'message': 'Please use python_utils.url_open().',
-        'excluded_files': ('python_utils.py', 'python_utils_test.py'),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'urlsplit'),
-        'message': 'Please use python_utils.url_split().',
-        'excluded_files': ('python_utils.py',),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'urlparse'),
-        'message': 'Please use python_utils.url_parse().',
-        'excluded_files': ('python_utils.py',),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'urlunsplit'),
-        'message': 'Please use python_utils.url_unsplit().',
-        'excluded_files': ('python_utils.py',),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'parse_qs'),
-        'message': 'Please use python_utils.parse_query_string().',
-        'excluded_files': ('python_utils.py',),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\Wunquote\('),
-        'message': 'Please use python_utils.urllib_unquote().',
-        'excluded_files': ('python_utils.py',),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'urljoin'),
-        'message': 'Please use python_utils.url_join().',
-        'excluded_files': ('python_utils.py',),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'urllib(2)?\..*Request\('),
-        'message': 'Please use python_utils.url_request().',
-        'excluded_files': ('python_utils.py', 'python_utils_test.py'),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'[^.|\w]input\('),
-        'message': 'Please use python_utils.INPUT.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'[^.|\w|\s]map\('),
-        'message': 'Please use python_utils.MAP.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\Wnext\('),
-        'message': 'Please use python_utils.NEXT.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'object\):'),
-        'message': 'Please use python_utils.OBJECT.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\Wrange\('),
-        'message': 'Please use python_utils.RANGE.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\Wround\('),
-        'message': 'Please use python_utils.ROUND.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\Wstr\('),
-        'message': (
-            'Please try to use python_utils.convert_to_bytes() for the strings '
-            'used in webapp2\'s built-in methods or for strings used directly '
-            'in NDB datastore models. If you need to cast ints/floats to '
-            'strings, please use python_utils.UNICODE() instead.'),
-        'excluded_files': ('python_utils.py',),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'\Wzip\('),
-        'message': 'Please use python_utils.ZIP.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'basestring'),
-        'message': 'Please use python_utils.BASESTRING.',
-        'excluded_files': ('python_utils.py',),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'__metaclass__'),
-        'message': 'Please use python_utils.with_metaclass().',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'iteritems'),
-        'message': 'Please use items() instead.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'itervalues'),
-        'message': 'Please use values() instead.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    },
-    {
-        'regexp': re.compile(r'iterkeys'),
-        'message': 'Please use keys() instead.',
-        'excluded_files': (),
-        'excluded_dirs': ()
-    }
 ]
 
-BAD_PATTERNS_MAP = {
-    '.js': BAD_PATTERNS_JS_AND_TS_REGEXP,
-    '.ts': BAD_PATTERNS_JS_AND_TS_REGEXP,
+BAD_PATTERNS_MAP: Dict[str, List[BadPatternRegexpDict]] = {
     '.html': BAD_LINE_PATTERNS_HTML_REGEXP,
     '.py': BAD_PATTERNS_PYTHON_REGEXP
 }
 
 
-def is_filepath_excluded_for_bad_patterns_check(pattern, filepath):
+def is_filepath_excluded_for_bad_patterns_check(
+    pattern: str, filepath: str
+) -> bool:
     """Checks if file is excluded from the bad patterns check.
 
     Args:
@@ -610,12 +291,14 @@ def is_filepath_excluded_for_bad_patterns_check(pattern, filepath):
             or filepath in BAD_PATTERNS[pattern]['excluded_files'])
 
 
-def check_bad_pattern_in_file(filepath, file_content, pattern):
+def check_bad_pattern_in_file(
+    filepath: str, file_content: Tuple[str, ...], pattern: BadPatternRegexpDict
+) -> Tuple[bool, List[str]]:
     """Detects whether the given pattern is present in the file.
 
     Args:
         filepath: str. Path of the file.
-        file_content: str. Contents of the file.
+        file_content: tuple(str). Line by line contents of the file.
         pattern: dict. (regexp(regex pattern) : Object containing details for
             the pattern to be checked. Pattern to match:
                 message: str. Message to show if pattern matches.
@@ -656,16 +339,19 @@ def check_bad_pattern_in_file(filepath, file_content, pattern):
     return failed, error_messages
 
 
-def check_file_type_specific_bad_pattern(filepath, content):
+def check_file_type_specific_bad_pattern(
+    filepath: str, content: Tuple[str, ...]
+) -> Tuple[bool, int, List[str]]:
     """Check the file content based on the file's extension.
 
     Args:
         filepath: str. Path of the file.
-        content: str. Contents of the file.
+        content: tuple(str). Line by line contents of the file.
 
     Returns:
         bool. True if there is bad pattern else false.
-        total_error_count: int. The number of errors.
+        int. The number of errors.
+        List[str]. All error messages.
     """
     error_messages = []
     failed = False
@@ -684,12 +370,14 @@ def check_file_type_specific_bad_pattern(filepath, content):
     return failed, total_error_count, error_messages
 
 
-class GeneralPurposeLinter(python_utils.OBJECT):
+class GeneralPurposeLinter(linter_utils.BaseLinter):
     """Manages all the common linting functions. As an abstract base class, this
     is not intended to be used directly.
     """
 
-    def __init__(self, files_to_lint, file_cache):
+    def __init__(
+        self, files_to_lint: List[str], file_cache: pre_commit_linter.FileCache
+    ) -> None:
         """Constructs a GeneralPurposeLinter object.
 
         Args:
@@ -707,12 +395,16 @@ class GeneralPurposeLinter(python_utils.OBJECT):
         self.file_cache = file_cache
 
     @property
-    def all_filepaths(self):
+    def all_filepaths(self) -> List[str]:
         """Returns all file paths."""
         return self.files_to_lint
 
     def _check_for_mandatory_pattern_in_file(
-            self, pattern_list, filepath, failed):
+        self,
+        pattern_list: List[MandatoryPatternsRegexpDict],
+        filepath: str,
+        failed: bool
+    ) -> Tuple[bool, List[str]]:
         """Checks for a given mandatory pattern in a file.
 
         Args:
@@ -722,25 +414,31 @@ class GeneralPurposeLinter(python_utils.OBJECT):
             failed: bool. Status of failure of the check.
 
         Returns:
-            bool. The failure status of the check.
+            Tuple[bool, List[str]]. The failure status of the check
+            and error messages.
+
+        Raises:
+            Exception. Given file at filepath is not readable.
         """
         # This boolean list keeps track of the regex matches
         # found in the file.
         pattern_found_list = []
         error_messages = []
-        file_content = self.file_cache.readlines(filepath)
+
+        try:
+            file_content = self.file_cache.readlines(filepath)
+        except Exception as e:
+            raise Exception('%s %s' % (filepath, e)) from e
         for index, regexp_to_check in enumerate(
                 pattern_list):
-            if (any([filepath.endswith(
+            if (any(filepath.endswith(
                     allowed_type) for allowed_type in (
-                        regexp_to_check['included_types'])]) and (
-                            not any([
+                        regexp_to_check['included_types'])) and (
+                            not any(
                                 filepath.endswith(
                                     pattern) for pattern in (
-                                        regexp_to_check[
-                                            'excluded_files'] +
-                                        regexp_to_check[
-                                            'excluded_dirs'])]))):
+                                        regexp_to_check['excluded_files'] +
+                                        regexp_to_check['excluded_dirs'])))):
                 pattern_found_list.append(index)
                 for line in file_content:
                     if regexp_to_check['regexp'].search(line):
@@ -756,7 +454,7 @@ class GeneralPurposeLinter(python_utils.OBJECT):
 
         return failed, error_messages
 
-    def check_mandatory_patterns(self):
+    def check_mandatory_patterns(self) -> concurrent_task_utils.TaskResult:
         """This function checks that all files contain the mandatory
         patterns.
         """
@@ -774,7 +472,7 @@ class GeneralPurposeLinter(python_utils.OBJECT):
         return concurrent_task_utils.TaskResult(
             name, failed, error_messages, error_messages)
 
-    def check_bad_patterns(self):
+    def check_bad_patterns(self) -> concurrent_task_utils.TaskResult:
         """This function is used for detecting bad patterns."""
         name = 'Bad pattern'
         total_files_checked = 0
@@ -788,7 +486,7 @@ class GeneralPurposeLinter(python_utils.OBJECT):
         for filepath in all_filepaths:
             file_content = self.file_cache.readlines(filepath)
             total_files_checked += 1
-            for pattern in BAD_PATTERNS:
+            for pattern, error in BAD_PATTERNS.items():
                 if is_filepath_excluded_for_bad_patterns_check(
                         pattern, filepath):
                     continue
@@ -797,7 +495,7 @@ class GeneralPurposeLinter(python_utils.OBJECT):
                         failed = True
                         error_message = ('%s --> Line %s: %s' % (
                             filepath, line_num + 1,
-                            BAD_PATTERNS[pattern]['message']))
+                            error['message']))
                         error_messages.append(error_message)
                         total_error_count += 1
 
@@ -820,19 +518,20 @@ class GeneralPurposeLinter(python_utils.OBJECT):
             total_error_count += temp_count
             error_messages.extend(bad_pattern_error_messages)
 
-            if filepath == 'constants.ts':
-                for pattern in REQUIRED_STRINGS_CONSTANTS:
-                    if pattern not in file_content:
-                        failed = True
-                        error_message = ('%s --> %s' % (
-                            filepath,
-                            REQUIRED_STRINGS_CONSTANTS[pattern]['message']))
-                        error_messages.append(error_message)
-                        total_error_count += 1
+            if filepath.endswith('constants.ts'):
+                for pattern, constants in BAD_STRINGS_CONSTANTS.items():
+                    for line in file_content:
+                        if pattern in line:
+                            failed = True
+                            error_message = ('%s --> %s' % (
+                                filepath,
+                                constants['message']))
+                            error_messages.append(error_message)
+                            total_error_count += 1
         return concurrent_task_utils.TaskResult(
             name, failed, error_messages, error_messages)
 
-    def check_newline_at_eof(self):
+    def check_newline_at_eof(self) -> concurrent_task_utils.TaskResult:
         """This function is used to detect newline at the end of file."""
         name = 'Newline at EOF'
         error_messages = []
@@ -853,7 +552,71 @@ class GeneralPurposeLinter(python_utils.OBJECT):
         return concurrent_task_utils.TaskResult(
             name, failed, error_messages, error_messages)
 
-    def perform_all_lint_checks(self):
+    def check_disallowed_flags(self) -> concurrent_task_utils.TaskResult:
+        """This function is used to disallow flags."""
+        name = 'Disallow flags'
+        disallow_flag = (
+            'eslint-disable-next-line oppia/no-bypass-security-phrase')
+        error_messages = []
+        files_to_lint = self.all_filepaths
+        failed = False
+        excluded_files = (
+            warranted_angular_security_bypasses
+            .EXCLUDED_BYPASS_SECURITY_TRUST_FILES)
+        allowed_files = ''
+        for filepath in files_to_lint:
+            for excluded_file in excluded_files:
+                if excluded_file in filepath:
+                    allowed_files = filepath
+            if not filepath.endswith('.ts') or filepath == allowed_files:
+                continue
+            file_content = self.file_cache.read(filepath)
+
+            if disallow_flag in file_content:
+                error_message = (
+                    '%s --> Please do not use "no-bypass-security-phrase" flag.'
+                    ' It is only expected to be used in files listed in'
+                    ' warranted_angular_security_bypasses.py' % filepath)
+                error_messages.append(error_message)
+                failed = True
+        return concurrent_task_utils.TaskResult(
+            name, failed, error_messages, error_messages)
+
+    def check_extra_js_files(self) -> concurrent_task_utils.TaskResult:
+        """Checks if the changes made include extra js files in core
+        or extensions folder which are not specified in
+        build.JS_FILEPATHS_NOT_TO_BUILD.
+
+        Returns:
+            TaskResult. A TaskResult object representing the result of the lint
+            check.
+        """
+        name = 'Extra JS files'
+        error_messages = []
+        files_to_lint = self.all_filepaths
+        failed = False
+
+        for filepath in files_to_lint:
+            if filepath.endswith(
+                ('.js')) and filepath.startswith(
+                    ('core/templates', 'extensions')) and (
+                        filepath not in build.JS_FILEPATHS_NOT_TO_BUILD
+                        ) and not filepath.endswith('webdriverio.js'):
+                error_message = (
+                    '%s  --> Found extra .js file' % filepath)
+                error_messages.append(error_message)
+                failed = True
+
+        if failed:
+            err_msg = (
+                'If you want the above files to be present as js files, '
+                'add them to the list JS_FILEPATHS_NOT_TO_BUILD in '
+                'build.py. Otherwise, rename them to .ts')
+            error_messages.append(err_msg)
+        return concurrent_task_utils.TaskResult(
+            name, failed, error_messages, error_messages)
+
+    def perform_all_lint_checks(self) -> List[concurrent_task_utils.TaskResult]:
         """Perform all the lint checks and returns the messages returned by all
         the checks.
 
@@ -868,11 +631,14 @@ class GeneralPurposeLinter(python_utils.OBJECT):
                     ['There are no files to be checked.'])]
         task_results = [
             self.check_mandatory_patterns(), self.check_bad_patterns(),
-            self.check_newline_at_eof()]
+            self.check_newline_at_eof(), self.check_extra_js_files(),
+            self.check_disallowed_flags()]
         return task_results
 
 
-def get_linters(files_to_lint, file_cache):
+def get_linters(
+    files_to_lint: List[str], file_cache: pre_commit_linter.FileCache
+) -> Tuple[GeneralPurposeLinter, None]:
     """Creates GeneralPurposeLinter object and returns it.
 
     Args:

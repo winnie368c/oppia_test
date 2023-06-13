@@ -16,26 +16,29 @@
  * @fileoverview Unit tests for the ExplorationLanguageCodeService.
  */
 
-// TODO(#7222): Remove the following block of unnnecessary imports once
-// the code corresponding to the spec is upgraded to Angular 8.
-import { importAllAngularServices } from 'tests/unit-test-utils';
-// ^^^ This block is to be removed.
+import { TestBed } from '@angular/core/testing';
+import { ContextService } from 'services/context.service';
+import { ExplorationPropertyService } from './exploration-property.service';
+import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { ExplorationLanguageCodeService } from './exploration-language-code.service';
 
-require(
-  'pages/exploration-editor-page/' +
-  'services/exploration-language-code.service.ts');
+describe('Exploration Language Code Service', () => {
+  let elcs: ExplorationLanguageCodeService;
+  let cs: ContextService;
 
-describe('Exploration Language Code Service', function() {
-  let elcs = null;
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [
+        ExplorationPropertyService
+      ]
+    });
 
-  beforeEach(angular.mock.module('oppia'));
-  importAllAngularServices();
+    elcs = TestBed.inject(ExplorationLanguageCodeService);
+    cs = TestBed.inject(ContextService);
+  });
 
-  beforeEach(angular.mock.inject(function($injector) {
-    elcs = $injector.get('ExplorationLanguageCodeService');
-  }));
-
-  it('should test the child object properties', function() {
+  it('should test the child object properties', () => {
     expect(elcs.propertyName).toBe('language_code');
     expect(elcs.getSupportedContentLanguages()).toBeInstanceOf(Object);
     elcs.displayed = 'en';
@@ -45,5 +48,9 @@ describe('Exploration Language Code Service', function() {
     elcs.displayed = 'nl';
     expect(elcs.getCurrentLanguageDescription()).toBe('Nederlands (Dutch)');
     expect(elcs._isValid('en')).toBe(true);
+
+    spyOn(cs, 'isExplorationLinkedToStory').and.returnValue(true);
+    expect(elcs.getSupportedContentLanguages().length).toBe(1);
+    expect(elcs.getSupportedContentLanguages()[0].code).toBe('en');
   });
 });

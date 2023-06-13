@@ -18,25 +18,24 @@
  */
 
 import { Component, OnInit } from '@angular/core';
-import { downgradeComponent } from '@angular/upgrade/static';
 
 import { UrlService } from 'services/contextual/url.service';
+
+import './profile-page-navbar.component.css';
+
 
 @Component({
   selector: 'profile-page-navbar',
   templateUrl: './profile-page-navbar.component.html',
-  styleUrls: []
+  styleUrls: ['./profile-page-navbar.component.css']
 })
 export class ProfilePageNavbarComponent implements OnInit {
   constructor(
     private urlService: UrlService
   ) {}
+
   username: string = '';
   ngOnInit(): void {
     this.username = this.urlService.getUsernameFromProfileUrl();
   }
 }
-
-angular.module('oppia').directive(
-  'profilePageNavbar', downgradeComponent(
-    {component: ProfilePageNavbarComponent}));

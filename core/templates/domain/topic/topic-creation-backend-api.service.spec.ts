@@ -19,28 +19,29 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { HttpClientTestingModule, HttpTestingController }
   from '@angular/common/http/testing';
-import { TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
+import { TestBed, fakeAsync, flushMicrotasks, tick } from '@angular/core/testing';
 
 import { CsrfTokenService } from 'services/csrf-token.service';
 import { ImageData } from 'domain/skill/skill-creation-backend-api.service';
 import { NewlyCreatedTopic } from
   'domain/topics_and_skills_dashboard/newly-created-topic.model';
 import { TopicCreationBackendApiService } from
-  'domain/topic/topic-creation-backend-api.service.ts';
+  'domain/topic/topic-creation-backend-api.service';
 
 describe('Topic creation backend api service', () => {
-  let csrfService: CsrfTokenService = null;
-  let httpTestingController: HttpTestingController = null;
-  let topicCreationBackendApiService: TopicCreationBackendApiService = null;
-  let topic: NewlyCreatedTopic = null;
-  let imagesData: ImageData[] = null;
+  let csrfService: CsrfTokenService;
+  let httpTestingController: HttpTestingController;
+  let topicCreationBackendApiService: TopicCreationBackendApiService;
+  let topic: NewlyCreatedTopic;
+  let imagesData: ImageData[];
   const thumbnailBgColor = '#e3e3e3';
   let postData = {
     name: 'topic-name',
     description: 'Description',
     thumbnailBgColor: thumbnailBgColor,
     filename: 'image.svg',
-    url_fragment: 'url-fragment'
+    url_fragment: 'url-fragment',
+    page_title_fragment: 'page_title_fragment'
   };
 
   beforeEach(() => {
@@ -57,6 +58,7 @@ describe('Topic creation backend api service', () => {
     topic.name = 'topic-name';
     topic.description = 'Description';
     topic.urlFragment = 'url-fragment';
+    topic.pageTitleFragment = 'page_title_fragment';
     let imageBlob = new Blob(
       ['data:image/png;base64,xyz']);
     imagesData = [{
@@ -69,7 +71,7 @@ describe('Topic creation backend api service', () => {
     // We need to suppress this error because we need to mock the
     // `getTokenAsync` function for testing purposes.
     // @ts-expect-error
-    spyOn(csrfService, 'getTokenAsync').and.returnValue(() => {
+    spyOn(csrfService, 'getTokenAsync').and.returnValue(async() => {
       return new Promise((resolve) => {
         resolve('sample-csrf-token');
       });
@@ -84,7 +86,7 @@ describe('Topic creation backend api service', () => {
     fakeAsync(() => {
       let successHandler = jasmine.createSpy('success');
       let failHandler = jasmine.createSpy('fail');
-      topicCreationBackendApiService.createTopic(
+      topicCreationBackendApiService.createTopicAsync(
         topic, imagesData, thumbnailBgColor).then(
         successHandler);
       let req = httpTestingController.expectOne(
@@ -93,7 +95,7 @@ describe('Topic creation backend api service', () => {
 
       expect(req.request.body.get('payload')).toEqual(JSON.stringify(postData));
       let sampleFormData = new FormData();
-      sampleFormData.append('image', imagesData[0].imageBlob);
+      sampleFormData.append('image', imagesData[0].imageBlob as Blob);
       expect(
         req.request.body.get('image')).toEqual(sampleFormData.get('image'));
       req.flush(postData);
@@ -106,7 +108,7 @@ describe('Topic creation backend api service', () => {
     fakeAsync(() => {
       let successHandler = jasmine.createSpy('success');
       let failHandler = jasmine.createSpy('fail');
-      topicCreationBackendApiService.createTopic(
+      topicCreationBackendApiService.createTopicAsync(
         topic, imagesData, thumbnailBgColor).then(
         successHandler, failHandler);
       const errorResponse = new HttpErrorResponse({
@@ -120,11 +122,25 @@ describe('Topic creation backend api service', () => {
       expect(req.request.method).toEqual('POST');
       expect(req.request.body.get('payload')).toEqual(JSON.stringify(postData));
       let sampleFormData = new FormData();
-      sampleFormData.append('image', imagesData[0].imageBlob);
+      sampleFormData.append('image', imagesData[0].imageBlob as Blob);
       expect(
         req.request.body.get('image')).toEqual(sampleFormData.get('image'));
       flushMicrotasks();
       expect(failHandler).toHaveBeenCalled();
       expect(successHandler).not.toHaveBeenCalled();
     }));
+
+  it('should throw an error if image blob is null', fakeAsync(() => {
+    imagesData = [{
+      filename: 'image.svg',
+      imageBlob: null
+    }];
+    let successHandler = jasmine.createSpy('success');
+    expect(function() {
+      topicCreationBackendApiService.createTopicAsync(
+        topic, imagesData, thumbnailBgColor).then(
+        successHandler);
+      tick();
+    }).toThrowError();
+  }));
 });

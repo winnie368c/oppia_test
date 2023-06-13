@@ -16,35 +16,51 @@
 
 """Base class for visualizations of summarized learner answers."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
+from core import schema_utils
+from core import utils
 from core.domain import calculation_registry
-import python_utils
-import schema_utils
-import utils
+
+from typing import Any, Dict, List, Mapping, TypedDict, Union
+
+OptionsDictType = Mapping[str, Union[str, List[str], bool]]
 
 
-class BaseVisualization(python_utils.OBJECT):
+class OptionsSpecsDict(TypedDict):
+    """Type for the _OPTIONS_SPECS class variable."""
+
+    name: str
+    description: str
+    # Here we use type Any because values in schema dictionary can be of type
+    # str, List, Dict, nested Dict and other types too.
+    schema: Dict[str, Any]
+
+
+class BaseVisualization:
     """Base class for definitions of visualizations."""
 
     # Option specifications for the visualization, including their descriptions
     # and schemas. Overridden in subclasses. Used for testing that the
     # answer_visualization_specs in visualizations are valid.
-    _OPTIONS_SPECS = []
+    _OPTIONS_SPECS: List[OptionsSpecsDict] = []
 
     @property
-    def id(self):
+    def id(self) -> str:
         """The name of the class."""
         return self.__class__.__name__
 
     def __init__(
-            self, calculation_id, options_dict, addressed_info_is_supported):
+        self,
+        calculation_id: str,
+        options_dict: OptionsDictType,
+        addressed_info_is_supported: bool
+    ) -> None:
         self.options = options_dict
         self.calculation_id = calculation_id
         self.addressed_info_is_supported = addressed_info_is_supported
 
-    def validate(self):
+    def validate(self) -> None:
         """Validates a visualization object.
 
         This is only used in tests for the validity of interactions.
@@ -54,8 +70,8 @@ class BaseVisualization(python_utils.OBJECT):
 
         # Check that the options_dict is valid.
         expected_option_names = sorted([
-            python_utils.convert_to_bytes(
-                spec['name']) for spec in self._OPTIONS_SPECS])
+            spec['name'] for spec in self._OPTIONS_SPECS
+        ])
         actual_option_names = sorted(self.options.keys())
         if actual_option_names != expected_option_names:
             raise utils.ValidationError(
@@ -92,13 +108,13 @@ class ClickHexbins(BaseVisualization):
     https://cran.r-project.org/web/packages/hexbin/vignettes/hexagon_binning.pdf
     """
 
-    _OPTIONS_SPECS = []
+    _OPTIONS_SPECS: List[OptionsSpecsDict] = []
 
 
 class FrequencyTable(BaseVisualization):
     """A visualization representing a two-column table with answer counts."""
 
-    _OPTIONS_SPECS = [{
+    _OPTIONS_SPECS: List[OptionsSpecsDict] = [{
         'name': 'column_headers',
         'description': 'The headers for the columns.',
         'schema': {
@@ -123,7 +139,7 @@ class EnumeratedFrequencyTable(BaseVisualization):
     The #1 entry is shown by default, all others start hidden.
     """
 
-    _OPTIONS_SPECS = [{
+    _OPTIONS_SPECS: List[OptionsSpecsDict] = [{
         'name': 'column_headers',
         'description': 'The headers for the columns.',
         'schema': {
@@ -145,7 +161,7 @@ class SortedTiles(BaseVisualization):
     tiles.
     """
 
-    _OPTIONS_SPECS = [{
+    _OPTIONS_SPECS: List[OptionsSpecsDict] = [{
         'name': 'header',
         'description': 'Header for the tiles.',
         'schema': {'type': 'unicode'}

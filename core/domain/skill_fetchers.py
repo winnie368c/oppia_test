@@ -16,21 +16,28 @@
 
 """Getter commands for for skill models."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import copy
 
+from core import feconf
 from core.domain import caching_services
 from core.domain import skill_domain
 from core.platform import models
-import feconf
-import python_utils
 
-(skill_models,) = models.Registry.import_models([models.NAMES.skill])
+from typing import List, Literal, Optional, overload
+
+MYPY = False
+if MYPY: # pragma: no cover
+    from mypy_imports import skill_models
+
+(skill_models,) = models.Registry.import_models([models.Names.SKILL])
 
 
-def get_multi_skills(skill_ids, strict=True):
+def get_multi_skills(
+    skill_ids: List[str],
+    strict: bool = True
+) -> List[skill_domain.Skill]:
     """Returns a list of skills matching the skill IDs provided.
 
     Args:
@@ -39,10 +46,12 @@ def get_multi_skills(skill_ids, strict=True):
 
     Returns:
         list(Skill). The list of skills matching the provided IDs.
+
+    Raises:
+        Exception. No skill exists for given ID.
     """
     local_skill_models = skill_models.SkillModel.get_multi(skill_ids)
-    for skill_id, skill_model in python_utils.ZIP(
-            skill_ids, local_skill_models):
+    for skill_id, skill_model in zip(skill_ids, local_skill_models):
         if strict and skill_model is None:
             raise Exception('No skill exists for ID %s' % skill_id)
     skills = [
@@ -52,7 +61,43 @@ def get_multi_skills(skill_ids, strict=True):
     return skills
 
 
-def get_skill_by_id(skill_id, strict=True, version=None):
+@overload
+def get_skill_by_id(
+    skill_id: str,
+) -> skill_domain.Skill: ...
+
+
+@overload
+def get_skill_by_id(
+    skill_id: str,
+    *,
+    version: Optional[int] = None
+) -> skill_domain.Skill: ...
+
+
+@overload
+def get_skill_by_id(
+    skill_id: str,
+    *,
+    strict: Literal[True],
+    version: Optional[int] = None
+) -> skill_domain.Skill: ...
+
+
+@overload
+def get_skill_by_id(
+    skill_id: str,
+    *,
+    strict: Literal[False],
+    version: Optional[int] = None
+) -> Optional[skill_domain.Skill]: ...
+
+
+def get_skill_by_id(
+    skill_id: str,
+    strict: bool = True,
+    version: Optional[int] = None
+) -> Optional[skill_domain.Skill]:
     """Returns a domain object representing a skill.
 
     Args:
@@ -66,7 +111,7 @@ def get_skill_by_id(skill_id, strict=True, version=None):
         Skill or None. The domain object representing a skill with the
         given id, or None if it does not exist.
     """
-    sub_namespace = python_utils.convert_to_bytes(version) if version else None
+    sub_namespace = str(version) if version else None
     cached_skill = caching_services.get_multi(
         caching_services.CACHE_NAMESPACE_SKILL,
         sub_namespace,
@@ -88,7 +133,9 @@ def get_skill_by_id(skill_id, strict=True, version=None):
             return None
 
 
-def get_skill_from_model(skill_model):
+def get_skill_from_model(
+    skill_model: skill_models.SkillModel
+) -> skill_domain.Skill:
     """Returns a skill domain object given a skill model loaded
     from the datastore.
 
@@ -100,17 +147,17 @@ def get_skill_from_model(skill_model):
     """
 
     # Ensure the original skill model does not get altered.
-    versioned_skill_contents = {
+    versioned_skill_contents: skill_domain.VersionedSkillContentsDict = {
         'schema_version': skill_model.skill_contents_schema_version,
         'skill_contents': copy.deepcopy(skill_model.skill_contents)
     }
 
-    versioned_misconceptions = {
+    versioned_misconceptions: skill_domain.VersionedMisconceptionDict = {
         'schema_version': skill_model.misconceptions_schema_version,
         'misconceptions': copy.deepcopy(skill_model.misconceptions)
     }
 
-    versioned_rubrics = {
+    versioned_rubrics: skill_domain.VersionedRubricDict = {
         'schema_version': skill_model.rubric_schema_version,
         'rubrics': copy.deepcopy(skill_model.rubrics)
     }
@@ -148,7 +195,24 @@ def get_skill_from_model(skill_model):
         skill_model.last_updated)
 
 
-def _migrate_skill_contents_to_latest_schema(versioned_skill_contents):
+def get_skill_by_description(description: str) -> Optional[skill_domain.Skill]:
+    """Returns a domain object representing a skill.
+
+    Args:
+        description: str. The description of the skill.
+
+    Returns:
+        Skill or None. The domain object representing a skill with the
+        given description, or None if it does not exist.
+    """
+    skill_model = (
+        skill_models.SkillModel.get_by_description(description))
+    return get_skill_from_model(skill_model) if skill_model else None
+
+
+def _migrate_skill_contents_to_latest_schema(
+    versioned_skill_contents: skill_domain.VersionedSkillContentsDict
+) -> None:
     """Holds the responsibility of performing a step-by-step, sequential update
     of the skill contents structure based on the schema version of the input
     skill contents dictionary. If the current skill_contents schema changes, a
@@ -179,7 +243,9 @@ def _migrate_skill_contents_to_latest_schema(versioned_skill_contents):
         skill_contents_schema_version += 1
 
 
-def _migrate_misconceptions_to_latest_schema(versioned_misconceptions):
+def _migrate_misconceptions_to_latest_schema(
+    versioned_misconceptions: skill_domain.VersionedMisconceptionDict
+) -> None:
     """Holds the responsibility of performing a step-by-step, sequential update
     of the misconceptions structure based on the schema version of the input
     misconceptions dictionary. If the current misconceptions schema changes, a
@@ -211,7 +277,9 @@ def _migrate_misconceptions_to_latest_schema(versioned_misconceptions):
         misconception_schema_version += 1
 
 
-def _migrate_rubrics_to_latest_schema(versioned_rubrics):
+def _migrate_rubrics_to_latest_schema(
+    versioned_rubrics: skill_domain.VersionedRubricDict
+) -> None:
     """Holds the responsibility of performing a step-by-step, sequential update
     of the rubrics structure based on the schema version of the input
     rubrics dictionary. If the current rubrics schema changes, a

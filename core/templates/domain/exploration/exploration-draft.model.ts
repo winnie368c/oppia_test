@@ -17,35 +17,74 @@
  * domain objects.
  */
 
-export interface AddStateNameChangeList {
+import { ParamChangeBackendDict } from 'domain/exploration/ParamChangeObjectFactory';
+import { ParamSpecBackendDict } from 'domain/exploration/ParamSpecObjectFactory';
+import { InteractionBackendDict } from 'domain/exploration/InteractionObjectFactory';
+import { WrittenTranslationsBackendDict } from 'domain/exploration/WrittenTranslationsObjectFactory';
+import { SubtitledHtmlBackendDict} from './subtitled-html.model';
+import { RecordedVoiceOverBackendDict} from './recorded-voiceovers.model';
+import { InteractionCustomizationArgsBackendDict } from 'interactions/customization-args-defs';
+
+export type ExplorationChange = (
+  ExplorationChangeAddState |
+  ExplorationChangeAddWrittenTranslation |
+  ExplorationChangeMarkTranslationsNeedsUpdate |
+  ExplorationChangeRemoveTranslations |
+  ExplorationChangeRenameState |
+  ExplorationChangeDeleteState |
+  ExplorationChangeEditStateProperty |
+  ExplorationChangeEditExplorationProperty|
+  RevertChangeList |
+  CreateChangeList |
+  MigrateStatesVersionChangeList);
+
+export interface ExplorationChangeAddState {
   'cmd': 'add_state';
   'state_name': string;
+  'content_id_for_state_content': string;
+  'content_id_for_default_outcome': string;
 }
 
-export interface DeleteStateChangeList {
+export interface ExplorationChangeRenameState {
+  'cmd': 'rename_state';
+  'new_state_name': string;
+  'old_state_name': string;
+}
+
+export interface ExplorationChangeDeleteState {
   'cmd': 'delete_state';
   'state_name': string;
 }
 
-export interface EditExplorationPropertyChangeList {
-  'cmd': 'edit_exploration_property';
-  'new_value': Object;
-  'old_value': Object;
-  'property_name': string;
-}
-
-export interface EditStatePropertyChangeList {
+// TODO(xxx): Add more discrimination and create multiple versions of this
+// interface, each with a different 'state_name'.
+export interface ExplorationChangeEditStateProperty {
   'cmd': 'edit_state_property';
-  'new_value': Object;
-  'old_value': Object;
-  'property_name': string;
+  'new_value': SubtitledHtmlBackendDict |
+    InteractionBackendDict |
+    ParamChangeBackendDict[] |
+    RecordedVoiceOverBackendDict |
+    WrittenTranslationsBackendDict |
+    InteractionCustomizationArgsBackendDict |
+    boolean | number | string;
+  'old_value': SubtitledHtmlBackendDict |
+    InteractionBackendDict |
+    ParamChangeBackendDict[] |
+    RecordedVoiceOverBackendDict |
+    WrittenTranslationsBackendDict |
+    InteractionCustomizationArgsBackendDict |
+    boolean | number | string;
   'state_name': string;
+  'property_name': string;
 }
 
-export interface RenameStateChangeList {
-  'cmd': 'rename_state';
-  'new_state_name': string;
-  'old_state_name': string;
+export interface ExplorationChangeEditExplorationProperty {
+  'cmd': 'edit_exploration_property';
+  'new_value': ParamChangeBackendDict[] | ParamSpecBackendDict | string |
+   boolean;
+  'old_value': ParamChangeBackendDict[] | ParamSpecBackendDict | string |
+   boolean;
+  'property_name': string;
 }
 
 export interface RevertChangeList {
@@ -54,9 +93,9 @@ export interface RevertChangeList {
 }
 
 export interface CreateChangeList {
-  cmd: 'create_new';
-  category: string;
-  title: string;
+  'cmd': 'create_new';
+  'category': string;
+  'title': string;
 }
 
 export interface MigrateStatesVersionChangeList {
@@ -65,30 +104,41 @@ export interface MigrateStatesVersionChangeList {
   'to_version': number;
 }
 
-export type ExplorationChangeList = (
-  AddStateNameChangeList |
-  DeleteStateChangeList |
-  EditExplorationPropertyChangeList |
-  EditStatePropertyChangeList |
-  RenameStateChangeList |
-  RevertChangeList |
-  CreateChangeList |
-  MigrateStatesVersionChangeList);
+export interface ExplorationChangeAddWrittenTranslation {
+  'cmd': 'add_written_translation';
+  'content_id': string;
+  'data_format': string;
+  'language_code': string;
+  'content_html': string;
+  'state_name': string;
+  'translation_html': string;
+}
+
+export interface ExplorationChangeMarkTranslationsNeedsUpdate {
+  'cmd': 'mark_translations_needs_update';
+  'content_id': string;
+}
+
+export interface ExplorationChangeRemoveTranslations {
+  'cmd': 'remove_translations';
+  'content_id': string;
+}
 
 export interface ExplorationDraftDict {
-  draftChanges: ExplorationChangeList[];
-  draftChangeListId: number
+  draftChanges: ExplorationChange[];
+  draftChangeListId: number;
 }
 
 export class ExplorationDraft {
-  draftChanges: ExplorationChangeList[];
+  draftChanges: ExplorationChange[];
   draftChangeListId: number;
 
   constructor(
-      draftChanges: ExplorationChangeList[], draftChangeListId: number) {
+      draftChanges: ExplorationChange[], draftChangeListId: number) {
     this.draftChanges = draftChanges;
     this.draftChangeListId = draftChangeListId;
   }
+
   /**
    * Checks whether the draft object has been overwritten by another
    * draft which has been committed to the back-end. If the supplied draft id
@@ -103,7 +153,7 @@ export class ExplorationDraft {
     return (currentDraftId === this.draftChangeListId);
   }
 
-  getChanges(): ExplorationChangeList[] {
+  getChanges(): ExplorationChange[] {
     return this.draftChanges;
   }
 
@@ -115,7 +165,7 @@ export class ExplorationDraft {
   }
 
   static toLocalStorageDict(
-      changeList: ExplorationChangeList[],
+      changeList: ExplorationChange[],
       draftChangeListId: number): ExplorationDraftDict {
     return {
       draftChanges: changeList,

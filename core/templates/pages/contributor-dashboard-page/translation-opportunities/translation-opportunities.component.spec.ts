@@ -16,239 +16,327 @@
  * @fileoverview Unit tests for translationOpportunities.
  */
 
-import { TestBed } from '@angular/core/testing';
-import { ContributionOpportunitiesBackendApiService } from
-  // eslint-disable-next-line max-len
-  'pages/contributor-dashboard-page/services/contribution-opportunities-backend-api.service';
-import { LanguageUtilService } from 'domain/utilities/language-util.service';
-import { SiteAnalyticsService } from 'services/site-analytics.service';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+import { NgbActiveModal, NgbModal, NgbModalRef, NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
+
+import { ContributionOpportunitiesService } from 'pages/contributor-dashboard-page/services/contribution-opportunities.service';
 import { ExplorationOpportunitySummary } from 'domain/opportunity/exploration-opportunity-summary.model';
-import { UserService } from 'services/user.service.ts';
-import { importAllAngularServices } from 'tests/unit-test-utils';
+import { OpportunitiesListComponent } from 'pages/contributor-dashboard-page/opportunities-list/opportunities-list.component';
+import { OpportunitiesListItemComponent } from 'pages/contributor-dashboard-page/opportunities-list-item/opportunities-list-item.component';
+import { TranslationLanguageService } from 'pages/exploration-editor-page/translation-tab/services/translation-language.service';
+import { TranslationModalComponent } from 'pages/contributor-dashboard-page/modal-templates/translation-modal.component';
+import { TranslationOpportunitiesComponent } from './translation-opportunities.component';
+import { UserInfo } from 'domain/user/user-info.model';
+import { UserService } from 'services/user.service';
+import { WrapTextWithEllipsisPipe } from 'filters/string-utility-filters/wrap-text-with-ellipsis.pipe';
+import { LazyLoadingComponent } from 'components/common-layout-directives/common-elements/lazy-loading.component';
+import { CkEditorCopyToolbarComponent } from 'components/ck-editor-helpers/ck-editor-copy-toolbar/ck-editor-copy-toolbar.component';
+import { NO_ERRORS_SCHEMA } from '@angular/core';
+import { EventEmitter } from '@angular/core';
 
-describe('Translation opportunities component', function() {
-  var ctrl = null;
-  var $q = null;
-  var $rootScope = null;
-  var $scope = null;
-  var $uibModal = null;
-  var contributionOpportunitiesService = null;
-  var siteAnalyticsService = null;
-  var translationLanguageService = null;
-  var userService = null;
+describe('Translation opportunities component', () => {
+  let contributionOpportunitiesService: ContributionOpportunitiesService;
+  let translationLanguageService: TranslationLanguageService;
+  let userService: UserService;
+  let modalService: NgbModal;
+  let component: TranslationOpportunitiesComponent;
+  let fixture: ComponentFixture<TranslationOpportunitiesComponent>;
+  let translationModal: NgbModalRef;
+  let httpTestingController: HttpTestingController;
+  let loggedInUserInfo = new UserInfo(
+    ['EXPLORATION_EDITOR'], false, false, false, false, false,
+    'en', 'username', 'test@example.com', true
+  );
+  const notLoggedInUserInfo = new UserInfo(
+    ['GUEST'], false, false, false, false, false,
+    'en', null, null, false
+  );
 
-  var opportunitiesArray = [];
+  let opportunitiesArray: ExplorationOpportunitySummary[] = [];
+  let activeLanguageChangedEmitter = new EventEmitter();
 
-  importAllAngularServices();
-
-  beforeEach(function() {
+  beforeEach(() => {
     TestBed.configureTestingModule({
-      imports: [HttpClientTestingModule]
-    });
-    siteAnalyticsService = TestBed.get(SiteAnalyticsService);
+      imports: [
+        HttpClientTestingModule,
+        NgbTooltipModule
+      ],
+      declarations: [
+        CkEditorCopyToolbarComponent,
+        LazyLoadingComponent,
+        OpportunitiesListComponent,
+        OpportunitiesListItemComponent,
+        TranslationModalComponent,
+        TranslationOpportunitiesComponent,
+        WrapTextWithEllipsisPipe,
+      ],
+      providers: [
+        NgbModal,
+        NgbActiveModal
+      ],
+      schemas: [NO_ERRORS_SCHEMA]
+    }).compileComponents();
+    translationModal = TestBed.createComponent(
+      TranslationModalComponent) as unknown as NgbModalRef;
+    httpTestingController = TestBed.inject(HttpTestingController);
+    contributionOpportunitiesService = TestBed.inject(
+      ContributionOpportunitiesService);
+    translationLanguageService = TestBed.inject(TranslationLanguageService);
+    userService = TestBed.inject(UserService);
+    modalService = TestBed.inject(NgbModal);
+    spyOn(modalService, 'open').and.returnValue(translationModal);
+    spyOnProperty(translationLanguageService, 'onActiveLanguageChanged').and
+      .returnValue(activeLanguageChangedEmitter);
   });
 
-  beforeEach(angular.mock.module('oppia', function($provide) {
-    $provide.value(
-      'ContributionOpportunitiesBackendApiService',
-      TestBed.get(ContributionOpportunitiesBackendApiService));
-    $provide.value('LanguageUtilService', TestBed.get(LanguageUtilService));
-    $provide.value(
-      'UserService', TestBed.get(UserService));
-  }));
+  afterEach(() => {
+    httpTestingController.verify();
+  });
 
-  beforeEach(angular.mock.inject(function($injector, $componentController) {
-    $q = $injector.get('$q');
-    $rootScope = $injector.get('$rootScope');
-    $uibModal = $injector.get('$uibModal');
-    contributionOpportunitiesService = $injector.get(
-      'ContributionOpportunitiesService');
-    translationLanguageService = $injector.get('TranslationLanguageService');
-    userService = $injector.get('UserService');
-
-    spyOn(translationLanguageService, 'getActiveLanguageCode').and.returnValue(
-      'en');
-
+  beforeEach(() => {
     opportunitiesArray = [
       ExplorationOpportunitySummary.createFromBackendDict({
         id: '1',
         topic_name: 'topic_1',
         story_title: 'Story title 1',
         chapter_title: 'Chapter title 1',
-        content_count: 1,
+        content_count: 4,
         translation_counts: {
           en: 2
-        }
+        },
+        translation_in_review_counts: {
+          en: 2
+        },
+        language_code: 'en'
       }),
       ExplorationOpportunitySummary.createFromBackendDict({
         id: '2',
         topic_name: 'topic_2',
         story_title: 'Story title 2',
         chapter_title: 'Chapter title 2',
-        content_count: 2,
+        content_count: 10,
         translation_counts: {
           en: 4
-        }
+        },
+        translation_in_review_counts: {
+          en: 4
+        },
+        language_code: 'en'
       })
     ];
 
-    $scope = $rootScope.$new();
-    ctrl = $componentController('translationOpportunities', {
-      $scope: $scope,
-      $uibModal: $uibModal,
-    });
-  }));
+    fixture = TestBed.createComponent(
+      TranslationOpportunitiesComponent);
+    component = fixture.componentInstance;
+  });
 
-  it('should load translation opportunities', function() {
+  it('should load translation opportunities', () => {
+    spyOn(translationLanguageService, 'getActiveLanguageCode').and.returnValue(
+      'en');
     spyOn(
       contributionOpportunitiesService, 'getTranslationOpportunitiesAsync').and
-      .returnValue(Promise.resolve({
+      .resolveTo({
         opportunities: opportunitiesArray,
         more: false
-      }));
+      });
 
-    ctrl.loadOpportunities().then(({opportunitiesDicts, more}) => {
+    component.loadOpportunitiesAsync().then(({opportunitiesDicts, more}) => {
       expect(opportunitiesDicts.length).toBe(2);
-      expect(more).toBe(false);
+      expect(more).toBeFalse();
     });
   });
 
-  it('should load more translation opportunities', function() {
+  it('should load more translation opportunities', () => {
+    spyOn(translationLanguageService, 'getActiveLanguageCode').and.returnValue(
+      'en');
     spyOn(
       contributionOpportunitiesService, 'getTranslationOpportunitiesAsync').and
-      .returnValue(Promise.resolve({
+      .resolveTo({
         opportunities: opportunitiesArray,
         more: true
-      }));
-    ctrl.loadOpportunities().then(({opportunitiesDicts, more}) => {
+      });
+    component.loadOpportunitiesAsync().then(({opportunitiesDicts, more}) => {
       expect(opportunitiesDicts.length).toBe(2);
-      expect(more).toBe(true);
+      expect(more).toBeTrue();
     });
 
     spyOn(
       contributionOpportunitiesService,
-      'getMoreTranslationOpportunitiesAsync').and.returnValue(Promise.resolve({
+      'getMoreTranslationOpportunitiesAsync').and.resolveTo({
       opportunities: opportunitiesArray,
       more: false
-    }));
-
-    ctrl.loadMoreOpportunities().then(({opportunitiesDicts, more}) => {
-      expect(opportunitiesDicts.length).toBe(2);
-      expect(more).toBe(false);
     });
+
+    component.loadMoreOpportunitiesAsync()
+      .then(({opportunitiesDicts, more}) => {
+        expect(opportunitiesDicts.length).toBe(2);
+        expect(more).toBeFalse();
+      });
   });
 
-  it('should open translation modal when clicking button', function() {
-    spyOn(userService, 'getUserInfoAsync').and.returnValue(
-      $q.resolve({
-        isLoggedIn: () => true
+  it('should move opportunities with no translatable cards to the bottom ' +
+    'of opportunity list', () => {
+    spyOn(translationLanguageService, 'getActiveLanguageCode').and.returnValue(
+      'en');
+
+    const {opportunitiesDicts, } = (
+      component.getPresentableOpportunitiesData({
+        opportunities: opportunitiesArray,
+        more: false
       }));
+
+    expect(opportunitiesDicts.length).toBe(2);
+    expect(
+      opportunitiesDicts[opportunitiesDicts.length - 1].translationsCount +
+      opportunitiesDicts[opportunitiesDicts.length - 1].inReviewCount ===
+      opportunitiesDicts[opportunitiesDicts.length - 1].totalCount).toBeTrue();
+    expect(opportunitiesDicts).toEqual([{
+      id: '2',
+      heading: 'Chapter title 2',
+      subheading: 'topic_2 - Story title 2',
+      progressPercentage: '40.00',
+      actionButtonTitle: 'Translate',
+      inReviewCount: 4,
+      totalCount: 10,
+      translationsCount: 4,
+    },
+    {
+      id: '1',
+      heading: 'Chapter title 1',
+      subheading: 'topic_1 - Story title 1',
+      progressPercentage: '50.00',
+      actionButtonTitle: 'Translate',
+      inReviewCount: 2,
+      totalCount: 4,
+      translationsCount: 2,
+    }
+    ]);
+  });
+
+  it('should not chagne contents of each opportunity when get presentable ' +
+    'opportunities', () => {
+    spyOn(translationLanguageService, 'getActiveLanguageCode').and.returnValue(
+      'en');
+
+    expect(component.allOpportunities).toEqual({});
+
+    const {opportunitiesDicts, } = (
+      component.getPresentableOpportunitiesData({
+        opportunities: opportunitiesArray,
+        more: false
+      }));
+
+    expect(Object.keys(component.allOpportunities).length).toEqual(2);
+    expect(component.allOpportunities['1']).toEqual({
+      id: '1',
+      heading: 'Chapter title 1',
+      subheading: 'topic_1 - Story title 1',
+      progressPercentage: '50.00',
+      actionButtonTitle: 'Translate',
+      inReviewCount: 2,
+      totalCount: 4,
+      translationsCount: 2,
+    });
+    expect(component.allOpportunities['2']).toEqual({
+      id: '2',
+      heading: 'Chapter title 2',
+      subheading: 'topic_2 - Story title 2',
+      progressPercentage: '40.00',
+      actionButtonTitle: 'Translate',
+      inReviewCount: 4,
+      totalCount: 10,
+      translationsCount: 4,
+    });
+
+    expect(opportunitiesDicts.length).toBe(2);
+    expect(opportunitiesDicts.sort((a, b) => {
+      return parseInt(a.id) - parseInt(b.id);
+    })).toEqual([{
+      id: '1',
+      heading: 'Chapter title 1',
+      subheading: 'topic_1 - Story title 1',
+      progressPercentage: '50.00',
+      actionButtonTitle: 'Translate',
+      inReviewCount: 2,
+      totalCount: 4,
+      translationsCount: 2,
+    },
+    {
+      id: '2',
+      heading: 'Chapter title 2',
+      subheading: 'topic_2 - Story title 2',
+      progressPercentage: '40.00',
+      actionButtonTitle: 'Translate',
+      inReviewCount: 4,
+      totalCount: 10,
+      translationsCount: 4,
+    }
+    ]);
+  });
+
+  it('should open translation modal when clicking button', fakeAsync(() => {
+    spyOn(translationLanguageService, 'getActiveLanguageCode').and.returnValue(
+      'en');
+    spyOn(userService, 'getUserInfoAsync').and.resolveTo(loggedInUserInfo);
     spyOn(
       contributionOpportunitiesService, 'getTranslationOpportunitiesAsync').and
-      .returnValue(Promise.resolve({
+      .resolveTo({
         opportunities: opportunitiesArray,
         more: false
-      }));
-    ctrl.$onInit();
-    $scope.$apply();
+      });
+    component.ngOnInit();
+    tick();
+    component.onClickButton('2');
+    tick();
+    expect(modalService.open).toHaveBeenCalled();
+  }));
 
-    spyOn($uibModal, 'open').and.callThrough();
-    ctrl.onClickButton('2');
-
-    expect($uibModal.open).toHaveBeenCalled();
-  });
-
-  it('should register Contributor Dashboard suggest event when clicking button',
-    function() {
-      spyOn(userService, 'getUserInfoAsync').and.returnValue($q.resolve({
-        isLoggedIn: () => true
-      }));
+  it('should not open translation modal when user is not logged', fakeAsync(
+    () => {
+      spyOn(
+        translationLanguageService, 'getActiveLanguageCode').and.returnValue(
+        'en');
+      spyOn(userService, 'getUserInfoAsync').and.resolveTo(notLoggedInUserInfo);
       spyOn(
         contributionOpportunitiesService,
-        'getTranslationOpportunitiesAsync').and.returnValue(Promise.resolve({
+        'getTranslationOpportunitiesAsync').and.resolveTo({
         opportunities: opportunitiesArray,
-        more: false
-      }));
+        more: true
+      });
+      spyOn(contributionOpportunitiesService, 'showRequiresLoginModal')
+        .and.stub();
 
-      spyOn(siteAnalyticsService, 'registerContributorDashboardSuggestEvent');
-      ctrl.$onInit();
-      $scope.$apply();
+      component.ngOnInit();
 
-      spyOn($uibModal, 'open').and.callThrough();
-      ctrl.onClickButton('2');
+      component.onClickButton('2');
+      tick();
 
-      expect(siteAnalyticsService.registerContributorDashboardSuggestEvent)
-        .toHaveBeenCalledWith('Translation');
-    });
-
-  it('should close translation modal when clicking save', function() {
-    spyOn(userService, 'getUserInfoAsync').and.returnValue(
-      $q.resolve({
-        isLoggedIn: () => true
-      }));
-    spyOn(
-      contributionOpportunitiesService,
-      'getTranslationOpportunitiesAsync').and.returnValue(Promise.resolve({
-      opportunities: opportunitiesArray,
-      more: false
+      expect(modalService.open).not.toHaveBeenCalled();
     }));
-    ctrl.$onInit();
-    $scope.$apply();
 
-    var modalSpy = spyOn($uibModal, 'open').and.returnValue({
-      result: $q.resolve()
-    });
-    ctrl.onClickButton('2');
-    $scope.$apply();
-
-    expect(modalSpy).toHaveBeenCalled();
-  });
-
-  it('should dismiss translation modal when clicking cancel', function() {
-    spyOn(userService, 'getUserInfoAsync').and.returnValue(
-      $q.resolve({
-        isLoggedIn: () => true
-      }));
+  it('should not show translation opportunities when language is not ' +
+    'selected', fakeAsync(() => {
     spyOn(
-      contributionOpportunitiesService,
-      'getTranslationOpportunitiesAsync').and.returnValue(Promise.resolve({
-      opportunities: opportunitiesArray,
-      more: true
+      translationLanguageService, 'getActiveLanguageCode').and.callThrough();
+    spyOn(userService, 'getUserInfoAsync').and.resolveTo(loggedInUserInfo);
+    expect(component.languageSelected).toBe(false);
+
+    component.ngOnInit();
+
+    expect(component.languageSelected).toBe(false);
+  }));
+
+  it('should show translation opportunities when language is changed'
+    , fakeAsync(() => {
+      spyOn(
+        translationLanguageService, 'getActiveLanguageCode').and.callThrough();
+      spyOn(userService, 'getUserInfoAsync').and.resolveTo(loggedInUserInfo);
+      component.ngOnInit();
+      expect(component.languageSelected).toBe(false);
+
+      activeLanguageChangedEmitter.emit();
+
+      expect(component.languageSelected).toBe(true);
     }));
-    ctrl.$onInit();
-    $scope.$apply();
-
-    var modalSpy = spyOn($uibModal, 'open').and.returnValue({
-      result: $q.reject()
-    });
-    ctrl.onClickButton('2');
-    $scope.$apply();
-
-    expect(modalSpy).toHaveBeenCalled();
-  });
-
-  it('should not open translation modal when user is not logged', function() {
-    spyOn(userService, 'getUserInfoAsync').and.returnValue(
-      $q.resolve({
-        isLoggedIn: () => false
-      }));
-    spyOn(
-      contributionOpportunitiesService,
-      'getTranslationOpportunitiesAsync').and.returnValue(Promise.resolve({
-      opportunities: opportunitiesArray,
-      more: true
-    }));
-    ctrl.$onInit();
-    $scope.$apply();
-
-    spyOn($uibModal, 'open');
-    // The callFake is to avoid conflicts when testing modal calls.
-    spyOn(contributionOpportunitiesService, 'showRequiresLoginModal').and
-      .callFake(() => {});
-    ctrl.onClickButton('2');
-    $scope.$apply();
-
-    expect($uibModal.open).not.toHaveBeenCalled();
-  });
 });

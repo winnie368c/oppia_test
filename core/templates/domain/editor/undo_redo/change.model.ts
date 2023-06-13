@@ -26,19 +26,19 @@ import cloneDeep from 'lodash/cloneDeep';
 import { MisconceptionBackendDict } from
   'domain/skill/MisconceptionObjectFactory';
 import { RecordedVoiceOverBackendDict } from
-  'domain/exploration/RecordedVoiceoversObjectFactory';
+  'domain/exploration/recorded-voiceovers.model';
 import { StateBackendDict } from
   'domain/state/StateObjectFactory';
 import { SubtitledHtmlBackendDict } from
-  'domain/exploration/SubtitledHtmlObjectFactory';
+  'domain/exploration/subtitled-html.model';
 import { WorkedExampleBackendDict } from
-  'domain/skill/WorkedExampleObjectFactory';
+  'domain/skill/worked-example.model';
 import { Collection } from 'domain/collection/collection.model';
 import { Question } from 'domain/question/QuestionObjectFactory';
 import { Skill } from 'domain/skill/SkillObjectFactory';
-import { Story } from 'domain/story/StoryObjectFactory';
-import { Topic } from 'domain/topic/TopicObjectFactory';
-import { SubtopicPage } from 'domain/topic/SubtopicPageObjectFactory';
+import { Story } from 'domain/story/story.model';
+import { Topic } from 'domain/topic/topic-object.model';
+import { SubtopicPage } from 'domain/topic/subtopic-page.model';
 
 interface CollectionTitleChange {
   'cmd': 'edit_collection_property';
@@ -98,7 +98,7 @@ interface CollectionDeleteNodeChange {
   'exploration_id': string;
 }
 
-type CollectionChange = (
+export type CollectionChange = (
   CollectionPropertyChange |
   CollectionAddNodeChange |
   CollectionSwapNodeChange |
@@ -138,7 +138,7 @@ interface SkillMisconceptionNameChange {
   'property_name': 'name';
   'new_value': string;
   'old_value': string;
-  'misconception_id': string;
+  'misconception_id': number;
 }
 
 interface SkillMisconceptionMustBeAddressedChange {
@@ -146,7 +146,7 @@ interface SkillMisconceptionMustBeAddressedChange {
   'property_name': 'must_be_addressed';
   'new_value': boolean;
   'old_value': boolean;
-  'misconception_id': string;
+  'misconception_id': number;
 }
 
 interface SkillMisconceptionsNotesChange {
@@ -154,7 +154,7 @@ interface SkillMisconceptionsNotesChange {
   'property_name': 'notes';
   'new_value': string;
   'old_value': string;
-  'misconception_id': string;
+  'misconception_id': number;
 }
 
 interface SkillMisconceptionsFeedbackChange {
@@ -162,7 +162,7 @@ interface SkillMisconceptionsFeedbackChange {
   'property_name': 'feedback';
   'new_value': string;
   'old_value': string;
-  'misconception_id': string;
+  'misconception_id': number;
 }
 
 type SkillMisconceptionPropertyChange = (
@@ -202,7 +202,7 @@ interface SkillAddMisconceptionChange {
 
 interface SkillDeleteMisconceptionChange {
   'cmd': 'delete_skill_misconception';
-  'misconception_id': string;
+  'misconception_id': number;
 }
 
 interface SkillAddPrerequisiteChange {
@@ -473,10 +473,17 @@ interface TopicLanguageCodeChange {
 }
 
 interface TopicPageTitleFragmentForWebChange {
-  'cmd': 'update_topic_property',
-  'property_name': 'page_title_fragment_for_web',
+  'cmd': 'update_topic_property';
+  'property_name': 'page_title_fragment_for_web';
   'new_value': string;
   'old_value': string;
+}
+
+interface TopicSkillForDiagnosticTestChange {
+  'cmd': 'update_topic_property';
+  'property_name': 'skill_ids_for_diagnostic_test';
+  'new_value': string[];
+  'old_value': string[];
 }
 
 type TopicPropertyChange = (
@@ -489,7 +496,8 @@ type TopicPropertyChange = (
   TopicUrlFragmentChange |
   TopicMetaTagContentChange |
   TopicLanguageCodeChange |
-  TopicPageTitleFragmentForWebChange);
+  TopicPageTitleFragmentForWebChange |
+  TopicSkillForDiagnosticTestChange);
 
 interface TopicSubtopicThumbnailFilenameChange {
   'cmd': 'update_subtopic_property';
@@ -553,6 +561,12 @@ interface TopicAddSubtopicChange {
   'cmd': 'add_subtopic';
   'subtopic_id': number;
   'title': string;
+  'url_fragment': string;
+}
+
+interface TopicAddUncategorizedSkillId {
+  'cmd': 'add_uncategorized_skill_id';
+  'new_uncategorized_skill_id': string;
 }
 
 interface TopicDeleteSubtopicChange {
@@ -573,12 +587,12 @@ export interface TopicRemoveSkillFromSubtopicChange {
   'skill_id': string;
 }
 
-interface TopicDeleteAdditionalStoryChange {
+export interface TopicDeleteAdditionalStoryChange {
   'cmd': 'delete_additional_story';
   'story_id': string;
 }
 
-interface TopicDeleteCanonicalStoryChange {
+export interface TopicDeleteCanonicalStoryChange {
   'cmd': 'delete_canonical_story';
   'story_id': string;
 }
@@ -612,6 +626,7 @@ export type TopicChange = (
   TopicSubtopicPropertyChange |
   TopicSubtopicPagePropertyChange |
   TopicAddSubtopicChange |
+  TopicAddUncategorizedSkillId |
   TopicDeleteSubtopicChange |
   TopicMoveSkillToSubtopicChange |
   TopicRemoveSkillFromSubtopicChange |
@@ -642,6 +657,7 @@ export class Change {
   _applyChangeToObject: (
     backendChangeObject: BackendChangeObject,
     domainObject: DomainObject) => void;
+
   _reverseChangeToObject: (
     backendChangeObject: BackendChangeObject,
     domainObject: DomainObject) => void;

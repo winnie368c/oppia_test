@@ -24,8 +24,15 @@ import isEqual from 'lodash/isEqual';
 
 import { Outcome } from
   'domain/exploration/OutcomeObjectFactory';
-import { SubtitledHtml } from
-  'domain/exploration/SubtitledHtmlObjectFactory';
+import { SubtitledHtml, SubtitledHtmlBackendDict } from
+  'domain/exploration/subtitled-html.model';
+import { ExplorationChange } from './exploration-draft.model';
+import { InteractionBackendDict } from './InteractionObjectFactory';
+import { ParamChangeBackendDict } from './ParamChangeObjectFactory';
+import { ParamSpecBackendDict } from './ParamSpecObjectFactory';
+import { RecordedVoiceOverBackendDict } from './recorded-voiceovers.model';
+import { WrittenTranslationsBackendDict } from './WrittenTranslationsObjectFactory';
+import { AppConstants } from 'app.constants';
 
 interface LostChangeValues {
   'outcome'?: Outcome;
@@ -35,34 +42,59 @@ interface LostChangeValues {
   'html'?: string;
 }
 
-type LostChangeValue = string | string[] | LostChangeValues;
+export type LostChangeValue = LostChangeValues | SubtitledHtmlBackendDict |
+  InteractionBackendDict | ParamChangeBackendDict[] |
+  RecordedVoiceOverBackendDict | WrittenTranslationsBackendDict |
+  ParamChangeBackendDict[] | ParamSpecBackendDict | boolean | number | string |
+  string[];
 
 // Properties are optional in 'LostChangeBackendDict' because all of them may
 // not be present in the dict and may change according to the cmd.
-interface LostChangeBackendDict {
+export interface LostChangeBackendDict {
   'cmd': string;
   'new_state_name'?: string;
   'old_state_name'?: string;
   'state_name'?: string;
-  'new_value'?: LostChangeValue;
-  'old_value'?: LostChangeValue;
+  // 'new_value' here refers to the new value of an entity
+  // added into an Exploration. Entity here refers to the
+  // Interactions, Translations, Hints, Solutions etc. 'new_value'
+  // will be 'null' when any of these entities are deleted.
+  'new_value'?: LostChangeValue | null;
+  // 'old_value' here refers to the old value of an entity
+  // present in an Exploration. Entity here refers to the
+  // Interactions, Translations, Hints, Solutions etc. 'old_value'
+  // will be 'null' when any of these entities are newly added.
+  'old_value'?: LostChangeValue | null;
   'property_name'?: string;
+  'translation_html'?: string;
+  'content_id'?: string;
+  'language_code'?: string;
 }
 
+// Properties are optional in 'LostChangeBackendDict' because all of them may
+// not be present in the dict and may change according to the cmd. Therefore,
+// they can be undefined.
+// TODO(#13677): Create separate interfaces for different unique commands(cmd)
+// received at LostChangeBackendDict.
 export class LostChange {
   cmd: string;
-  stateName: string;
-  newStateName: string;
-  oldStateName: string;
-  newValue: LostChangeValue;
-  oldValue: LostChangeValue;
-  propertyName: string;
+  stateName?: string;
+  newStateName?: string;
+  oldStateName?: string;
+  newValue?: LostChangeValue | null;
+  oldValue?: LostChangeValue | null;
+  propertyName?: string;
+  contentId?: string;
+  languageCode?: string;
+  translationHTML?: string;
   utilsService: UtilsService;
 
   constructor(
-      utilsService: UtilsService, cmd: string, newStateName: string,
-      oldStateName: string, stateName: string, newValue: LostChangeValue,
-      oldValue: LostChangeValue, propertyName: string) {
+      utilsService: UtilsService, cmd: string, newStateName?: string,
+      oldStateName?: string, stateName?: string,
+      newValue?: LostChangeValue | null, oldValue?: LostChangeValue | null,
+      propertyName?: string, contentId?: string,
+      languageCode?: string, translationHTML?: string) {
     this.utilsService = utilsService;
     this.cmd = cmd;
     this.newStateName = newStateName;
@@ -71,6 +103,9 @@ export class LostChange {
     this.newValue = newValue;
     this.oldValue = oldValue;
     this.propertyName = propertyName;
+    this.contentId = contentId;
+    this.languageCode = languageCode;
+    this.translationHTML = translationHTML;
   }
 
   // An edit is represented either as an object or an array. If it's an
@@ -99,46 +134,45 @@ export class LostChange {
   }
 
   isOutcomeFeedbackEqual(): boolean {
-    if ((<LostChangeValues> this.newValue).outcome &&
-      (<LostChangeValues> this.newValue).outcome.feedback &&
-      (<LostChangeValues> this.oldValue).outcome &&
-      (<LostChangeValues> this.oldValue).outcome.feedback) {
-      return (
-        (<LostChangeValues> this.newValue).outcome.feedback.getHtml() ===
-        (<LostChangeValues> this.oldValue).outcome.feedback.getHtml());
+    let newValueOutcome = (this.newValue as LostChangeValues).outcome;
+    let oldValueOutcome = (this.oldValue as LostChangeValues).outcome;
+    if (
+      newValueOutcome && newValueOutcome?.feedback &&
+      oldValueOutcome && oldValueOutcome?.feedback
+    ) {
+      return newValueOutcome.feedback.html === oldValueOutcome.feedback.html;
     }
     return false;
   }
 
   isOutcomeDestEqual(): boolean {
-    if ((<LostChangeValues> this.newValue).outcome &&
-      (<LostChangeValues> this.oldValue).outcome) {
-      return (
-        (<LostChangeValues> this.oldValue).outcome.dest ===
-        (<LostChangeValues> this.newValue).outcome.dest);
+    let newValueOutcome = (this.newValue as LostChangeValues).outcome;
+    let oldValueOutcome = (this.oldValue as LostChangeValues).outcome;
+    if (newValueOutcome && oldValueOutcome) {
+      return newValueOutcome?.dest === oldValueOutcome?.dest;
     }
     return false;
   }
 
   isDestEqual(): boolean {
-    return (<LostChangeValues> this.oldValue).dest ===
-      (<LostChangeValues> this.newValue).dest;
+    let newValueDest = (this.newValue as LostChangeValues).dest;
+    let oldValueDest = (this.oldValue as LostChangeValues).dest;
+    return newValueDest === oldValueDest;
   }
 
   isFeedbackEqual(): boolean {
-    if ((<LostChangeValues> this.newValue).feedback &&
-    (<LostChangeValues> this.oldValue).feedback) {
-      return (
-        (<LostChangeValues> this.newValue).feedback.getHtml() ===
-        (<LostChangeValues> this.oldValue).feedback.getHtml());
+    let newValueFeedback = (this.newValue as LostChangeValues).feedback;
+    let oldValueFeedback = (this.oldValue as LostChangeValues).feedback;
+    if (newValueFeedback && oldValueFeedback) {
+      return newValueFeedback?.html === oldValueFeedback?.html;
     }
     return false;
   }
 
   isRulesEqual(): boolean {
     return isEqual(
-      (<LostChangeValues> this.newValue).rules,
-      (<LostChangeValues> this.oldValue).rules);
+      (this.newValue as LostChangeValues).rules,
+      (this.oldValue as LostChangeValues).rules);
   }
 
   // Detects whether an object of the type 'answer_group' or
@@ -168,6 +202,25 @@ export class LostChange {
     }
     return result;
   }
+
+  getLanguage(): string {
+    let language = '';
+    let supportedLanguages = AppConstants.SUPPORTED_CONTENT_LANGUAGES;
+    if (this.cmd === 'add_written_translation') {
+      for (let i = 0; i < supportedLanguages.length; i++) {
+        if (this.languageCode === supportedLanguages[i].code) {
+          language = supportedLanguages[i].description;
+        }
+      }
+    } else {
+      for (let i = 0; i < supportedLanguages.length; i++) {
+        if (this.newValue === supportedLanguages[i].code) {
+          language = supportedLanguages[i].description;
+        }
+      }
+    }
+    return language;
+  }
 }
 
 @Injectable({
@@ -185,7 +238,9 @@ export class LostChangeObjectFactory {
    * @param {String} lostChangeDict - the name of the type to fetch.
    * @returns {LostChange} - The associated type, if any.
    */
-  createNew(lostChangeDict: LostChangeBackendDict): LostChange {
+  createNew(
+      lostChangeDict: ExplorationChange | LostChangeBackendDict): LostChange {
+    lostChangeDict = lostChangeDict as LostChangeBackendDict;
     return new LostChange(
       this.utilsService,
       lostChangeDict.cmd,
@@ -194,7 +249,10 @@ export class LostChangeObjectFactory {
       lostChangeDict.state_name,
       lostChangeDict.new_value,
       lostChangeDict.old_value,
-      lostChangeDict.property_name
+      lostChangeDict.property_name,
+      lostChangeDict.content_id,
+      lostChangeDict.language_code,
+      lostChangeDict.translation_html,
     );
   }
 }

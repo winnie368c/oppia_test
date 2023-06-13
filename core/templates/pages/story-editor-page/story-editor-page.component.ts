@@ -16,6 +16,11 @@
  * @fileoverview Component for the story editor page.
  */
 
+import { Subscription } from 'rxjs';
+import { SavePendingChangesModalComponent } from 'components/save-pending-changes/save-pending-changes-modal.component';
+import { EntityEditorBrowserTabsInfo } from 'domain/entity_editor_browser_tabs_info/entity-editor-browser-tabs-info.model';
+import { EntityEditorBrowserTabsInfoDomainConstants } from 'domain/entity_editor_browser_tabs_info/entity-editor-browser-tabs-info-domain.constants';
+
 require('objects/objectComponentsRequires.ts');
 require('pages/interaction-specs.constants.ajs.ts');
 
@@ -23,11 +28,11 @@ require(
   'components/common-layout-directives/common-elements/' +
   'confirm-or-cancel-modal.controller.ts');
 require(
-  'components/forms/schema-based-editors/schema-based-editor.directive.ts');
+  'components/forms/schema-based-editors/schema-based-editor.component.ts');
 require('directives/angular-html-bind.directive.ts');
 require(
-  'pages/story-editor-page/navbar/story-editor-navbar-breadcrumb.directive.ts');
-require('pages/story-editor-page/navbar/story-editor-navbar.directive.ts');
+  'pages/story-editor-page/navbar/story-editor-navbar-breadcrumb.component.ts');
+require('pages/story-editor-page/navbar/story-editor-navbar.component.ts');
 require('pages/story-editor-page/editor-tab/story-editor.directive.ts');
 require(
   'pages/story-editor-page/story-preview-tab/story-preview-tab.component.ts');
@@ -43,36 +48,52 @@ require('pages/story-editor-page/story-editor-page.constants.ajs.ts');
 require('services/bottom-navbar-status.service.ts');
 require('services/page-title.service.ts');
 require('services/loader.service.ts');
-require('services/contextual/window-ref.service');
-
-import { Subscription } from 'rxjs';
+require('services/ngb-modal.service.ts');
+require('services/prevent-page-unload-event.service.ts');
+require('services/local-storage.service.ts');
+require(
+  'pages/story-editor-page/services/' +
+  'story-editor-staleness-detection.service.ts');
 
 angular.module('oppia').component('storyEditorPage', {
   template: require('./story-editor-page.component.html'),
   controller: [
-    '$uibModal', '$window', 'BottomNavbarStatusService',
+    '$rootScope', '$window', 'BottomNavbarStatusService',
     'EditableStoryBackendApiService', 'LoaderService',
-    'PageTitleService', 'StoryEditorNavigationService',
-    'StoryEditorStateService', 'StoryValidationService', 'UndoRedoService',
-    'UrlInterpolationService', 'UrlService', 'WindowRef',
+    'LocalStorageService', 'NgbModal',
+    'PageTitleService', 'PreventPageUnloadEventService',
+    'StoryEditorNavigationService',
+    'StoryEditorStalenessDetectionService',
+    'StoryEditorStateService',
+    'StoryValidationService', 'UndoRedoService',
+    'UrlInterpolationService', 'UrlService',
+    'MAX_COMMIT_MESSAGE_LENGTH',
     function(
-        $uibModal, $window, BottomNavbarStatusService,
+        $rootScope, $window, BottomNavbarStatusService,
         EditableStoryBackendApiService, LoaderService,
-        PageTitleService, StoryEditorNavigationService,
-        StoryEditorStateService, StoryValidationService, UndoRedoService,
-        UrlInterpolationService, UrlService, WindowRef) {
+        LocalStorageService, NgbModal,
+        PageTitleService, PreventPageUnloadEventService,
+        StoryEditorNavigationService,
+        StoryEditorStalenessDetectionService,
+        StoryEditorStateService,
+        StoryValidationService, UndoRedoService,
+        UrlInterpolationService, UrlService,
+        MAX_COMMIT_MESSAGE_LENGTH) {
       var ctrl = this;
       ctrl.directiveSubscriptions = new Subscription();
+      ctrl.MAX_COMMIT_MESSAGE_LENGTH = MAX_COMMIT_MESSAGE_LENGTH;
       var TOPIC_EDITOR_URL_TEMPLATE = '/topic_editor/<topicId>';
       ctrl.returnToTopicEditorPage = function() {
         if (UndoRedoService.getChangeCount() > 0) {
-          $uibModal.open({
-            templateUrl: UrlInterpolationService.getDirectiveTemplateUrl(
-              '/pages/story-editor-page/modal-templates/' +
-              'story-save-pending-changes-modal.template.html'),
-            backdrop: true,
-            controller: 'ConfirmOrCancelModalController'
-          }).result.then(function() {}, function() {
+          const modalRef = NgbModal.open(
+            SavePendingChangesModalComponent, {
+              backdrop: true
+            });
+
+          modalRef.componentInstance.body = (
+            'Please save all pending changes before returning to the topic.');
+
+          modalRef.result.then(function() {}, function() {
             // Note to developers:
             // This callback is triggered when the Cancel button is clicked.
             // No further action is needed.
@@ -88,10 +109,10 @@ angular.module('oppia').component('storyEditorPage', {
             ), '_self');
         }
       };
-      var setPageTitle = function() {
-        PageTitleService.setPageTitle(
+      var setDocumentTitle = function() {
+        PageTitleService.setDocumentTitle(
           StoryEditorStateService.getStory().getTitle() + ' - Oppia');
-        PageTitleService.setPageSubtitleForMobileView(
+        PageTitleService.setNavbarSubtitleForMobileView(
           StoryEditorStateService.getStory().getTitle());
       };
 
@@ -164,7 +185,7 @@ angular.module('oppia').component('storyEditorPage', {
           }
           ctrl.forceValidateExplorations = false;
           if (explorationIds.length > 0) {
-            EditableStoryBackendApiService.validateExplorations(
+            EditableStoryBackendApiService.validateExplorationsAsync(
               ctrl.story.getId(), explorationIds
             ).then(function(validationIssues) {
               ctrl.explorationValidationIssues =
@@ -184,7 +205,7 @@ angular.module('oppia').component('storyEditorPage', {
 
       var _initPage = function() {
         ctrl.story = StoryEditorStateService.getStory();
-        setPageTitle();
+        setDocumentTitle();
         _validateStory();
       };
 
@@ -196,17 +217,75 @@ angular.module('oppia').component('storyEditorPage', {
         StoryEditorNavigationService.navigateToStoryEditor();
       };
 
-      ctrl.setUpBeforeUnload = function() {
-        WindowRef.nativeWindow.addEventListener(
-          'beforeunload', ctrl.confirmBeforeLeaving);
+      ctrl.onClosingStoryEditorBrowserTab = function() {
+        const story = StoryEditorStateService.getStory();
+
+        const storyEditorBrowserTabsInfo: EntityEditorBrowserTabsInfo = (
+          LocalStorageService.getEntityEditorBrowserTabsInfo(
+            EntityEditorBrowserTabsInfoDomainConstants
+              .OPENED_STORY_EDITOR_BROWSER_TABS, story.getId()));
+
+        if (storyEditorBrowserTabsInfo.doesSomeTabHaveUnsavedChanges() &&
+            UndoRedoService.getChangeCount() > 0) {
+          storyEditorBrowserTabsInfo.setSomeTabHasUnsavedChanges(false);
+        }
+        storyEditorBrowserTabsInfo.decrementNumberOfOpenedTabs();
+
+        LocalStorageService.updateEntityEditorBrowserTabsInfo(
+          storyEditorBrowserTabsInfo,
+          EntityEditorBrowserTabsInfoDomainConstants
+            .OPENED_STORY_EDITOR_BROWSER_TABS);
       };
 
-      ctrl.confirmBeforeLeaving = function(e) {
-        if (UndoRedoService.getChangeCount()) {
-          // This message is irrelevant, but is needed to trigger the
-          // confirmation before leaving.
-          e.returnValue = 'Sure?';
-          return false;
+      let createStoryEditorBrowserTabsInfo = function() {
+        const story = StoryEditorStateService.getStory();
+
+        let storyEditorBrowserTabsInfo: EntityEditorBrowserTabsInfo = (
+          LocalStorageService.getEntityEditorBrowserTabsInfo(
+            EntityEditorBrowserTabsInfoDomainConstants
+              .OPENED_STORY_EDITOR_BROWSER_TABS, story.getId()));
+
+        if (storyEditorBrowserTabsInfo) {
+          storyEditorBrowserTabsInfo.setLatestVersion(story.getVersion());
+          storyEditorBrowserTabsInfo.incrementNumberOfOpenedTabs();
+        } else {
+          storyEditorBrowserTabsInfo = EntityEditorBrowserTabsInfo.create(
+            'story', story.getId(), story.getVersion(), 1, false);
+        }
+
+        LocalStorageService.updateEntityEditorBrowserTabsInfo(
+          storyEditorBrowserTabsInfo,
+          EntityEditorBrowserTabsInfoDomainConstants
+            .OPENED_STORY_EDITOR_BROWSER_TABS);
+      };
+
+      let updateStoryEditorBrowserTabsInfo = function() {
+        const story = StoryEditorStateService.getStory();
+
+        const storyEditorBrowserTabsInfo: EntityEditorBrowserTabsInfo = (
+          LocalStorageService.getEntityEditorBrowserTabsInfo(
+            EntityEditorBrowserTabsInfoDomainConstants
+              .OPENED_STORY_EDITOR_BROWSER_TABS, story.getId()));
+
+        storyEditorBrowserTabsInfo.setLatestVersion(story.getVersion());
+        storyEditorBrowserTabsInfo.setSomeTabHasUnsavedChanges(false);
+
+        LocalStorageService.updateEntityEditorBrowserTabsInfo(
+          storyEditorBrowserTabsInfo,
+          EntityEditorBrowserTabsInfoDomainConstants
+            .OPENED_STORY_EDITOR_BROWSER_TABS);
+      };
+
+      let onCreateOrUpdateStoryEditorBrowserTabsInfo = function(event) {
+        if (event.key === (
+          EntityEditorBrowserTabsInfoDomainConstants
+            .OPENED_STORY_EDITOR_BROWSER_TABS)
+        ) {
+          StoryEditorStalenessDetectionService
+            .staleTabEventEmitter.emit();
+          StoryEditorStalenessDetectionService
+            .presenceOfUnsavedChangesEventEmitter.emit();
+          $rootScope.$applyAsync();
         }
       };
 
@@ -216,12 +295,18 @@ angular.module('oppia').component('storyEditorPage', {
           StoryEditorStateService.onStoryInitialized.subscribe(
             () => {
               _initPage();
+              createStoryEditorBrowserTabsInfo();
               LoaderService.hideLoadingScreen();
+              $rootScope.$applyAsync();
             }
           ));
         ctrl.directiveSubscriptions.add(
           StoryEditorStateService.onStoryReinitialized.subscribe(
-            () => _initPage()
+            () => {
+              _initPage();
+              updateStoryEditorBrowserTabsInfo();
+              $rootScope.$applyAsync();
+            }
           ));
         ctrl.validationIssues = [];
         ctrl.prepublishValidationIssues = [];
@@ -229,11 +314,12 @@ angular.module('oppia').component('storyEditorPage', {
         ctrl.forceValidateExplorations = true;
         ctrl.warningsAreShown = false;
         BottomNavbarStatusService.markBottomNavbarStatus(true);
-        ctrl.setUpBeforeUnload();
+        PreventPageUnloadEventService.addListener(
+          UndoRedoService.getChangeCount.bind(UndoRedoService));
         StoryEditorStateService.loadStory(UrlService.getStoryIdFromUrl());
         ctrl.story = StoryEditorStateService.getStory();
 
-        PageTitleService.setPageTitleForMobileView('Story Editor');
+        PageTitleService.setNavbarTitleForMobileView('Story Editor');
 
         if (StoryEditorNavigationService.checkIfPresentInChapterEditor()) {
           StoryEditorNavigationService.navigateToChapterEditor();
@@ -242,10 +328,16 @@ angular.module('oppia').component('storyEditorPage', {
           StoryEditorNavigationService.navigateToStoryPreviewTab();
         }
         ctrl.directiveSubscriptions.add(
-          UndoRedoService.onUndoRedoChangeApplied$().subscribe(
+          UndoRedoService.getUndoRedoChangeEventEmitter().subscribe(
             () => _initPage()
           )
         );
+
+        StoryEditorStalenessDetectionService.init();
+        $window.addEventListener(
+          'beforeunload', ctrl.onClosingStoryEditorBrowserTab);
+        LocalStorageService.registerNewStorageEventListener(
+          onCreateOrUpdateStoryEditorBrowserTabsInfo);
       };
 
       ctrl.$onDestroy = function() {

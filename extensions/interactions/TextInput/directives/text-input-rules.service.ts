@@ -30,15 +30,17 @@ export class TextInputRulesService {
   constructor(private nws: NormalizeWhitespacePipe) {}
   Equals(answer: TextInputAnswer, inputs: TextInputRuleInputs): boolean {
     const normalizedAnswer = this.nws.transform(answer).toLowerCase();
-    return inputs.x.some(
+    return inputs.x.normalizedStrSet.some(
       input => this.nws.transform(input).toLowerCase() === normalizedAnswer);
   }
+
   FuzzyEquals(answer: TextInputAnswer, inputs: TextInputRuleInputs): boolean {
     const normalizedAnswer = this.nws.transform(answer).toLowerCase();
-    const normalizedInput = inputs.x.map(
+    const normalizedInput = inputs.x.normalizedStrSet.map(
       input => this.nws.transform(input).toLowerCase());
 
-    const hasEditDistanceEqualToOne = (inputString, matchString) => {
+    const hasEditDistanceEqualToOne = (
+        inputString: string, matchString: string) => {
       if (inputString === matchString) {
         return true;
       }
@@ -66,15 +68,17 @@ export class TextInputRulesService {
     return normalizedInput.some(
       input => hasEditDistanceEqualToOne(input, normalizedAnswer));
   }
+
   StartsWith(answer: TextInputAnswer, inputs: TextInputRuleInputs): boolean {
     const normalizedAnswer = this.nws.transform(answer).toLowerCase();
-    const normalizedInput = inputs.x.map(
+    const normalizedInput = inputs.x.normalizedStrSet.map(
       input => this.nws.transform(input).toLowerCase());
     return normalizedInput.some(input => normalizedAnswer.indexOf(input) === 0);
   }
+
   Contains(answer: TextInputAnswer, inputs: TextInputRuleInputs): boolean {
     const normalizedAnswer = this.nws.transform(answer).toLowerCase();
-    const normalizedInput = inputs.x.map(
+    const normalizedInput = inputs.x.normalizedStrSet.map(
       input => this.nws.transform(input).toLowerCase());
     return normalizedInput.some(input => normalizedAnswer.includes(input));
   }

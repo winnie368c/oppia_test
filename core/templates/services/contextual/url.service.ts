@@ -20,14 +20,14 @@
 import { downgradeInjectable } from '@angular/upgrade/static';
 import { Injectable } from '@angular/core';
 
-import constants from 'assets/constants';
+import { AppConstants } from 'app.constants';
 
 import { WindowRef } from 'services/contextual/window-ref.service';
 
 // This makes the UrlParamsType like a dict whose keys and values both are
 // string.
-interface UrlParamsType {
-  [param: string]: string
+export interface UrlParamsType {
+  [param: string]: string;
 }
 
 @Injectable({
@@ -61,7 +61,7 @@ export class UrlService {
   So exact type of this function can not be determined
   https://github.com/oppia/oppia/pull/7834#issuecomment-547896982 */
   getUrlParams(): UrlParamsType {
-    let params = {};
+    let params: UrlParamsType = {};
     this.getCurrentQueryString().replace(
       /[?&]+([^=&]+)=([^&]*)/gi, function(m, key, value) {
         return params[decodeURIComponent(key)] = decodeURIComponent(value);
@@ -111,11 +111,20 @@ export class UrlService {
     let pathname = this.getPathname();
     if (pathname.startsWith('/learn')) {
       return decodeURIComponent(pathname.split('/')[3]);
+    } else if (pathname.startsWith('/explore')) {
+      // The following section is for getting the URL fragment from the
+      // exploration player.
+      if (
+        this.getUrlParams().hasOwnProperty('topic_url_fragment') &&
+        this.getUrlParams().topic_url_fragment.match(
+          AppConstants.VALID_URL_FRAGMENT_REGEX)) {
+        return this.getUrlParams().topic_url_fragment;
+      }
     }
     throw new Error('Invalid URL for topic');
   }
 
-  getStoryUrlFragmentFromLearnerUrl(): string {
+  getStoryUrlFragmentFromLearnerUrl(): string | null {
     let pathname = this.getPathname();
     // The following segment is for getting the fragment from the new learner
     // pages.
@@ -130,7 +139,7 @@ export class UrlService {
       if (
         this.getUrlParams().hasOwnProperty('story_url_fragment') &&
         this.getUrlParams().story_url_fragment.match(
-          constants.VALID_URL_FRAGMENT_REGEX)) {
+          AppConstants.VALID_URL_FRAGMENT_REGEX)) {
         return this.getUrlParams().story_url_fragment;
       }
     }
@@ -151,6 +160,15 @@ export class UrlService {
     let pathname = this.getPathname();
     if (pathname.startsWith('/learn')) {
       return decodeURIComponent(pathname.split('/')[2]);
+    } else if (pathname.startsWith('/explore')) {
+      // The following section is for getting the URL fragment from the
+      // exploration player.
+      if (
+        this.getUrlParams().hasOwnProperty('classroom_url_fragment') &&
+        this.getUrlParams().classroom_url_fragment.match(
+          AppConstants.VALID_URL_FRAGMENT_REGEX)) {
+        return this.getUrlParams().classroom_url_fragment;
+      }
     }
     throw new Error('Invalid URL for classroom');
   }
@@ -239,6 +257,50 @@ export class UrlService {
       throw new Error('Invalid Skill Id');
     }
     return skillId;
+  }
+
+  /**
+   * This function is used to find the blog id from the url.
+   * @return {string} the blog post id.
+   * @throws Will throw an error if the blog post Id is invalid.
+   */
+  getBlogPostIdFromUrl(): string {
+    let pathname = this.getHash();
+    let blogPostId = pathname.split('/')[2];
+    if (blogPostId.length !== 12) {
+      throw new Error('Invalid Blog Post Id.');
+    }
+    return blogPostId;
+  }
+
+  /**
+ * This function is used to find the blog post url fragment from the url.
+ * @return {string} the blog post url fragment.
+ * @throws Will throw an error if the blog post url is invalid.
+ */
+  getBlogPostUrlFromUrl(): string {
+    let pathname = this.getPathname();
+    let argumentsArray = pathname.split('/');
+    if (pathname.startsWith('/blog') && argumentsArray.length === 3) {
+      return decodeURIComponent(pathname.split('/')[2]);
+    } else {
+      throw new Error('Invalid Blog Post Url.');
+    }
+  }
+
+  /**
+ * This function is used to find the blog author username from the url.
+ * @return {string} the blog author username fragment.
+ * @throws Will throw an error if the url is invalid.
+ */
+  getBlogAuthorUsernameFromUrl(): string {
+    let pathname = this.getPathname();
+    let argumentsArray = pathname.split('/');
+    if (pathname.startsWith('/blog/author') && argumentsArray.length === 4) {
+      return decodeURIComponent(pathname.split('/')[3]);
+    } else {
+      throw new Error('Invalid Blog Author Profile Page Url.');
+    }
   }
 
   /**
@@ -369,6 +431,15 @@ export class UrlService {
         version = version.substring(0, version.indexOf('#'));
       }
       return Number(version);
+    }
+    return null;
+  }
+
+  getPidFromUrl(): string | null {
+    let urlParams: UrlParamsType = this.getUrlParams();
+    if (urlParams.hasOwnProperty('pid')) {
+      let pid = urlParams.pid;
+      return String(pid);
     }
     return null;
   }

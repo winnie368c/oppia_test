@@ -32,7 +32,7 @@ export const QuestionDomainConstants = {
     '=<question_count>&fetch_by_difficulty=<fetch_by_difficulty>',
 
   QUESTIONS_LIST_URL_TEMPLATE:
-    '/questions_list_handler/<comma_separated_skill_ids>?cursor=<cursor>',
+    '/questions_list_handler/<comma_separated_skill_ids>?offset=<offset>',
 
   QUESTION_COUNT_URL_TEMPLATE:
     '/question_count_handler/<comma_separated_skill_ids>',
@@ -41,6 +41,7 @@ export const QuestionDomainConstants = {
   QUESTION_PROPERTY_QUESTION_STATE_DATA: 'question_state_data',
   QUESTION_PROPERTY_INAPPLICABLE_SKILL_MISCONCEPTION_IDS: (
     'inapplicable_skill_misconception_ids'),
+  QUESTION_PROPERTY_NEXT_CONTENT_ID_INDEX: 'next_content_id_index',
 
   CMD_UPDATE_QUESTION_PROPERTY: 'update_question_property',
 } as const;

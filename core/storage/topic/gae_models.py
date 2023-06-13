@@ -16,16 +16,22 @@
 
 """Models for topics and related constructs."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
-from constants import constants
+from core import feconf
+from core.constants import constants
 from core.platform import models
-import feconf
-import python_utils
+
+from typing import Dict, List, Mapping, Optional, Sequence, cast
+
+MYPY = False
+if MYPY: # pragma: no cover
+    from mypy_imports import base_models
+    from mypy_imports import datastore_services
 
 (base_models, user_models) = models.Registry.import_models([
-    models.NAMES.base_model, models.NAMES.user])
+    models.Names.BASE_MODEL, models.Names.USER
+])
 
 datastore_services = models.Registry.import_datastore_services()
 
@@ -40,9 +46,54 @@ class TopicSnapshotContentModel(base_models.BaseSnapshotContentModel):
     """Storage model for the content of a topic snapshot."""
 
     @staticmethod
-    def get_deletion_policy():
+    def get_deletion_policy() -> base_models.DELETION_POLICY:
         """Model doesn't contain any data directly corresponding to a user."""
         return base_models.DELETION_POLICY.NOT_APPLICABLE
+
+
+class TopicCommitLogEntryModel(base_models.BaseCommitLogEntryModel):
+    """Log of commits to topics.
+
+    A new instance of this model is created and saved every time a commit to
+    TopicModel occurs.
+
+    The id for this model is of the form 'topic-[topic_id]-[version]'.
+    """
+
+    # The id of the topic being edited.
+    topic_id = datastore_services.StringProperty(indexed=True, required=True)
+
+    @classmethod
+    def get_instance_id(cls, topic_id: str, version: int) -> str:
+        """This function returns the generated id for the get_commit function
+        in the parent class.
+
+        Args:
+            topic_id: str. The id of the topic being edited.
+            version: int. The version number of the topic after the commit.
+
+        Returns:
+            str. The commit id with the topic id and version number.
+        """
+        return 'topic-%s-%s' % (topic_id, version)
+
+    @staticmethod
+    def get_model_association_to_user(
+    ) -> base_models.MODEL_ASSOCIATION_TO_USER:
+        """The history of commits is not relevant for the purposes of Takeout
+        since commits don't contain relevant data corresponding to users.
+        """
+        return base_models.MODEL_ASSOCIATION_TO_USER.NOT_CORRESPONDING_TO_USER
+
+    @classmethod
+    def get_export_policy(cls) -> Dict[str, base_models.EXPORT_POLICY]:
+        """Model contains data corresponding to a user, but this isn't exported
+        because the history of commits isn't deemed as useful for users since
+        commit logs don't contain relevant data corresponding to those users.
+        """
+        return dict(super(cls, cls).get_export_policy(), **{
+            'topic_id': base_models.EXPORT_POLICY.NOT_APPLICABLE
+        })
 
 
 class TopicModel(base_models.VersionedModel):
@@ -54,6 +105,7 @@ class TopicModel(base_models.VersionedModel):
 
     SNAPSHOT_METADATA_CLASS = TopicSnapshotMetadataModel
     SNAPSHOT_CONTENT_CLASS = TopicSnapshotContentModel
+    COMMIT_LOG_ENTRY_CLASS = TopicCommitLogEntryModel
     ALLOW_REVERT = False
 
     # The name of the topic.
@@ -68,6 +120,9 @@ class TopicModel(base_models.VersionedModel):
     thumbnail_filename = datastore_services.StringProperty(indexed=True)
     # The thumbnail background color of the topic.
     thumbnail_bg_color = datastore_services.StringProperty(indexed=True)
+    # The thumbnail size in bytes of the topic.
+    thumbnail_size_in_bytes = (
+        datastore_services.IntegerProperty(indexed=True))
     # The description of the topic.
     description = datastore_services.TextProperty(indexed=False)
     # This consists of the list of objects referencing canonical stories that
@@ -111,15 +166,43 @@ class TopicModel(base_models.VersionedModel):
     # the page title fragment field represents the middle value 'Add, Subtract,
     # Multiply and Divide'.
     page_title_fragment_for_web = datastore_services.StringProperty(
-        indexed=True, default='')
+        required=True, indexed=True)
+    # A diagnostic test contains a set of questions covering multiple topics and
+    # based on the user's performance in the test, a topic is recommended to
+    # them. Now, this field is used for listing the skill IDs from which the
+    # questions should be fetched for the diagnostic test.
+    skill_ids_for_diagnostic_test = datastore_services.StringProperty(
+        repeated=True, indexed=True)
 
     @staticmethod
-    def get_deletion_policy():
+    def get_deletion_policy() -> base_models.DELETION_POLICY:
         """Model doesn't contain any data directly corresponding to a user."""
         return base_models.DELETION_POLICY.NOT_APPLICABLE
 
-    def _trusted_commit(
-            self, committer_id, commit_type, commit_message, commit_cmds):
+    # We expect Mapping because we want to allow models that inherit
+    # from BaseModel as the values, if we used Dict this wouldn't be allowed.
+    def _prepare_additional_models(self) -> Mapping[str, base_models.BaseModel]:
+        """Prepares additional models needed for the commit process.
+
+        Returns:
+            dict(str, BaseModel). Additional models needed for
+            the commit process. Contains the TopicRightsModel.
+        """
+        return {
+            'rights_model': TopicRightsModel.get_by_id(self.id)
+        }
+
+    def compute_models_to_commit(
+        self,
+        committer_id: str,
+        commit_type: str,
+        commit_message: Optional[str],
+        commit_cmds: base_models.AllowedCommitCmdsListType,
+        # We expect Mapping because we want to allow models that inherit
+        # from BaseModel as the values, if we used Dict this wouldn't
+        # be allowed.
+        additional_models: Mapping[str, base_models.BaseModel]
+    ) -> base_models.ModelsToPutDict:
         """Record the event to the commit log after the model commit.
 
         Note that this extends the superclass method.
@@ -129,17 +212,33 @@ class TopicModel(base_models.VersionedModel):
                 change.
             commit_type: str. The type of commit. Possible values are in
                 core.storage.base_models.COMMIT_TYPE_CHOICES.
-            commit_message: str. The commit description message.
+            commit_message: str|None. The commit description message, for
+                unpublished topics, it may be equal to None.
             commit_cmds: list(dict). A list of commands, describing changes
                 made in this model, which should give sufficient information to
                 reconstruct the commit. Each dict always contains:
                     cmd: str. Unique command.
                 and then additional arguments for that command.
-        """
-        super(TopicModel, self)._trusted_commit(
-            committer_id, commit_type, commit_message, commit_cmds)
+            additional_models: dict(str, BaseModel). Additional models that are
+                needed for the commit process.
 
-        topic_rights = TopicRightsModel.get_by_id(self.id)
+        Returns:
+            ModelsToPutDict. A dict of models that should be put into
+            the datastore.
+        """
+        models_to_put = super().compute_models_to_commit(
+            committer_id,
+            commit_type,
+            commit_message,
+            commit_cmds,
+            additional_models
+        )
+
+        # Here we use cast because we are narrowing down the type from
+        # BaseModel to TopicRightsModel.
+        topic_rights = cast(
+            TopicRightsModel, additional_models['rights_model']
+        )
         if topic_rights.topic_is_published:
             status = constants.ACTIVITY_STATUS_PUBLIC
         else:
@@ -150,11 +249,15 @@ class TopicModel(base_models.VersionedModel):
             commit_message, commit_cmds, status, False
         )
         topic_commit_log_entry.topic_id = self.id
-        topic_commit_log_entry.update_timestamps()
-        topic_commit_log_entry.put()
+        return {
+            'snapshot_metadata_model': models_to_put['snapshot_metadata_model'],
+            'snapshot_content_model': models_to_put['snapshot_content_model'],
+            'commit_log_model': topic_commit_log_entry,
+            'versioned_model': models_to_put['versioned_model'],
+        }
 
     @classmethod
-    def get_by_name(cls, topic_name):
+    def get_by_name(cls, topic_name: str) -> Optional[TopicModel]:
         """Gets TopicModel by topic_name. Returns None if the topic with
         name topic_name doesn't exist.
 
@@ -165,12 +268,12 @@ class TopicModel(base_models.VersionedModel):
             TopicModel|None. The topic model of the topic or None if not
             found.
         """
-        return TopicModel.query().filter(
-            cls.canonical_name == topic_name.lower()).filter(
-                cls.deleted == False).get() # pylint: disable=singleton-comparison
+        return cls.get_all().filter(
+            cls.canonical_name == topic_name.lower()
+        ).get()
 
     @classmethod
-    def get_by_url_fragment(cls, url_fragment):
+    def get_by_url_fragment(cls, url_fragment: str) -> Optional[TopicModel]:
         """Gets TopicModel by url_fragment. Returns None if the topic with
         name url_fragment doesn't exist.
 
@@ -182,17 +285,16 @@ class TopicModel(base_models.VersionedModel):
             found.
         """
         # TODO(#10210): Make fetching by URL fragment faster.
-        return TopicModel.query().filter(
-            cls.url_fragment == url_fragment).filter(
-                cls.deleted == False).get() # pylint: disable=singleton-comparison
+        return cls.get_all().filter(cls.url_fragment == url_fragment).get()
 
     @staticmethod
-    def get_model_association_to_user():
+    def get_model_association_to_user(
+    ) -> base_models.MODEL_ASSOCIATION_TO_USER:
         """Model does not contain user data."""
         return base_models.MODEL_ASSOCIATION_TO_USER.NOT_CORRESPONDING_TO_USER
 
     @classmethod
-    def get_export_policy(cls):
+    def get_export_policy(cls) -> Dict[str, base_models.EXPORT_POLICY]:
         """Model doesn't contain any data directly corresponding to a user."""
         return dict(super(cls, cls).get_export_policy(), **{
             'name': base_models.EXPORT_POLICY.NOT_APPLICABLE,
@@ -200,6 +302,7 @@ class TopicModel(base_models.VersionedModel):
             'abbreviated_name': base_models.EXPORT_POLICY.NOT_APPLICABLE,
             'thumbnail_filename': base_models.EXPORT_POLICY.NOT_APPLICABLE,
             'thumbnail_bg_color': base_models.EXPORT_POLICY.NOT_APPLICABLE,
+            'thumbnail_size_in_bytes': base_models.EXPORT_POLICY.NOT_APPLICABLE,
             'description': base_models.EXPORT_POLICY.NOT_APPLICABLE,
             'canonical_story_references':
                 base_models.EXPORT_POLICY.NOT_APPLICABLE,
@@ -218,48 +321,8 @@ class TopicModel(base_models.VersionedModel):
             'practice_tab_is_displayed':
                 base_models.EXPORT_POLICY.NOT_APPLICABLE,
             'url_fragment': base_models.EXPORT_POLICY.NOT_APPLICABLE,
-        })
-
-
-class TopicCommitLogEntryModel(base_models.BaseCommitLogEntryModel):
-    """Log of commits to topics.
-
-    A new instance of this model is created and saved every time a commit to
-    TopicModel occurs.
-
-    The id for this model is of the form 'topic-[topic_id]-[version]'.
-    """
-
-    # The id of the topic being edited.
-    topic_id = datastore_services.StringProperty(indexed=True, required=True)
-
-    @classmethod
-    def _get_instance_id(cls, topic_id, version):
-        """This function returns the generated id for the get_commit function
-        in the parent class.
-
-        Args:
-            topic_id: str. The id of the topic being edited.
-            version: int. The version number of the topic after the commit.
-
-        Returns:
-            str. The commit id with the topic id and version number.
-        """
-        return 'topic-%s-%s' % (topic_id, version)
-
-    @staticmethod
-    def get_model_association_to_user():
-        """Model does not contain user data."""
-        return base_models.MODEL_ASSOCIATION_TO_USER.NOT_CORRESPONDING_TO_USER
-
-    @classmethod
-    def get_export_policy(cls):
-        """Model doesn't contain any data directly corresponding to a user.
-        This model is only stored for archive purposes. The commit log of
-        entities is not related to personal user data.
-        """
-        return dict(super(cls, cls).get_export_policy(), **{
-            'topic_id': base_models.EXPORT_POLICY.NOT_APPLICABLE
+            'skill_ids_for_diagnostic_test':
+                base_models.EXPORT_POLICY.NOT_APPLICABLE
         })
 
 
@@ -311,6 +374,9 @@ class TopicSummaryModel(base_models.BaseModel):
     # uncategorized).
     total_skill_count = (
         datastore_services.IntegerProperty(required=True, indexed=True))
+    # The total number of published chapters in the topic.
+    total_published_node_count = (
+        datastore_services.IntegerProperty(required=True, indexed=True))
     # The number of skills that are not part of any subtopic.
     uncategorized_skill_count = (
         datastore_services.IntegerProperty(required=True, indexed=True))
@@ -324,17 +390,18 @@ class TopicSummaryModel(base_models.BaseModel):
     version = datastore_services.IntegerProperty(required=True)
 
     @staticmethod
-    def get_deletion_policy():
+    def get_deletion_policy() -> base_models.DELETION_POLICY:
         """Model doesn't contain any data directly corresponding to a user."""
         return base_models.DELETION_POLICY.NOT_APPLICABLE
 
     @staticmethod
-    def get_model_association_to_user():
+    def get_model_association_to_user(
+    ) -> base_models.MODEL_ASSOCIATION_TO_USER:
         """Model does not contain user data."""
         return base_models.MODEL_ASSOCIATION_TO_USER.NOT_CORRESPONDING_TO_USER
 
     @classmethod
-    def get_export_policy(cls):
+    def get_export_policy(cls) -> Dict[str, base_models.EXPORT_POLICY]:
         """Model doesn't contain any data directly corresponding to a user."""
         return dict(super(cls, cls).get_export_policy(), **{
             'name': base_models.EXPORT_POLICY.NOT_APPLICABLE,
@@ -347,6 +414,8 @@ class TopicSummaryModel(base_models.BaseModel):
             'canonical_story_count': base_models.EXPORT_POLICY.NOT_APPLICABLE,
             'additional_story_count': base_models.EXPORT_POLICY.NOT_APPLICABLE,
             'total_skill_count': base_models.EXPORT_POLICY.NOT_APPLICABLE,
+            'total_published_node_count':
+                base_models.EXPORT_POLICY.NOT_APPLICABLE,
             'uncategorized_skill_count':
                 base_models.EXPORT_POLICY.NOT_APPLICABLE,
             'subtopic_count': base_models.EXPORT_POLICY.NOT_APPLICABLE,
@@ -367,7 +436,7 @@ class TopicRightsSnapshotContentModel(base_models.BaseSnapshotContentModel):
     """Storage model for the content of a topic rights snapshot."""
 
     @staticmethod
-    def get_deletion_policy():
+    def get_deletion_policy() -> base_models.DELETION_POLICY:
         """Model contains data corresponding to a user: inside the content field
         there is a manager_ids field.
 
@@ -379,7 +448,7 @@ class TopicRightsSnapshotContentModel(base_models.BaseSnapshotContentModel):
         return base_models.DELETION_POLICY.LOCALLY_PSEUDONYMIZE
 
     @classmethod
-    def has_reference_to_user_id(cls, user_id):
+    def has_reference_to_user_id(cls, user_id: str) -> bool:
         """Check whether TopicRightsSnapshotContentModel references the given
         user. The manager_ids field is checked through content_user_ids field in
         the TopicRightsSnapshotMetadataModel.
@@ -413,14 +482,14 @@ class TopicRightsModel(base_models.VersionedModel):
         indexed=True, required=True, default=False)
 
     @staticmethod
-    def get_deletion_policy():
+    def get_deletion_policy() -> base_models.DELETION_POLICY:
         """Model contains data to pseudonymize or delete corresponding
         to a user: manager_ids field.
         """
         return base_models.DELETION_POLICY.LOCALLY_PSEUDONYMIZE
 
     @classmethod
-    def has_reference_to_user_id(cls, user_id):
+    def has_reference_to_user_id(cls, user_id: str) -> bool:
         """Check whether TopicRightsModel references user.
 
         Args:
@@ -434,7 +503,7 @@ class TopicRightsModel(base_models.VersionedModel):
         ).get(keys_only=True) is not None
 
     @classmethod
-    def get_by_user(cls, user_id):
+    def get_by_user(cls, user_id: str) -> Sequence[TopicRightsModel]:
         """Retrieves the rights object for all topics assigned to given user
 
         Args:
@@ -444,13 +513,19 @@ class TopicRightsModel(base_models.VersionedModel):
             list(TopicRightsModel). The list of TopicRightsModel objects in
             which the given user is a manager.
         """
-        topic_rights_models = cls.query(
-            cls.manager_ids == user_id
-        )
-        return topic_rights_models
+        return cls.query(cls.manager_ids == user_id).fetch()
 
-    def _trusted_commit(
-            self, committer_id, commit_type, commit_message, commit_cmds):
+    def compute_models_to_commit(
+        self,
+        committer_id: str,
+        commit_type: str,
+        commit_message: Optional[str],
+        commit_cmds: base_models.AllowedCommitCmdsListType,
+        # We expect Mapping because we want to allow models that inherit
+        # from BaseModel as the values, if we used Dict this wouldn't
+        # be allowed.
+        additional_models: Mapping[str, base_models.BaseModel]
+    ) -> base_models.ModelsToPutDict:
         """Record the event to the commit log after the model commit.
 
         Note that this extends the superclass method.
@@ -460,23 +535,34 @@ class TopicRightsModel(base_models.VersionedModel):
                 change.
             commit_type: str. The type of commit. Possible values are in
                 core.storage.base_models.COMMIT_TYPE_CHOICES.
-            commit_message: str. The commit description message.
+            commit_message: str|None. The commit description message, for
+                unpublished topic, it may be equal to None.
             commit_cmds: list(dict). A list of commands, describing changes
                 made in this model, which should give sufficient information to
                 reconstruct the commit. Each dict always contains:
                     cmd: str. Unique command.
                 and then additional arguments for that command.
-        """
-        super(TopicRightsModel, self)._trusted_commit(
-            committer_id, commit_type, commit_message, commit_cmds)
+            additional_models: dict(str, BaseModel). Additional models that are
+                needed for the commit process.
 
-        topic_rights = TopicRightsModel.get_by_id(self.id)
-        if topic_rights.topic_is_published:
+        Returns:
+            ModelsToPutDict. A dict of models that should be put into
+            the datastore.
+        """
+        models_to_put = super().compute_models_to_commit(
+            committer_id,
+            commit_type,
+            commit_message,
+            commit_cmds,
+            additional_models
+        )
+
+        if self.topic_is_published:
             status = constants.ACTIVITY_STATUS_PUBLIC
         else:
             status = constants.ACTIVITY_STATUS_PRIVATE
 
-        TopicCommitLogEntryModel(
+        topic_commit_log = TopicCommitLogEntryModel(
             id=('rights-%s-%s' % (self.id, self.version)),
             user_id=committer_id,
             topic_id=self.id,
@@ -486,32 +572,39 @@ class TopicRightsModel(base_models.VersionedModel):
             version=None,
             post_commit_status=status,
             post_commit_community_owned=False,
-            post_commit_is_private=not topic_rights.topic_is_published
-        ).put()
+            post_commit_is_private=not self.topic_is_published
+        )
 
-        snapshot_metadata_model = self.SNAPSHOT_METADATA_CLASS.get(
-            self.get_snapshot_id(self.id, self.version))
-
+        snapshot_metadata_model = models_to_put['snapshot_metadata_model']
         snapshot_metadata_model.content_user_ids = list(sorted(set(
             self.manager_ids)))
 
         commit_cmds_user_ids = set()
         for commit_cmd in commit_cmds:
-            user_id_attribute_names = python_utils.NEXT(
+            user_id_attribute_names = next(
                 cmd['user_id_attribute_names']
                 for cmd in feconf.TOPIC_RIGHTS_CHANGE_ALLOWED_COMMANDS
                 if cmd['name'] == commit_cmd['cmd']
             )
             for user_id_attribute_name in user_id_attribute_names:
-                commit_cmds_user_ids.add(commit_cmd[user_id_attribute_name])
+                user_id_attribute = commit_cmd[user_id_attribute_name]
+                # Ruling out the possibility of Any other type for mypy type
+                # checking.
+                assert isinstance(user_id_attribute, str)
+                commit_cmds_user_ids.add(user_id_attribute)
         snapshot_metadata_model.commit_cmds_user_ids = list(
             sorted(commit_cmds_user_ids))
 
-        snapshot_metadata_model.update_timestamps()
-        snapshot_metadata_model.put()
+        return {
+            'snapshot_metadata_model': models_to_put['snapshot_metadata_model'],
+            'snapshot_content_model': models_to_put['snapshot_content_model'],
+            'commit_log_model': topic_commit_log,
+            'versioned_model': models_to_put['versioned_model'],
+        }
 
     @staticmethod
-    def get_model_association_to_user():
+    def get_model_association_to_user(
+    ) -> base_models.MODEL_ASSOCIATION_TO_USER:
         """Model is exported as one instance shared across users since multiple
         users contribute to topics and their rights.
         """
@@ -521,7 +614,7 @@ class TopicRightsModel(base_models.VersionedModel):
             .ONE_INSTANCE_SHARED_ACROSS_USERS)
 
     @classmethod
-    def get_export_policy(cls):
+    def get_export_policy(cls) -> Dict[str, base_models.EXPORT_POLICY]:
         """Model contains data to export corresponding to a user."""
         return dict(super(cls, cls).get_export_policy(), **{
             'manager_ids': base_models.EXPORT_POLICY.EXPORTED,
@@ -529,7 +622,7 @@ class TopicRightsModel(base_models.VersionedModel):
         })
 
     @classmethod
-    def get_field_name_mapping_to_takeout_keys(cls):
+    def get_field_name_mapping_to_takeout_keys(cls) -> Dict[str, str]:
         """Defines the mapping of field names to takeout keys since this model
         is exported as one instance shared across users.
         """
@@ -538,7 +631,7 @@ class TopicRightsModel(base_models.VersionedModel):
         }
 
     @classmethod
-    def export_data(cls, user_id):
+    def export_data(cls, user_id: str) -> Dict[str, List[str]]:
         """(Takeout) Export user-relevant properties of TopicRightsModel.
 
         Args:

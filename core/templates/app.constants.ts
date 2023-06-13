@@ -50,6 +50,11 @@ export const AppConstants = {
   EXPLORATION_DATA_URL_TEMPLATE: '/explorehandler/init/<exploration_id>',
   EXPLORATION_VERSION_DATA_URL_TEMPLATE: (
     '/explorehandler/init/<exploration_id>?v=<version>'),
+  ENTITY_TRANSLATIONS_HANDLER_URL_TEMPLATE: (
+    '/entity_translations_handler/<entity_type>/<entity_id>/<entity_version>/' +
+    '<language_code>'),
+  EXPLORATION_PROGRESS_PID_URL_TEMPLATE: (
+    '/explorehandler/init/<exploration_id>?pid=<pid>'),
 
   WARNING_TYPES: {
     // These must be fixed before the exploration can be saved.
@@ -69,6 +74,17 @@ export const AppConstants = {
     INCORRECT_SOLUTION: 'The current solution does not lead to another card.',
     UNRESOLVED_ANSWER:
       'There is an answer among the top 10 which has no explicit feedback.',
+    INVALID_REDIRECTION: 'Learner should not be directed back by more than' +
+      ' 3 cards in the lesson.'
+  },
+
+  CHECKPOINT_ERROR_MESSAGES: {
+    INIT_CARD: 'The first card of the lesson must be a checkpoint.',
+    TERMINAL_CARD:
+      'Checkpoints are not allowed on the last card of the lesson.',
+    CHECKPOINT_COUNT: 'Only a maximum of 8 checkpoints are allowed per lesson.',
+    BYPASSABLE_CARD:
+      'Checkpoints must not be assigned to cards that can be bypassed.'
   },
 
   EXPLORATION_SUMMARY_DATA_URL_TEMPLATE: '/explorationsummarieshandler/data',
@@ -77,6 +93,7 @@ export const AppConstants = {
 
   // We use a slash because this character is forbidden in a state name.
   PLACEHOLDER_OUTCOME_DEST: '/',
+  PLACEHOLDER_OUTCOME_DEST_IF_STUCK: '/',
   INTERACTION_DISPLAY_MODE_INLINE: 'inline',
   LOADING_INDICATOR_URL: '/activity/loadingIndicator.gif',
   OBJECT_EDITOR_URL_PREFIX: '/object_editor_template/',
@@ -91,6 +108,14 @@ export const AppConstants = {
     UNICODE_STRING: 'UnicodeString',
   },
 
+  // Flag to toggle the support for a new state to direct the learners
+  // to if they get stuck.
+  DEST_IF_REALLY_STUCK_FEAT_ENABLED: false,
+
+  INTERACTION_NAMES: {
+    TEXT_INPUT: 'TextInput'
+  },
+
   // The maximum number of nodes to show in a row of the state graph.
   MAX_NODES_PER_ROW: 4,
   // The following variable must be at least 3. It represents the maximum
@@ -101,15 +126,22 @@ export const AppConstants = {
   // displayed.
   FATAL_ERROR_CODES: [400, 401, 404, 500],
 
+  // Maximum number of states the learner can be directed back from a state
+  // by an editor in an exploration.
+  MAX_CARD_COUNT_FOR_VALID_REDIRECTION: 3,
+
   // Do not modify these, for backwards-compatibility reasons. These strings are
   // used to identify components, to generate content ids, and to determine what
   // type of content a given content id is associated with. If you wish to
   // change one of these, a state migration of all existing content ids is
-  // required.
+  // required. The component content type should be sufficiently small such that
+  // the commit messages that use the content type strings do not exceed 375
+  // characters (which is the maximum length of a commit message).
   COMPONENT_NAME_CONTENT: 'content',
   COMPONENT_NAME_FEEDBACK: 'feedback',
   COMPONENT_NAME_HINT: 'hint',
   COMPONENT_NAME_INTERACTION_CUSTOMIZATION_ARGS: 'ca',
+  COMPONENT_NAME_RULE_INPUT: 'rule_input',
   COMPONENT_NAME_SOLUTION: 'solution',
   COMPONENT_NAME_EXPLANATION: 'explanation',
   COMPONENT_NAME_WORKED_EXAMPLE: {
@@ -134,14 +166,18 @@ export const AppConstants = {
 
   SITE_NAME: 'Oppia.org',
 
-  DEFAULT_PROFILE_IMAGE_PATH: '/avatar/user_blue_72px.webp',
+  DEFAULT_PROFILE_IMAGE_WEBP_PATH: '/avatar/user_blue_150px.webp',
 
-  LOGOUT_URL: '/logout',
+  DEFAULT_PROFILE_IMAGE_PNG_PATH: '/avatar/user_blue_150px.png',
 
   // TODO(vojtechjelinek): Move these to separate file later, after we establish
   // process to follow for Angular constants (#6731).
   SUBTOPIC_PAGE_EDITOR_DATA_URL_TEMPLATE: (
     '/subtopic_page_editor_handler/data/<topic_id>/<subtopic_id>'),
+  // This should be synchronized with SUBTOPIC_MASTERY_DATA_URL
+  // in feconf.
+  SUBTOPIC_MASTERY_DATA_URL_TEMPLATE: (
+    '/subtopic_mastery_handler/data'),
   EDITABLE_TOPIC_DATA_URL_TEMPLATE: '/topic_editor_handler/data/<topic_id>',
 
   LABEL_FOR_CLEARING_FOCUS: 'labelForClearingFocus',
@@ -156,11 +192,8 @@ export const AppConstants = {
     SKILL: 'skill',
     STORY: 'story',
     QUESTION: 'question',
+    BLOG_POST: 'blog_post',
   },
-
-  ASSET_TYPE_AUDIO: 'audio',
-  ASSET_TYPE_IMAGE: 'image',
-  ASSET_TYPE_THUMBNAIL: 'thumbnail',
 
   AUDIO_UPLOAD_URL_TEMPLATE: '/createhandler/audioupload/<exploration_id>',
   IMAGE_UPLOAD_URL_TEMPLATE: (
@@ -176,5 +209,33 @@ export const AppConstants = {
 
   IMAGE_SAVE_DESTINATION_SERVER: 'imageSaveDestinationServer',
   IMAGE_SAVE_DESTINATION_LOCAL_STORAGE:
-    'imageSaveDestinationLocalStorage'
+    'imageSaveDestinationLocalStorage',
+  SVG_MIME_TYPE: 'data:image/svg+xml',
+
+  CONTRIBUTION_STATS_TYPE_TRANSLATION: 'translation',
+  CONTRIBUTION_STATS_TYPE_QUESTION: 'question',
+  CONTRIBUTION_STATS_SUBTYPE_SUBMISSION: 'submission',
+  CONTRIBUTION_STATS_SUBTYPE_REVIEW: 'review',
+  CONTRIBUTION_STATS_SUBTYPE_CORRECTION: 'correction',
+  CONTRIBUTION_STATS_TYPES: {
+    TRANSLATION_CONTRIBUTION: {
+      NAME: 'translationContribution',
+      DISPLAY_NAME: 'Translation Contributions'
+    },
+    TRANSLATION_REVIEW: {
+      NAME: 'translationReview',
+      DISPLAY_NAME: 'Translation Reviews'
+    },
+    QUESTION_CONTRIBUTION: {
+      NAME: 'questionContribution',
+      DISPLAY_NAME: 'Question Contributions'
+    },
+    QUESTION_REVIEW: {
+      NAME: 'questionReview',
+      DISPLAY_NAME: 'Question Reviews'
+    }
+  },
+  CONTRIBUTOR_BADGE_INITIAL_LEVELS: [1, 10, 20, 50, 100, 200, 300, 400, 500],
+  CONTRIBUTOR_CERTIFICATE_LOGO:
+    '/assets/images/contributor_dashboard/oppia-logo.jpg'
 } as const;

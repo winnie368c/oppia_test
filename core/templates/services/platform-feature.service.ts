@@ -25,6 +25,8 @@
  *     are loaded, i.e. a different session id is present in the cookies.
  *   - there are new features defined in the code base while the cached
  *     summary is out-of-date.
+ *   - the current account signed out and then signed back in, because session
+ *     cookies are not consistent between separate login sessions.
  * In such cases, the values will be re-initialized and they may be changed.
  *
  * The values in SessionStorage is not shared between tabs, we don't want
@@ -37,19 +39,14 @@ import { downgradeInjectable } from '@angular/upgrade/static';
 
 import isEqual from 'lodash/isEqual';
 
-import { PlatformFeatureBackendApiService } from
-  'domain/platform_feature/platform-feature-backend-api.service';
-import {
-  FeatureNames,
-  FeatureStatusSummary,
-  FeatureStatusChecker
-} from 'domain/platform_feature/feature-status-summary.model';
+import { AppConstants } from 'app.constants';
+import { ClientContext } from 'domain/platform_feature/client-context.model';
+import { FeatureNames, FeatureNamesKeys, FeatureStatusChecker, FeatureStatusSummary } from 'domain/platform_feature/feature-status-summary.model';
+import { PlatformFeatureBackendApiService } from 'domain/platform_feature/platform-feature-backend-api.service';
+import { BrowserCheckerService } from 'domain/utilities/browser-checker.service';
 import { LoggerService } from 'services/contextual/logger.service';
 import { UrlService } from 'services/contextual/url.service';
 import { WindowRef } from 'services/contextual/window-ref.service';
-import { BrowserCheckerService } from
-  'domain/utilities/browser-checker.service';
-import { ClientContext } from 'domain/platform_feature/client-context.model';
 
 interface FeatureFlagsCacheItem {
   timestamp: number;
@@ -62,15 +59,13 @@ interface FeatureFlagsCacheItem {
 })
 export class PlatformFeatureService {
   private static SESSION_STORAGE_KEY = 'SAVED_FEATURE_FLAGS';
-  private static SESSION_STORAGE_CACHE_TTL = 12 * 3600 * 1000; // 12 hours
-
-  private static COOKIE_NAME_FOR_SESSION_ID = 'SACSID';
-  private static COOKIE_NAME_FOR_SESSION_ID_IN_DEV = 'dev_appserver_login';
+  // 12 hours.
+  private static SESSION_STORAGE_CACHE_TTL_MSECS = 12 * 60 * 60 * 1000;
 
   // The following attributes are made static to avoid potential inconsistencies
   // caused by multi-instantiation of the service.
-  static featureStatusSummary: FeatureStatusSummary = null;
-  static initializationPromise: Promise<void> = null;
+  static featureStatusSummary: FeatureStatusSummary;
+  static initializationPromise: Promise<void>;
   static _isInitializedWithError = false;
   static _isSkipped = false;
 
@@ -158,21 +153,28 @@ export class PlatformFeatureService {
       // erased, leading to the 'Registration session expired' error.
       if (this.urlService.getPathname() === '/signup') {
         PlatformFeatureService._isSkipped = true;
-        PlatformFeatureService.featureStatusSummary =
-          FeatureStatusSummary.createDefault();
+        PlatformFeatureService.featureStatusSummary = (
+          FeatureStatusSummary.createDefault());
         return;
       }
 
-      PlatformFeatureService.featureStatusSummary = await this
-        .loadFeatureFlagsFromServer();
+      PlatformFeatureService.featureStatusSummary = (
+        await this.loadFeatureFlagsFromServer());
+
       this.saveResults();
-    } catch (err) {
-      this.loggerService.error(
-        'Error during initialization of PlatformFeatureService: ' +
-        `${err.message ? err.message : err}`);
+    // We use unknown type because we are unsure of the type of error
+    // that was thrown. Since the catch block cannot identify the
+    // specific type of error, we are unable to further optimise the
+    // code by introducing more types of errors.
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        this.loggerService.error(
+          'Error during initialization of PlatformFeatureService: ' +
+          `${err.message ? err.message : err}`);
+      }
       // If any error, just disable all features.
-      PlatformFeatureService.featureStatusSummary =
-        FeatureStatusSummary.createDefault();
+      PlatformFeatureService.featureStatusSummary = (
+        FeatureStatusSummary.createDefault());
       PlatformFeatureService._isInitializedWithError = true;
       this.clearSavedResults();
     }
@@ -191,8 +193,8 @@ export class PlatformFeatureService {
     const item = {
       timestamp: this.getCurrentTimestamp(),
       sessionId: this.getSessionIdFromCookie(),
-      featureStatusSummary: PlatformFeatureService.featureStatusSummary
-        .toBackendDict(),
+      featureStatusSummary:
+        PlatformFeatureService.featureStatusSummary.toBackendDict(),
     };
     this.windowRef.nativeWindow.sessionStorage.setItem(
       PlatformFeatureService.SESSION_STORAGE_KEY, JSON.stringify(item));
@@ -243,7 +245,7 @@ export class PlatformFeatureService {
    */
   private validateSavedResults(item: FeatureFlagsCacheItem): boolean {
     if (this.getCurrentTimestamp() - item.timestamp >
-        PlatformFeatureService.SESSION_STORAGE_CACHE_TTL) {
+        PlatformFeatureService.SESSION_STORAGE_CACHE_TTL_MSECS) {
       return false;
     }
 
@@ -251,16 +253,14 @@ export class PlatformFeatureService {
       return false;
     }
 
-    const storedFeatures: string[] = Array.from(
-      item.featureStatusSummary.featureNameToFlag.keys());
-    const requiredFeatures: string[] = Object.keys(FeatureNames)
-      .map(name => FeatureNames[name]);
+    const storedFeatures: string[] = (
+      Array.from(item.featureStatusSummary.featureNameToFlag.keys()));
+    const featureNamesKeys = (
 
-    if (!isEqual(storedFeatures.sort(), requiredFeatures.sort())) {
-      return false;
-    }
-
-    return true;
+      Object.keys(FeatureNames) as FeatureNamesKeys);
+    const requiredFeatures: string[] = (
+      featureNamesKeys.map(name => FeatureNames[name]));
+    return isEqual(storedFeatures.sort(), requiredFeatures.sort());
   }
 
   /**
@@ -285,15 +285,11 @@ export class PlatformFeatureService {
   private getSessionIdFromCookie(): string | null {
     const cookieStrs = this.windowRef.nativeWindow.document.cookie.split('; ');
     const cookieMap = new Map(
-      cookieStrs.map(cookieStr => <[string, string]>cookieStr.split('=')));
-
-    if (cookieMap.has(PlatformFeatureService.COOKIE_NAME_FOR_SESSION_ID)) {
-      return cookieMap.get(PlatformFeatureService.COOKIE_NAME_FOR_SESSION_ID);
-    }
-    if (cookieMap.has(
-      PlatformFeatureService.COOKIE_NAME_FOR_SESSION_ID_IN_DEV)) {
-      return cookieMap.get(
-        PlatformFeatureService.COOKIE_NAME_FOR_SESSION_ID_IN_DEV);
+      cookieStrs.map(cookieStr => cookieStr.split('=') as [string, string]));
+    const sessionId = (
+      cookieMap.get(AppConstants.FIREBASE_AUTH_SESSION_COOKIE_NAME));
+    if (sessionId !== undefined) {
+      return sessionId;
     }
     return null;
   }
@@ -309,7 +305,7 @@ export class PlatformFeatureService {
 }
 
 export const platformFeatureInitFactory = (service: PlatformFeatureService) => {
-  return (): Promise<void> => service.initialize();
+  return async(): Promise<void> => service.initialize();
 };
 
 angular.module('oppia').factory(

@@ -3,7 +3,7 @@
 // "eslint disable next line" for each of them.
 /* eslint-disable oppia/no-multiline-disable */
 /* eslint-disable quote-props */
-/* eslint-disable quotes */
+/* eslint-disable  @typescript-eslint/quotes */
 /* Don't modify anything outside the {} brackets.
  * Insides of the {} brackets should be formatted as a JSON object.
  * JSON rules:
@@ -17,13 +17,13 @@
  * @fileoverview Initializes constants for the Oppia codebase.
  */
 
-export = {
-  // Whether to allow custom event reporting to Google Analytics.
-  "CAN_SEND_ANALYTICS_EVENTS": false,
-
+export default {
   // The term 'staging' is used instead of the classroom url fragment field
   // in the URL for topics that are not yet attached to a classroom.
   "CLASSROOM_URL_FRAGMENT_FOR_UNATTACHED_TOPICS": "staging",
+
+  // Acceptable URL schemes for links.
+  "ACCEPTABLE_SCHEMES": ["https", ""],
 
   // The default classroom URL fragment to use when the provided classroom URL
   // fragment in the controller is invalid.
@@ -38,21 +38,32 @@ export = {
     "Probability", "Programming", "Puzzles", "Reading", "Spanish", "Sport",
     "Statistics", "Trigonometry", "Welcome"],
   "ACTIVITY_TYPE_EXPLORATION": "exploration",
+  "ACTIVITY_TYPE_EXPLORATION_TRANSLATIONS": "exp_translations",
   "ACTIVITY_TYPE_COLLECTION": "collection",
+  "ACTIVITY_TYPE_STORY": "story",
+  "ACTIVITY_TYPE_SKILL": "skill",
+  "ACTIVITY_TYPE_SUBTOPIC": "subtopic",
+  "ACTIVITY_TYPE_LEARN_TOPIC": "learntopic",
+  "ACTIVITY_TYPE_CLASSROOM": "classroom",
   "DISABLED_EXPLORATION_IDS": ["5"],
   "TESTING_CONSTANT": "test",
   "LIBRARY_TILE_WIDTH_PX": 208,
+  "LIBRARY_MOBILE_TILE_WIDTH_PX": 350,
   "DASHBOARD_TYPE_CREATOR": "creator",
   "DASHBOARD_TYPE_LEARNER": "learner",
   "DEFAULT_COLOR": "#a33f40",
   "DEFAULT_THUMBNAIL_ICON": "Lightbulb",
   "DEFAULT_CATEGORY_ICON": "Lightbulb",
 
+  "ACTION_ACCEPT_SUGGESTION": "accept",
+  "ACTION_REJECT_SUGGESTION": "reject",
+
   "SKILL_STATUS_OPTIONS": {
     "ALL": "All",
     "ASSIGNED": "Assigned",
     "UNASSIGNED": "Unassigned"
   },
+  "TOPIC_MINIMUM_QUESTIONS_TO_PRACTICE": 10,
   "TOPIC_SKILL_DASHBOARD_SORT_OPTIONS": {
     "IncreasingCreatedOn": "Newly Created",
     "DecreasingCreatedOn": "Oldest Created",
@@ -66,8 +77,207 @@ export = {
     "History", "Mathematics", "Medicine", "Music", "Physics", "Programming",
     "Reading", "Statistics"],
 
+  // These classrooms are shown in the add learner group syllabus filters.
+  "SEARCH_DROPDOWN_CLASSROOMS": ["math"],
+
+  // These types are shown in the add learner group syllabus filters.
+  "SEARCH_DROPDOWN_TYPES": ["Skill", "Story"],
+
   // The default language code for an exploration.
   "DEFAULT_LANGUAGE_CODE": "en",
+
+  // Hacky translation keys for classroom, topic, skill, exploration
+  // and subtopic names and descriptions. Needs to be updated whenever
+  // any new class, topic, skill, exploration or subtopic is added or a
+  // previous one is deleted.
+  // TODO(#14645): Remove these keys once translation service is extended.
+  "HACKY_TRANSLATION_KEYS": [
+    "I18N_CLASSROOM_MATH_TITLE",
+    "I18N_TOPIC_iX9kYCjnouWN_TITLE",
+    "I18N_TOPIC_sWBXKH4PZcK6_TITLE",
+    "I18N_TOPIC_C4fqwrvqWpRm_TITLE",
+    "I18N_TOPIC_qW12maD4hiA8_TITLE",
+    "I18N_TOPIC_dLmjjMDbCcrf_TITLE",
+    "I18N_TOPIC_0abdeaJhmfPm_TITLE",
+    "I18N_TOPIC_5g0nxGUmx5J5_TITLE",
+    "I18N_TOPIC_iX9kYCjnouWN_DESCRIPTION",
+    "I18N_TOPIC_sWBXKH4PZcK6_DESCRIPTION",
+    "I18N_TOPIC_C4fqwrvqWpRm_DESCRIPTION",
+    "I18N_TOPIC_qW12maD4hiA8_DESCRIPTION",
+    "I18N_TOPIC_dLmjjMDbCcrf_DESCRIPTION",
+    "I18N_TOPIC_0abdeaJhmfPm_DESCRIPTION",
+    "I18N_TOPIC_5g0nxGUmx5J5_DESCRIPTION",
+    "I18N_EXPLORATION_K645IfRNzpKy_TITLE",
+    "I18N_EXPLORATION_K645IfRNzpKy_DESCRIPTION",
+    "I18N_EXPLORATION_Knvx24p24qPO_TITLE",
+    "I18N_EXPLORATION_Knvx24p24qPO_DESCRIPTION",
+    "I18N_EXPLORATION_aAkDKVDR53cG_TITLE",
+    "I18N_EXPLORATION_aAkDKVDR53cG_DESCRIPTION",
+    "I18N_EXPLORATION_avwshGklKLJE_TITLE",
+    "I18N_EXPLORATION_avwshGklKLJE_DESCRIPTION",
+    "I18N_EXPLORATION_OKxYhsWONHZV_TITLE",
+    "I18N_EXPLORATION_OKxYhsWONHZV_DESCRIPTION",
+    "I18N_EXPLORATION_BJd7yHIxpqkq_TITLE",
+    "I18N_EXPLORATION_BJd7yHIxpqkq_DESCRIPTION",
+    "I18N_EXPLORATION_W0xq3jW5GzDF_TITLE",
+    "I18N_EXPLORATION_W0xq3jW5GzDF_DESCRIPTION",
+    "I18N_EXPLORATION_53Ka3mQ6ra5A_TITLE",
+    "I18N_EXPLORATION_53Ka3mQ6ra5A_DESCRIPTION",
+    "I18N_EXPLORATION_VKXd8qHsxLml_TITLE",
+    "I18N_EXPLORATION_VKXd8qHsxLml_DESCRIPTION",
+    "I18N_EXPLORATION_PsfDKdhd6Esz_TITLE",
+    "I18N_EXPLORATION_PsfDKdhd6Esz_DESCRIPTION",
+    "I18N_EXPLORATION_9DITEN8BUEHw_TITLE",
+    "I18N_EXPLORATION_9DITEN8BUEHw_DESCRIPTION",
+    "I18N_EXPLORATION_R7WpsSfmDQPV_TITLE",
+    "I18N_EXPLORATION_R7WpsSfmDQPV_DESCRIPTION",
+    "I18N_EXPLORATION_zIBYaqfDJrJC_TITLE",
+    "I18N_EXPLORATION_zIBYaqfDJrJC_DESCRIPTION",
+    "I18N_EXPLORATION_1904tpP0CYwY_TITLE",
+    "I18N_EXPLORATION_1904tpP0CYwY_DESCRIPTION",
+    "I18N_EXPLORATION_cQDibOXQbpi7_TITLE",
+    "I18N_EXPLORATION_cQDibOXQbpi7_DESCRIPTION",
+    "I18N_EXPLORATION_MRJeVrKafW6G_TITLE",
+    "I18N_EXPLORATION_MRJeVrKafW6G_DESCRIPTION",
+    "I18N_EXPLORATION_hNOP3TwRJhsz_TITLE",
+    "I18N_EXPLORATION_hNOP3TwRJhsz_DESCRIPTION",
+    "I18N_EXPLORATION_zTg2hzTz37jP_TITLE",
+    "I18N_EXPLORATION_zTg2hzTz37jP_DESCRIPTION",
+    "I18N_EXPLORATION_8HTzQQUPiK5i_TITLE",
+    "I18N_EXPLORATION_8HTzQQUPiK5i_DESCRIPTION",
+    "I18N_EXPLORATION_40a3vjmZ7Fwu_TITLE",
+    "I18N_EXPLORATION_40a3vjmZ7Fwu_DESCRIPTION",
+    "I18N_EXPLORATION_WulCxGAmGE61_TITLE",
+    "I18N_EXPLORATION_WulCxGAmGE61_DESCRIPTION",
+    "I18N_EXPLORATION_lOU0XPC2BnE9_TITLE",
+    "I18N_EXPLORATION_lOU0XPC2BnE9_DESCRIPTION",
+    "I18N_EXPLORATION_wE9pyaC5np3n_TITLE",
+    "I18N_EXPLORATION_wE9pyaC5np3n_DESCRIPTION",
+    "I18N_EXPLORATION_umPkwp0L1M0-_TITLE",
+    "I18N_EXPLORATION_umPkwp0L1M0-_DESCRIPTION",
+    "I18N_EXPLORATION_MjZzEVOG47_1_TITLE",
+    "I18N_EXPLORATION_MjZzEVOG47_1_DESCRIPTION",
+    "I18N_EXPLORATION_9trAQhj6uUC2_TITLE",
+    "I18N_EXPLORATION_9trAQhj6uUC2_DESCRIPTION",
+    "I18N_EXPLORATION_rfX8jNkPnA-1_TITLE",
+    "I18N_EXPLORATION_rfX8jNkPnA-1_DESCRIPTION",
+    "I18N_EXPLORATION_0FBWxCE5egOw_TITLE",
+    "I18N_EXPLORATION_0FBWxCE5egOw_DESCRIPTION",
+    "I18N_EXPLORATION_670bU6d9JGBh_TITLE",
+    "I18N_EXPLORATION_670bU6d9JGBh_DESCRIPTION",
+    "I18N_EXPLORATION_aHikhPlxYgOH_TITLE",
+    "I18N_EXPLORATION_aHikhPlxYgOH_DESCRIPTION",
+    "I18N_EXPLORATION_-tMgcP1i_4au_TITLE",
+    "I18N_EXPLORATION_-tMgcP1i_4au_DESCRIPTION",
+    "I18N_EXPLORATION_zW39GLG_BdN2_TITLE",
+    "I18N_EXPLORATION_zW39GLG_BdN2_DESCRIPTION",
+    "I18N_EXPLORATION_Xa3B_io-2WI5_TITLE",
+    "I18N_EXPLORATION_Xa3B_io-2WI5_DESCRIPTION",
+    "I18N_EXPLORATION_6Q6IyIDkjpYC_TITLE",
+    "I18N_EXPLORATION_6Q6IyIDkjpYC_DESCRIPTION",
+    "I18N_EXPLORATION_osw1m5Q3jK41_TITLE",
+    "I18N_EXPLORATION_osw1m5Q3jK41_DESCRIPTION",
+    "I18N_EXPLORATION_2mzzFVDLuAj8_TITLE",
+    "I18N_EXPLORATION_2mzzFVDLuAj8_DESCRIPTION",
+    "I18N_EXPLORATION_5NWuolNcwH6e_TITLE",
+    "I18N_EXPLORATION_5NWuolNcwH6e_DESCRIPTION",
+    "I18N_EXPLORATION_k2bQ7z5XHNbK_TITLE",
+    "I18N_EXPLORATION_k2bQ7z5XHNbK_DESCRIPTION",
+    "I18N_EXPLORATION_tIoSb3HZFN6e_TITLE",
+    "I18N_EXPLORATION_tIoSb3HZFN6e_DESCRIPTION",
+    "I18N_EXPLORATION_nLmUS6lbmvnl_TITLE",
+    "I18N_EXPLORATION_nLmUS6lbmvnl_DESCRIPTION",
+    "I18N_EXPLORATION_Vgde5_ZVqrq5_TITLE",
+    "I18N_EXPLORATION_Vgde5_ZVqrq5_DESCRIPTION",
+    "I18N_EXPLORATION_RvopsvVdIb0J_TITLE",
+    "I18N_EXPLORATION_RvopsvVdIb0J_DESCRIPTION",
+    "I18N_EXPLORATION_zVbqxwck0KaC_TITLE",
+    "I18N_EXPLORATION_zVbqxwck0KaC_DESCRIPTION",
+    "I18N_EXPLORATION_rDJojPOc0KgJ_TITLE",
+    "I18N_EXPLORATION_rDJojPOc0KgJ_DESCRIPTION",
+    "I18N_EXPLORATION_kYSrbNDCv5sH_TITLE",
+    "I18N_EXPLORATION_kYSrbNDCv5sH_DESCRIPTION",
+    "I18N_EXPLORATION_K89Hgj2qRSzw_TITLE",
+    "I18N_EXPLORATION_K89Hgj2qRSzw_DESCRIPTION",
+    "I18N_EXPLORATION_lNpxiuqufPiw_TITLE",
+    "I18N_EXPLORATION_lNpxiuqufPiw_DESCRIPTION",
+    "I18N_EXPLORATION_Jbgc3MlRiY07_TITLE",
+    "I18N_EXPLORATION_Jbgc3MlRiY07_DESCRIPTION",
+    "I18N_EXPLORATION_rwN3YPG9XWZa_TITLE",
+    "I18N_EXPLORATION_rwN3YPG9XWZa_DESCRIPTION",
+    "I18N_EXPLORATION_nTMZwH7i0DdW_TITLE",
+    "I18N_EXPLORATION_nTMZwH7i0DdW_DESCRIPTION",
+    "I18N_EXPLORATION_IrbGLTicm0BI_TITLE",
+    "I18N_EXPLORATION_IrbGLTicm0BI_DESCRIPTION",
+    "I18N_EXPLORATION_v8fonNnX4Ub1_TITLE",
+    "I18N_EXPLORATION_v8fonNnX4Ub1_DESCRIPTION",
+    "I18N_EXPLORATION_ibeLZqbbjbKF_TITLE",
+    "I18N_EXPLORATION_ibeLZqbbjbKF_DESCRIPTION",
+    "I18N_EXPLORATION_BDIln52yGfeH_TITLE",
+    "I18N_EXPLORATION_BDIln52yGfeH_DESCRIPTION",
+    "I18N_EXPLORATION_SR1IKIdLxnm1_TITLE",
+    "I18N_EXPLORATION_SR1IKIdLxnm1_DESCRIPTION",
+    "I18N_EXPLORATION_m1nvGABWeUoh_TITLE",
+    "I18N_EXPLORATION_m1nvGABWeUoh_DESCRIPTION",
+    "I18N_EXPLORATION_zNb0Bh27QtJ4_TITLE",
+    "I18N_EXPLORATION_zNb0Bh27QtJ4_DESCRIPTION",
+    "I18N_EXPLORATION_5I4srORrwjt2_TITLE",
+    "I18N_EXPLORATION_5I4srORrwjt2_DESCRIPTION",
+    "I18N_EXPLORATION_aqJ07xrTFNLF_TITLE",
+    "I18N_EXPLORATION_aqJ07xrTFNLF_DESCRIPTION",
+    "I18N_EXPLORATION_0X0KC9DXWwra_TITLE",
+    "I18N_EXPLORATION_0X0KC9DXWwra_DESCRIPTION",
+    "I18N_STORY_RRVMHsZ5Mobh_TITLE",
+    "I18N_STORY_RRVMHsZ5Mobh_DESCRIPTION",
+    "I18N_STORY_Qu6THxP29tOy_TITLE",
+    "I18N_STORY_Qu6THxP29tOy_DESCRIPTION",
+    "I18N_STORY_vfJDB3JAdwIx_TITLE",
+    "I18N_STORY_vfJDB3JAdwIx_DESCRIPTION",
+    "I18N_STORY_rqnxwceQyFnv_TITLE",
+    "I18N_STORY_rqnxwceQyFnv_DESCRIPTION",
+    "I18N_STORY_3M5VBajMccXO_TITLE",
+    "I18N_STORY_3M5VBajMccXO_DESCRIPTION",
+    "I18N_STORY_JhiDkq01dqgC_TITLE",
+    "I18N_STORY_JhiDkq01dqgC_DESCRIPTION",
+    "I18N_STORY_ialKSV0VYV0B_TITLE",
+    "I18N_STORY_ialKSV0VYV0B_DESCRIPTION",
+    "I18N_SUBTOPIC_iX9kYCjnouWN_place-names-and-values_TITLE",
+    "I18N_SUBTOPIC_iX9kYCjnouWN_naming-numbers_TITLE",
+    "I18N_SUBTOPIC_iX9kYCjnouWN_comparing-numbers_TITLE",
+    "I18N_SUBTOPIC_iX9kYCjnouWN_rounding-numbers_TITLE",
+    "I18N_SUBTOPIC_sWBXKH4PZcK6_adding-numbers_TITLE",
+    "I18N_SUBTOPIC_sWBXKH4PZcK6_subtracting-numbers_TITLE",
+    "I18N_SUBTOPIC_sWBXKH4PZcK6_addition-subtraction_TITLE",
+    "I18N_SUBTOPIC_sWBXKH4PZcK6_estimation_TITLE",
+    "I18N_SUBTOPIC_sWBXKH4PZcK6_sequences _TITLE",
+    "I18N_SUBTOPIC_C4fqwrvqWpRm_basic-concepts_TITLE",
+    "I18N_SUBTOPIC_C4fqwrvqWpRm_memorizing-expressions_TITLE",
+    "I18N_SUBTOPIC_C4fqwrvqWpRm_multiplication-techniques_TITLE",
+    "I18N_SUBTOPIC_C4fqwrvqWpRm_rules-to-simplify_TITLE",
+    "I18N_SUBTOPIC_qW12maD4hiA8_basic-concepts_TITLE",
+    "I18N_SUBTOPIC_qW12maD4hiA8_techniques-of-division_TITLE",
+    "I18N_SUBTOPIC_qW12maD4hiA8_problem-solving_TITLE",
+    "I18N_SUBTOPIC_dLmjjMDbCcrf_order-of-operations_TITLE",
+    "I18N_SUBTOPIC_dLmjjMDbCcrf_variables_TITLE",
+    "I18N_SUBTOPIC_dLmjjMDbCcrf_modelling-scenarios_TITLE",
+    "I18N_SUBTOPIC_dLmjjMDbCcrf_problem-solving_TITLE",
+    "I18N_SUBTOPIC_dLmjjMDbCcrf_algebraic-expressions_TITLE",
+    "I18N_SUBTOPIC_dLmjjMDbCcrf_solving-equations_TITLE",
+    "I18N_SUBTOPIC_0abdeaJhmfPm_what-is-a-fraction_TITLE",
+    "I18N_SUBTOPIC_0abdeaJhmfPm_fractions-of-a-group_TITLE",
+    "I18N_SUBTOPIC_0abdeaJhmfPm_equivalent-fractions_TITLE",
+    "I18N_SUBTOPIC_0abdeaJhmfPm_mixed-numbers_TITLE",
+    "I18N_SUBTOPIC_0abdeaJhmfPm_number-line_TITLE",
+    "I18N_SUBTOPIC_0abdeaJhmfPm_comparing-fractions_TITLE",
+    "I18N_SUBTOPIC_0abdeaJhmfPm_adding-fractions_TITLE",
+    "I18N_SUBTOPIC_0abdeaJhmfPm_subtracting-fractions_TITLE",
+    "I18N_SUBTOPIC_0abdeaJhmfPm_multiplying-fractions_TITLE",
+    "I18N_SUBTOPIC_0abdeaJhmfPm_dividing-fractions_TITLE",
+    "I18N_SUBTOPIC_5g0nxGUmx5J5_what-is-a-ratio_TITLE",
+    "I18N_SUBTOPIC_5g0nxGUmx5J5_equivalent-ratios_TITLE",
+    "I18N_SUBTOPIC_5g0nxGUmx5J5_calculations-with-ratios_TITLE",
+    "I18N_SUBTOPIC_5g0nxGUmx5J5_combining-ratios_TITLE"
+  ],
 
   "ALLOWED_THUMBNAIL_BG_COLORS": {
     "chapter": ["#F8BF74", "#D68F78", "#8EBBB6", "#B3D8F1"],
@@ -77,6 +287,7 @@ export = {
   },
 
   "ALLOWED_IMAGE_FORMATS": ["svg", "png", "jpeg", "jpg", "gif"],
+  "MAX_ALLOWED_IMAGE_SIZE_IN_KB_FOR_BLOG": 1024,
 
   "TASK_TYPE_HIGH_BOUNCE_RATE": "high_bounce_rate",
   "TASK_TYPE_INEFFECTIVE_FEEDBACK_LOOP": "ineffective_feedback_loop",
@@ -91,20 +302,38 @@ export = {
 
   "TASK_TARGET_TYPE_STATE": "state",
 
+  // Filters for adding new syllabus items to learner groups.
+  "DEFAULT_ADD_SYLLABUS_FILTER": "All",
+  "LEARNER_GROUP_ADD_STORY_FILTER": "Story",
+  "LEARNER_GROUP_ADD_SKILL_FILTER": "Skill",
+
+  // Roles in exploration.
+  "ROLE_OWNER": "owner",
+  "ROLE_EDITOR": "editor",
+  "ROLE_VOICE_ARTIST": "voice artist",
+  "ROLE_VIEWER": "viewer",
+
+  // The supported tags for the mailing list subscriptions.
+  "MAILING_LIST_ANDROID_TAG": "Android",
+  "MAILING_LIST_WEB_TAG": "Web",
   // Regex to validate the format of Math rich-text component SVGs. If this is
   // changed in the future, the existing filenames on the server should be
   // handled as well.
   // eslint-disable-next-line max-len
   "MATH_SVG_FILENAME_REGEX": "mathImg_[a-z0-9_]+_height_[0-9d]+_width_[0-9d]+_vertical_[0-9d]+.(svg)$",
 
-  // The SVG tag-specific attribute whitelist is based on the list of tags and
+  // This regex validates whether a given string is in the format of YYYY-MM-DD
+  // format.
+  "DATE_REGEX": "^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}$",
+
+  // The SVG tag-specific attribute allowlist is based on the list of tags and
   // and attributes specified in this project:
   // https://github.com/cure53/DOMPurify
   // The mapping of SVG tag to attribute is based on the following pages:
   // https://github.com/wooorm/svg-element-attributes/blob/master/index.json
   // https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute
   // https://www.w3schools.com/graphics/svg_reference.asp
-  "SVG_ATTRS_WHITELIST": {
+  "SVG_ATTRS_ALLOWLIST": {
     "a": [
       "about",
       "alignment-baseline",
@@ -4733,179 +4962,389 @@ export = {
     "Welcome": "#992a2b"
   },
 
+  "INVALID_RTE_COMPONENTS_FOR_BLOG_POST_EDITOR": ["tabs", "skillreview"],
+
+  // This is linked to VALID_RTE_COMPONENTS in android_validation_constants.
+  "VALID_RTE_COMPONENTS_FOR_ANDROID": ["image", "math", "skillreview"],
+
+  // This is linked to SUPPORTED_LANGUAGES in android_validation_constants.
+  "SUPPORTED_CONTENT_LANGUAGES_FOR_ANDROID": [{
+    "code": "en",
+    "description": "English",
+    "decimal_separator": "."
+  }],
+
   // List of supported content languages in which we can create explorations or
   // other entities. Each description has a parenthetical part that may be
   // stripped out to give a shorter description.
+  // The decimal separators were derived from https://en.wikipedia.org/w/index.php?title=Decimal_separator&section=9#Usage_worldwide.
   "SUPPORTED_CONTENT_LANGUAGES": [{
     "code": "en",
-    "description": "English"
+    "description": "English",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "ar",
-    "description": "العربية (Arabic)"
+    "description": "العربية (Arabic)",
+    "direction": "rtl",
+    "decimal_separator": ","
   }, {
     "code": "sq",
-    "description": "shqip (Albanian)"
+    "description": "shqip (Albanian)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "code": "am",
+    "description": "አማርኛ (Amharic)",
+    "direction": "ltr",
+    "decimal_separator": "."
+  }, {
+    "code": "az",
+    "description": "Azeri (Azerbaijani)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "bg",
-    "description": "български (Bulgarian)"
+    "description": "български (Bulgarian)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "bn",
-    "description": "বাংলা (Bangla)"
+    "description": "বাংলা (Bangla)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "ca",
-    "description": "català (Catalan)"
+    "description": "català (Catalan)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "zh",
-    "description": "中文 (Chinese)"
+    "description": "中文 (Chinese)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "hr",
-    "description": "hrvatski (Croatian)"
+    "description": "hrvatski (Croatian)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "cs",
-    "description": "čeština (Czech)"
+    "description": "čeština (Czech)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "da",
-    "description": "dansk (Danish)"
-  }, {
-    "code": "prs",
-    "description": "دری (Dari)"
+    "description": "dansk (Danish)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "nl",
-    "description": "Nederlands (Dutch)"
+    "description": "Nederlands (Dutch)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "code": "fat",
+    "description": "Fanti",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "tl",
-    "description": "Filipino (Filipino)"
+    "description": "Filipino (Filipino)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "fi",
-    "description": "suomi (Finnish)"
+    "description": "suomi (Finnish)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "fr",
-    "description": "français (French)"
+    "description": "français (French)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "code": "lg",
+    "description": "Luganda (Ganda)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "de",
-    "description": "Deutsch (German)"
+    "description": "Deutsch (German)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "el",
-    "description": "ελληνικά (Greek)"
+    "description": "ελληνικά (Greek)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "code": "ha",
+    "description": "Halshen Hausa (Hausa)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "he",
-    "description": "עברית (Hebrew)"
+    "description": "עברית (Hebrew)",
+    "direction": "rtl",
+    "decimal_separator": "."
   }, {
     "code": "hi",
-    "description": "हिन्दी (Hindi)"
+    "description": "हिन्दी (Hindi)",
+    "direction": "ltr",
+    "decimal_separator": "."
+  }, {
+    "code": "hi-en",
+    "description": "Hinglish",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "hu",
-    "description": "magyar (Hungarian)"
+    "description": "magyar (Hungarian)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "id",
-    "description": "Bahasa Indonesia (Indonesian)"
+    "description": "Bahasa Indonesia (Indonesian)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "code": "ig",
+    "description": "Ásụ̀sụ́ Ìgbò (Igbo)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "it",
-    "description": "italiano (Italian)"
+    "description": "italiano (Italian)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "ja",
-    "description": "日本語 (Japanese)"
+    "description": "日本語 (Japanese)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "kab",
-    "description": "Taqbaylit (Kabyle)"
+    "description": "Taqbaylit (Kabyle)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "ko",
-    "description": "한국어 (Korean)"
+    "description": "한국어 (Korean)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "lv",
-    "description": "latviešu (Latvian)"
+    "description": "latviešu (Latvian)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "lt",
-    "description": "lietuvių (Lithuanian)"
+    "description": "lietuvių (Lithuanian)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "code": "mr",
+    "description": "मराठी (Marathi)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "no",
-    "description": "Norsk (Norwegian)"
+    "description": "Norsk (Norwegian)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "fa",
-    "description": "فارسی (Persian)"
+    "description": "فارسی (Persian)",
+    "direction": "rtl",
+    "decimal_separator": ","
+  }, {
+    "code": "pcm",
+    "description": "Naijá (Nigerian Pidgin)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "pl",
-    "description": "polszczyzna (Polish)"
+    "description": "polszczyzna (Polish)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "code": "prs",
+    "description": "دری (Dari)",
+    "direction": "rtl",
+    "decimal_separator": "."
   }, {
     "code": "pt",
-    "description": "português (Portuguese)"
+    "description": "português (Portuguese)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "ro",
-    "description": "română (Romanian)"
+    "description": "română (Romanian)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "ru",
-    "description": "pусский (Russian)"
+    "description": "pусский (Russian)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "sr",
-    "description": "cрпски (Serbian)"
+    "description": "cрпски (Serbian)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "sk",
-    "description": "slovenčina (Slovak)"
+    "description": "slovenčina (Slovak)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "sl",
-    "description": "slovenščina (Slovenian)"
+    "description": "slovenščina (Slovenian)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "es",
-    "description": "español (Spanish)"
+    "description": "español (Spanish)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "code": "sw",
+    "description": "kiswahili (Swahili)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "sv",
-    "description": "svenska (Swedish)"
+    "description": "svenska (Swedish)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "code": "ta",
+    "description": "தமிழ் (Tamil)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "th",
-    "description": "ภาษาไทย (Thai)"
+    "description": "ภาษาไทย (Thai)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "code": "tr",
-    "description": "Türkçe (Turkish)"
+    "description": "Türkçe (Turkish)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "code": "uk",
-    "description": "yкраїнська (Ukrainian)"
+    "description": "yкраїнська (Ukrainian)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "code": "ur",
+    "description": "اُردُو (Urdu)",
+    "direction": "rtl",
+    "decimal_separator": ","
   }, {
     "code": "vi",
-    "description": "Tiếng Việt (Vietnamese)"
+    "description": "Tiếng Việt (Vietnamese)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "code": "yo",
+    "description": "Èdè Yoùbá (Yoruba)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }],
 
   // NOTE TO DEVELOPERS: While adding another language, please ensure that the
-  // languages are in alphabetical order.
+  // languages are roughly in order of how much support we have for them in
+  // terms of lesson content translations.
   // List of supported site languages in which the platform is offered.
+  // The decimal separators were derived from https://en.wikipedia.org/w/index.php?title=Decimal_separator&section=9#Usage_worldwide.
   "SUPPORTED_SITE_LANGUAGES": [{
-    "id": "id",
-    "text": "Bahasa Indonesia"
-  }, {
     "id": "en",
-    "text": "English"
-  }, {
-    "id": "es",
-    "text": "Español"
-  }, {
-    "id": "fr",
-    "text": "français (French)"
+    "text": "English",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "id": "pt-br",
-    "text": "Português (Brasil)"
+    "text": "Português (Brasil)",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "id": "ar",
-    "text": "العربية"
-  }, {
-    "id": "kab",
-    "text": "Taqbaylit (Kabyle)"
-  }, {
-    "id": "vi",
-    "text": "Tiếng Việt"
-  }, {
-    "id": "tr",
-    "text": "Türkçe (Turkish)"
+    "text": "العربية",
+    "direction": "rtl",
+    "decimal_separator": ","
   }, {
     "id": "hi",
-    "text": "हिन्दी"
+    "text": "हिन्दी",
+    "direction": "ltr",
+    "decimal_separator": "."
+  }, {
+    "id": "es",
+    "text": "Español",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "id": "bn",
-    "text": "বাংলা"
+    "text": "বাংলা",
+    "direction": "ltr",
+    "decimal_separator": "."
+  }, {
+    "id": "fr",
+    "text": "français",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "id": "id",
+    "text": "Bahasa Indonesia",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "id": "pcm",
+    "text": "Naijá (Nigerian Pidgin)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "id": "uk",
+    "text": "украї́нська мо́ва",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "id": "sk",
+    "text": "slovenčina",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "id": "nl",
+    "text": "Nederlands",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "id": "kab",
+    "text": "Taqbaylit (Kabyle)",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "id": "vi",
+    "text": "Tiếng Việt",
+    "direction": "ltr",
+    "decimal_separator": ","
+  }, {
+    "id": "tr",
+    "text": "Türkçe",
+    "direction": "ltr",
+    "decimal_separator": ","
   }, {
     "id": "zh-hans",
-    "text": "中文(简体)"
+    "text": "中文(简体)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }, {
     "id": "zh-hant",
-    "text": "中文(繁體)"
+    "text": "中文(繁體)",
+    "direction": "ltr",
+    "decimal_separator": "."
   }],
 
   // List of supported audio languages in which we have audio and translations
@@ -4915,187 +5354,308 @@ export = {
   "SUPPORTED_AUDIO_LANGUAGES": [{
     "id": "en",
     "description": "English",
-    "relatedLanguages": ["en"]
+    "relatedLanguages": ["en"],
+    "direction": "ltr"
   }, {
     "id": "ak",
-    "description": "Akan",
-    "relatedLanguages": ["ak"]
+    "description": "Ákán (Akan)",
+    "relatedLanguages": ["ak"],
+    "direction": "ltr"
   }, {
     "id": "sq",
-    "description": "Albanian",
-    "relatedLanguages": ["sq"]
+    "description": "shqip (Albanian)",
+    "relatedLanguages": ["sq"],
+    "direction": "ltr"
+  }, {
+    "id": "am",
+    "description": "አማርኛ (Amharic)",
+    "relatedLanguages": ["am"],
+    "direction": "ltr"
   }, {
     "id": "ar",
-    "description": "Arabic",
-    "relatedLanguages": ["ar"]
+    "description": "العربية (Arabic)",
+    "relatedLanguages": ["ar"],
+    "direction": "rtl"
+  }, {
+    "id": "az",
+    "description": "Azeri (Azerbaijani)",
+    "relatedLanguages": ["az"],
+    "direction": "ltr"
   }, {
     "id": "bg",
-    "description": "Bulgarian",
-    "relatedLanguages": ["bg"]
+    "description": "български (Bulgarian)",
+    "relatedLanguages": ["bg"],
+    "direction": "ltr"
   }, {
     "id": "bn",
-    "description": "Bangla",
-    "relatedLanguages": ["bn"]
+    "description": "বাংলা (Bangla)",
+    "relatedLanguages": ["bn"],
+    "direction": "ltr"
   }, {
     "id": "ms",
-    "description": "Bahasa Melayu",
-    "relatedLanguages": ["ms"]
+    "description": "بهاس ملايو(Bahasa Melayu)",
+    "relatedLanguages": ["ms"],
+    "direction": "ltr"
   }, {
     "id": "ca",
-    "description": "Catalan",
-    "relatedLanguages": ["ca"]
+    "description": "català (Catalan)",
+    "relatedLanguages": ["ca"],
+    "direction": "ltr"
   }, {
     "id": "zh",
-    "description": "Chinese",
-    "relatedLanguages": ["zh"]
+    "description": "中文 (Chinese)",
+    "relatedLanguages": ["zh"],
+    "direction": "ltr"
   }, {
     "id": "hr",
-    "description": "Croatian",
-    "relatedLanguages": ["hr"]
+    "description": "hrvatski (Croatian)",
+    "relatedLanguages": ["hr"],
+    "direction": "ltr"
   }, {
     "id": "cs",
-    "description": "Czech",
-    "relatedLanguages": ["cs"]
+    "description": "čeština (Czech)",
+    "relatedLanguages": ["cs"],
+    "direction": "ltr"
   }, {
     "id": "da",
-    "description": "Danish",
-    "relatedLanguages": ["da"]
+    "description": "dansk (Danish)",
+    "relatedLanguages": ["da"],
+    "direction": "ltr"
+  }, {
+    "id": "prs",
+    "description": "دری (Dari)",
+    "relatedLanguages": ["prs"],
+    "direction": "rtl"
   }, {
     "id": "nl",
-    "description": "Dutch",
-    "relatedLanguages": ["nl"]
+    "description": "Nederlands (Dutch)",
+    "relatedLanguages": ["nl"],
+    "direction": "ltr"
   }, {
     "id": "ee",
-    "description": "Ewe",
-    "relatedLanguages": ["ee"]
+    "description": "Eʋegbe (Ewe)",
+    "relatedLanguages": ["ee"],
+    "direction": "ltr"
+  }, {
+    "id": "fat",
+    "description": "Fante (Fanti)",
+    "relatedLanguages": ["ak", "fat"],
+    "direction": "ltr"
   }, {
     "id": "tl",
-    "description": "Filipino",
-    "relatedLanguages": ["tl"]
+    "description": "Filipino (Filipino)",
+    "relatedLanguages": ["tl"],
+    "direction": "ltr"
   }, {
     "id": "fi",
-    "description": "Finnish",
-    "relatedLanguages": ["fi"]
+    "description": "suomi (Finnish)",
+    "relatedLanguages": ["fi"],
+    "direction": "ltr"
   }, {
     "id": "fr",
-    "description": "French",
-    "relatedLanguages": ["fr"]
+    "description": "français (French)",
+    "relatedLanguages": ["fr"],
+    "direction": "ltr"
+  }, {
+    "id": "lg",
+    "description": "Luganda (Ganda)",
+    "relatedLanguages": ["lg"],
+    "direction": "ltr"
   }, {
     "id": "de",
-    "description": "German",
-    "relatedLanguages": ["de"]
+    "description": "Deutsch (German)",
+    "relatedLanguages": ["de"],
+    "direction": "ltr"
   }, {
     "id": "el",
-    "description": "Greek",
-    "relatedLanguages": ["el"]
+    "description": "ελληνικά (Greek)",
+    "relatedLanguages": ["el"],
+    "direction": "ltr"
   }, {
     "id": "gaa",
-    "description": "Ga",
-    "relatedLanguages": ["gaa"]
+    "description": "Gã (Ga)",
+    "relatedLanguages": ["gaa"],
+    "direction": "ltr"
+  }, {
+    "id": "ha",
+    "description": "Halshen Hausa (Hausa)",
+    "relatedLanguages": ["ha"],
+    "direction": "ltr"
   }, {
     "id": "he",
-    "description": "Hebrew",
-    "relatedLanguages": ["he"]
+    "description": "עברית (Hebrew)",
+    "relatedLanguages": ["he"],
+    "direction": "rtl"
   }, {
     "id": "hi",
-    "description": "Hindi",
-    "relatedLanguages": ["hi"]
+    "description": "हिन्दी (Hindi)",
+    "relatedLanguages": ["hi"],
+    "direction": "ltr"
   }, {
     "id": "hi-en",
     "description": "Hinglish",
-    "relatedLanguages": ["hi", "en"]
+    "relatedLanguages": ["hi", "en"],
+    "direction": "ltr"
   }, {
     "id": "hu",
-    "description": "Hungarian",
-    "relatedLanguages": ["hu"]
+    "description": "magyar (Hungarian)",
+    "relatedLanguages": ["hu"],
+    "direction": "ltr"
   }, {
     "id": "id",
-    "description": "Indonesian",
-    "relatedLanguages": ["id"]
+    "description": "Bahasa Indonesia (Indonesian)",
+    "relatedLanguages": ["id"],
+    "direction": "ltr"
+  }, {
+    "id": "ig",
+    "description": "Ásụ̀sụ́ Ìgbò (Igbo)",
+    "relatedLanguages": ["igbo"],
+    "direction": "ltr"
   }, {
     "id": "it",
-    "description": "Italian",
-    "relatedLanguages": ["it"]
+    "description": "italiano (Italian)",
+    "relatedLanguages": ["it"],
+    "direction": "ltr"
   }, {
     "id": "ja",
-    "description": "Japanese",
-    "relatedLanguages": ["ja"]
+    "description": "日本語 (Japanese)",
+    "relatedLanguages": ["ja"],
+    "direction": "ltr"
   }, {
     "id": "kab",
-    "description": "Kabyle",
-    "relatedLanguages": ["kab"]
+    "description": "Taqbaylit (Kabyle)",
+    "relatedLanguages": ["kab"],
+    "direction": "ltr"
   }, {
     "id": "ko",
-    "description": "Korean",
-    "relatedLanguages": ["ko"]
+    "description": "한국어 (Korean)",
+    "relatedLanguages": ["ko"],
+    "direction": "ltr"
   }, {
     "id": "lv",
-    "description": "Latvian",
-    "relatedLanguages": ["lv"]
+    "description": "latviešu (Latvian)",
+    "relatedLanguages": ["lv"],
+    "direction": "ltr"
   }, {
     "id": "lt",
-    "description": "Lithuanian",
-    "relatedLanguages": ["lt"]
+    "description": "lietuvių (Lithuanian)",
+    "relatedLanguages": ["lt"],
+    "direction": "ltr"
+  }, {
+    "id": "mr",
+    "description": "मराठी (Marathi)",
+    "relatedLanguages": ["mr"],
+    "direction": "ltr"
   }, {
     "id": "no",
-    "description": "Norwegian",
-    "relatedLanguages": ["no"]
+    "description": "Norsk (Norwegian)",
+    "relatedLanguages": ["no"],
+    "direction": "ltr"
   }, {
     "id": "fa",
-    "description": "Persian",
-    "relatedLanguages": ["fa"]
+    "description": "فارسی (Persian)",
+    "relatedLanguages": ["fa"],
+    "direction": "rtl"
+  }, {
+    "id": "pcm",
+    "description": "Naijá (Nigerian Pidgin)",
+    "relatedLanguages": ["pcm"],
+    "direction": "ltr"
   }, {
     "id": "pl",
-    "description": "Polish",
-    "relatedLanguages": ["pl"]
+    "description": "polszczyzna (Polish)",
+    "relatedLanguages": ["pl"],
+    "direction": "ltr"
   }, {
     "id": "pt",
-    "description": "Portuguese",
-    "relatedLanguages": ["pt"]
+    "description": "português (Portuguese)",
+    "relatedLanguages": ["pt"],
+    "direction": "ltr"
+  }, {
+    "id": "ps",
+    "description": "پښتو (Pashto)",
+    "relatedLanguages": ["ps"],
+    "direction": "rtl"
   }, {
     "id": "ro",
-    "description": "Romanian",
-    "relatedLanguages": ["ro"]
+    "description": "română (Romanian)",
+    "relatedLanguages": ["ro"],
+    "direction": "ltr"
   }, {
     "id": "ru",
-    "description": "Russian",
-    "relatedLanguages": ["ru"]
+    "description": "pусский (Russian)",
+    "relatedLanguages": ["ru"],
+    "direction": "ltr"
   }, {
     "id": "sr",
-    "description": "Serbian",
-    "relatedLanguages": ["sr"]
+    "description": "cрпски (Serbian)",
+    "relatedLanguages": ["sr"],
+    "direction": "ltr"
   }, {
     "id": "sk",
-    "description": "Slovak",
-    "relatedLanguages": ["sk"]
+    "description": "slovenčina (Slovak)",
+    "relatedLanguages": ["sk"],
+    "direction": "ltr"
   }, {
     "id": "sl",
-    "description": "Slovenian",
-    "relatedLanguages": ["sl"]
+    "description": "slovenščina (Slovenian)",
+    "relatedLanguages": ["sl"],
+    "direction": "ltr"
   }, {
     "id": "es",
-    "description": "Spanish",
-    "relatedLanguages": ["es"]
+    "description": "español (Spanish)",
+    "relatedLanguages": ["es"],
+    "direction": "ltr"
+  }, {
+    "id": "sw",
+    "description": "kiswahili (Swahili)",
+    "relatedLanguages": ["sw"],
+    "direction": "ltr"
   }, {
     "id": "sv",
-    "description": "Swedish",
-    "relatedLanguages": ["sw"]
+    "description": "svenska (Swedish)",
+    "relatedLanguages": ["sv"],
+    "direction": "ltr"
+  }, {
+    "id": "ta",
+    "description": "தமிழ் (Tamil)",
+    "relatedLanguages": ["ta"],
+    "direction": "ltr"
+  }, {
+    "id": "te",
+    "description": "తెలుగు (Telugu)",
+    "relatedLanguages": ["te"],
+    "direction": "ltr"
   }, {
     "id": "th",
-    "description": "Thai",
-    "relatedLanguages": ["th"]
+    "description": "ภาษาไทย (Thai)",
+    "relatedLanguages": ["th"],
+    "direction": "ltr"
   }, {
     "id": "tr",
-    "description": "Turkish",
-    "relatedLanguages": ["tr"]
+    "description": "Türkçe (Turkish)",
+    "relatedLanguages": ["tr"],
+    "direction": "ltr"
   }, {
     "id": "uk",
-    "description": "Ukrainian",
-    "relatedLanguages": ["uk"]
+    "description": "yкраїнська (Ukrainian)",
+    "relatedLanguages": ["uk"],
+    "direction": "ltr"
+  }, {
+    "id": "ur",
+    "description": "اُردُو (Urdu)",
+    "relatedLanguages": ["ur"],
+    "direction": "rtl"
   }, {
     "id": "vi",
-    "description": "Vietnamese",
-    "relatedLanguages": ["vi"]
+    "description": "Tiếng Việt (Vietnamese)",
+    "relatedLanguages": ["vi"],
+    "direction": "ltr"
+  }, {
+    "id": "yo",
+    "description": "Èdè Yoùbá (Yoruba)",
+    "relatedLanguages": ["yo"],
+    "direction": "ltr"
   }],
 
   "AUTOGENERATED_AUDIO_LANGUAGES": [{
@@ -5106,20 +5666,113 @@ export = {
     "speechSynthesisCodeMobile": "en_US"
   }],
 
+  "TRANSLATION_TIPS": {
+    // Arabic.
+    "ar": [
+      // eslint-disable-next-line max-len
+      "In Oppia, we prefer to use simple words that can be easily understood by children. For example, we use “تابع قائلًا” instead of “أردف قائلًا”. Furthermore, the English words that are used in the Arab society regularly can be translated as follows; Arabic word (The regularly used English word). For example, we can translate the word cupcakes this way; كعك القوالب الصغيرة (cupcakes). ",
+      // eslint-disable-next-line max-len
+      "Use respectful ways and formal prefixes to address people. For example, use “سيدي” and “سيدتي”. ",
+      // eslint-disable-next-line max-len
+      "If the name has a meaning in Arabic, or in English, such as Baker or Crumb, always use words that indicate that they are names before writing the name itself. For example, you can use one of the following words depending on the context; “السيد، السيدة، العم، الجد، الجدة، الآنسة.”",
+      "Use the same voice (active or passive) as in the original English Text",
+      // eslint-disable-next-line max-len
+      "Preserve punctuation and bolding. If the original content has bold text, make sure it is bold in Arabic as well. If there are bullet points, double quotes, etc., make sure that the translated content also has bullet points and double quotes.",
+      // eslint-disable-next-line max-len
+      "Use the hyperlinks to different cards as shown in the original English Text."
+    ],
+    // Bangla.
+    "bn": [
+      // eslint-disable-next-line max-len
+      "Use simple Bangla words that are used in daily communication. Note that common English words (pencil, etc.) can be written as transliterations (e.g পেন্সিল ).",
+      "Use proper punctuation.",
+      "Full stop = |",
+      // eslint-disable-next-line max-len
+      "Use the same voice (active or passive) as in the original English text.",
+      // eslint-disable-next-line max-len
+      "Preserve punctuation and bolding. If the original content has bold text, make sure it is bold in Bangla as well. If there are bullet points, double quotes, etc., make sure that the translated content also has bullet points and double quotes."
+    ],
+    // Chinese.
+    "zh": [
+      // eslint-disable-next-line max-len
+      "Write fractions or numbers as they are, unless they are written out in words. For instance, one-fifth would be (五分之一)",
+      // eslint-disable-next-line max-len
+      "When referring to Mr. Baker (or, in general, Mr./Ms. followed by an occupation), leave it as Baker先生, since in certain cases Baker is the last name.",
+      "Make sure to use the correct punctuation:",
+      "Period = 。",
+      "Comma for compound sentences or translation phrases = ，",
+      "Comma for list of numbers or objects = 、",
+      // eslint-disable-next-line max-len
+      "Preserve bolding. If the original content has bold text, make sure it is bold in Chinese as well.",
+      // eslint-disable-next-line max-len
+      "Make sure that you have selected the correct words (e.g. words such as 再 and 在 )."
+    ],
+    // Hindi.
+    "hi": [
+      // eslint-disable-next-line max-len
+      "Prefer simple Hindi words that are used in daily communication Note that common English words (pen, paper, cake, etc.) can be written as transliterations (पेन, पेपर, केक). For harder words, include the English word in parentheses, e.g. अंश (Numerator), हर (Denominator), भिन्न (Fraction).",
+      // eslint-disable-next-line max-len
+      "Use respectful pronouns (like “आप” instead of “तुम/तू ”) and a corresponding respectful tone like “करिये, करेंगे”.",
+      // eslint-disable-next-line max-len
+      "Feel free to change the voice and order of phrases to make the text readable.",
+      // eslint-disable-next-line max-len
+      "Preserve punctuation and bolding. If the original content has bold text, make sure it is bold in Hindi as well. If there are bullet points, double quotes, etc., make sure that the translated content also has bullet points and double quotes.",
+      // eslint-disable-next-line max-len
+      "If the original card has “components” (such as pictures, links, and equations), these need to be added to the translated content. You can use the “Copy tool” for this -- click on the Copy tool and then click on the component you want to carry over. Also, double-click on the image and translate the alt text (and caption, if any).",
+      // eslint-disable-next-line max-len
+      "Refer to Glossary - https://docs.google.com/spreadsheets/d/13NMEnYqLZuMbeX1Z6XXG-femHkKNAN8KwjhaC67EkxI/edit#gid=0"
+    ],
+    // Spanish.
+    "es": [
+      "Include proper punctuation, ¡blank!, ¿question? and accent marks.",
+      // eslint-disable-next-line max-len
+      "In Spanish, the nouns are usually gendered. Make sure to use the correct article gender for the noun gender (el gato, la casa , las mujeres, los hombres etc.) El is usually used for masculine singular and la is usually for feminine singular. Los for masculine plural and las for feminine plural.",
+      // eslint-disable-next-line max-len
+      "Try to make sure that the accents are placed correctly as it can make a big difference in meaning for the reader (tu = your vs. tú = informal you, si = if vs. sí = yes).",
+      // eslint-disable-next-line max-len
+      "Preserve punctuation and bolding. If the original content has bold text, make sure it is bold in Spanish as well. If there are bullet points, double quotes, etc., make sure that the translated content also has bullet points and double quotes."
+    ],
+    // Portuguese.
+    "pt": [
+      // eslint-disable-next-line max-len
+      "When translating names of mathematical terms, look for how these names are used in Brazilian education/literature instead of translating literally. For example, while the names may be similar in some cases (e.g. \"The Commutative Property of Multiplication\" would be \"A Propriedade Comutativa da Multiplicação\"), in other cases the literal translation will not match the names used in Brazil (e.g. \"The Carrying Method of multiplication\" would be \"O Método Tradicional de Multiplicação\"). Also, terms like \"Place Values\" may have a different translation depending on the context, which may be \"casa\"/\"ordem\" or \"valor relativo\".",
+      // eslint-disable-next-line max-len
+      "When writing a number, remember that \",\" in English corresponds to \".\" in Portuguese, and vice-versa.",
+      // eslint-disable-next-line max-len
+      "Prefer to use friendly words and sentences for children. For example, instead of using \"Diga-me o nome...\" or \"vou pedir-lhe ajuda\", you can write the sentence with a more informal language like \"Me diga o nome...\" or \"vou pedir a sua ajuda\".",
+      // eslint-disable-next-line max-len
+      "In English some nouns/articles are neutral. In Portuguese the nouns are usually gendered. Be careful not to generate inconsistencies and make sure to use the correct article gender for the noun gender. For example: Nina and Sandra loved the cake. They went out to buy more. In Portuguese: Nina e Sandra adoraram o bolo. Elas saíram para comprar mais.",
+      // eslint-disable-next-line max-len
+      "Preserve punctuation and bolding. If the original content has bold text, make sure it is bold in Portuguese as well. If there are bullet points, double quotes, etc., make sure that the translated content also has bullet points and double quotes.",
+      // eslint-disable-next-line max-len
+      "If the original card has “components” (such as pictures, links, and equations), these need to be added to the translated content. You can use the “Copy tool” for this -- click on the Copy tool and then click on the component you want to carry over. Also, double-click on the image and translate the alt text (and caption, if any).",
+      // eslint-disable-next-line max-len
+      "Images with text in English should be edited and replaced by the same images with the same text in Portuguese. If you don't know how to edit the image, please skip the translation.",
+      // eslint-disable-next-line max-len
+      "If you think you need more context in order to get the right terms and nouns, please play the lesson once before submitting the translation.",
+      // eslint-disable-next-line max-len
+      "Keep in mind that some English puns may not work for Portuguese, so you might need to adjust them or construct the same sentence without the pun.",
+      "When translating a currency, replace \"Dollar\" for \"Real\"."
+    ]
+  },
+
   // Types of view in creator dashboard page.
   "ALLOWED_CREATOR_DASHBOARD_DISPLAY_PREFS": {
     "CARD": "card",
     "LIST": "list"
   },
 
+  "EMAIL_REGEX": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+",
+
   "ALLOWED_QUESTION_INTERACTION_CATEGORIES": [{
-    "name": "General",
+    "name": "Commonly Used",
     "interaction_ids": [
       "ImageClickInput",
       "ItemSelectionInput",
       "MultipleChoiceInput",
       "TextInput",
-      "DragAndDropSortInput"
+      "DragAndDropSortInput",
+      "NumericInput"
     ]
   }, {
     "name": "Math",
@@ -5130,9 +5783,9 @@ export = {
     ]
   }],
 
-  // These categories and interactions are displayed in the order in which they
-  // appear in the interaction selector.
-  "ALLOWED_INTERACTION_CATEGORIES": [{
+  // These are linked to the VALID_INTERACTION_IDS constant in
+  // android_validation_constants.py.
+  "ALLOWED_EXPLORATION_IN_STORY_INTERACTION_CATEGORIES": [{
     "name": "General",
     "interaction_ids": [
       "Continue",
@@ -5147,8 +5800,34 @@ export = {
     "name": "Math",
     "interaction_ids": [
       "FractionInput",
+      "NumericInput",
+      "NumericExpressionInput",
+      "AlgebraicExpressionInput",
+      "MathEquationInput",
+      "NumberWithUnits",
+      "RatioExpressionInput"
+    ]
+  }],
+
+  // These categories and interactions are displayed in the order in which they
+  // appear in the interaction selector.
+  "ALLOWED_INTERACTION_CATEGORIES": [{
+    "name": "Commonly Used",
+    "interaction_ids": [
+      "Continue",
+      "EndExploration",
+      "ImageClickInput",
+      "ItemSelectionInput",
+      "MultipleChoiceInput",
+      "NumericInput",
+      "TextInput",
+      "DragAndDropSortInput"
+    ]
+  }, {
+    "name": "Math",
+    "interaction_ids": [
+      "FractionInput",
       "GraphInput",
-      "LogicProof",
       "NumericInput",
       "SetInput",
       "NumericExpressionInput",
@@ -5175,12 +5854,21 @@ export = {
     ]
   }],
 
-  "REVIEW_CATEGORY_TRANSLATION": "translation",
-  "REVIEW_CATEGORY_VOICEOVER": "voiceover",
-  "REVIEW_CATEGORY_QUESTION": "question",
+  "MIN_CHOICES_IN_MULTIPLE_CHOICE_INPUT_CURATED_EXP": 4,
+  "MIN_CHOICES_IN_MULTIPLE_CHOICE_INPUT_REGULAR_EXP": 2,
+
+  "CONTRIBUTION_RIGHT_CATEGORY_REVIEW_TRANSLATION": "translation",
+  "CONTRIBUTION_RIGHT_CATEGORY_REVIEW_VOICEOVER": "voiceover",
+  "CONTRIBUTION_RIGHT_CATEGORY_REVIEW_QUESTION": "question",
+  "CONTRIBUTION_RIGHT_CATEGORY_SUBMIT_QUESTION": "submit_question",
+  "CONTRIBUTION_RIGHT_CATEGORIES": [
+    "translation", "voiceover", "question", "submit_question"
+  ],
+
+  "SUGGESTIONS_SORT_KEY_DATE": "Date",
 
   "ACTION_REMOVE_ALL_REVIEW_RIGHTS": "all",
-  "ACTION_REMOVE_SPECIFIC_REVIEW_RIGHTS": "specific",
+  "ACTION_REMOVE_SPECIFIC_CONTRIBUTION_RIGHTS": "specific",
   "USER_FILTER_CRITERION_USERNAME": "username",
   "USER_FILTER_CRITERION_ROLE": "role",
 
@@ -5190,6 +5878,8 @@ export = {
   "WHITELISTED_COLLECTION_IDS_FOR_SAVING_GUEST_PROGRESS": [],
 
   "FEEDBACK_SUBJECT_MAX_CHAR_LIMIT": 50,
+
+  "MAX_CURRENT_GOALS_COUNT": 5,
 
   "ACTIVITY_STATUS_PRIVATE": "private",
   "ACTIVITY_STATUS_PUBLIC": "public",
@@ -5212,7 +5902,7 @@ export = {
     "\\u001b", "\\u001c", "\\u001d", "\\u001e", "\\u001f"
   ],
 
-  "DEFAULT_SKILL_DIFFICULTY": 0.3,
+  "DEFAULT_SKILL_DIFFICULTY": 0.6,
 
   "INLINE_RTE_COMPONENTS": ["link", "math", "skillreview"],
 
@@ -5238,15 +5928,33 @@ export = {
 
   "MAX_SKILLS_PER_QUESTION": 3,
 
-  "MAX_QUESTIONS_PER_SKILL": 50,
+  "MAX_QUESTIONS_PER_SKILL": 10,
 
   "NUM_EXPLORATIONS_PER_REVIEW_TEST": 3,
 
   "NUM_QUESTIONS_PER_PAGE": 10,
 
+  "MIN_QUESTION_COUNT_FOR_A_DIAGNOSTIC_TEST_SKILL": 3,
+
+  "BULK_EMAIL_SERVICE_SIGNUP_URL": "",
+
   // The default number of opportunities to show on the contributor dashboard
   // page.
   "OPPORTUNITIES_PAGE_SIZE": 10,
+
+  // The breakpoint for mobile view for contributor dashboard in px.
+  // This value must be the same as the one specified in
+  // opportunities-list-item.component.html.
+  "OPPORTUNITIES_LIST_ITEM_MOBILE_BREAKPOINT": 700,
+
+  // Represents the string value indicating "All topics" in the Contributor
+  // Dashboard topic selector.
+  "TOPIC_SENTINEL_NAME_ALL": "All",
+
+  // Review message to display for an obsolete translation suggestion with no
+  // exploration content.
+  // eslint-disable-next-line max-len
+  "OBSOLETE_TRANSLATION_SUGGESTION_REVIEW_MSG": "The original content was deleted and no longer needs translation. Sorry about that!",
 
   // The following character limit constraints follow from
   // android_validation_constants.py. Both have to be kept in sync.
@@ -5255,6 +5963,7 @@ export = {
   // classroom in the classroom page URL. E.g. in /learn/math/...,
   // 'math' is the 'classroom URL fragment'.
   "MAX_CHARS_IN_CLASSROOM_URL_FRAGMENT": 20,
+  "MAX_CHARS_IN_CLASSROOM_NAME": 39,
   "MAX_CHARS_IN_TOPIC_NAME": 39,
   "MAX_CHARS_IN_ABBREV_TOPIC_NAME": 12,
   // This represents the maximum number of characters in the URL fragment for
@@ -5265,9 +5974,15 @@ export = {
   "MAX_CHARS_IN_SUBTOPIC_TITLE": 64,
   "MAX_CHARS_IN_SKILL_DESCRIPTION": 100,
   "MAX_CHARS_IN_STORY_TITLE": 39,
-  "MAX_CHARS_IN_CHAPTER_TITLE": 36,
+  "MAX_CHARS_IN_STORY_DESCRIPTION": 1000,
+  "MAX_CHARS_IN_EXPLORATION_TITLE": 36,
   "MAX_CHARS_IN_CHAPTER_DESCRIPTION": 152,
   "MAX_CHARS_IN_MISCONCEPTION_NAME": 100,
+  "MAX_CHARS_IN_BLOG_POST_TITLE": 65,
+  "MIN_CHARS_IN_BLOG_POST_TITLE": 5,
+  "MAX_CHARS_IN_BLOG_POST_SUMMARY": 300,
+  "MAX_CHARS_IN_LEARNER_GROUP_TITLE": 36,
+  "STORY_ID_LENGTH": 12,
   // This represents the maximum number of characters in the URL fragment for
   // story in the story page URL. E.g.
   // in /learn/math/fractions/story/bakery/..., 'bakery' is the
@@ -5278,13 +5993,22 @@ export = {
   // in /learn/math/fractions/revision/place-values, 'place-values' is the
   // 'subtopic URL fragment'.
   "MAX_CHARS_IN_SUBTOPIC_URL_FRAGMENT": 25,
+  // This is same as base_models.ID_Length.
+  "BLOG_POST_ID_LENGTH": 12,
   // The recommended length for meta tag contents. Search engines will truncate
   // results greater than this limit.
   "MAX_CHARS_IN_META_TAG_CONTENT": 160,
+  "MIN_CHARS_IN_PAGE_TITLE_FRAGMENT_FOR_WEB": 5,
   "MAX_CHARS_IN_PAGE_TITLE_FRAGMENT_FOR_WEB": 50,
+  // The maximum number of questions can exceed this by at most 3
+  // (i.e., 18 questions) in some special cases when the user has attempted 14
+  // questions and another topic is tested for more accurate results. For all
+  // other cases, 15 questions is the upper limit.
+  "MAX_ALLOWED_QUESTIONS_IN_THE_DIAGNOSTIC_TEST": 15,
 
   "NEW_STATE_TEMPLATE": {
     "classifier_model_id": null,
+    "linked_skill_id": null,
     "content": {
       "html": "",
       "content_id": "content"
@@ -5295,6 +6019,7 @@ export = {
       "answer_groups": [],
       "default_outcome": {
         "dest": "Introduction",
+        "dest_if_really_stuck": null,
         "feedback": {
           "content_id": "default_outcome",
           "html": ""
@@ -5308,38 +6033,68 @@ export = {
       "hints": [],
       "solution": null
     },
-    "next_content_id_index": 0,
     "param_changes": [],
     "recorded_voiceovers": {
-      "voiceovers_mapping": {
-        "content": {},
-        "default_outcome": {}
-      }
+      "voiceovers_mapping": {}
     },
     "solicit_answer_details": false,
-    "written_translations": {
-      "translations_mapping": {
-        "content": {},
-        "default_outcome": {}
-      }
-    }
+    "card_is_checkpoint": false
   },
 
-  // Data required for Google Analytics.
-  "ANALYTICS_ID": "",
-  "SITE_NAME_FOR_ANALYTICS": "",
+  // Data required for Firebase authentication.
+  //
+  // NOTE TO RELEASE COORDINATORS: Please change these to the production values,
+  // and change useEmulator to be false, before deploying to production.
+  "FIREBASE_CONFIG_API_KEY": "fake-api-key",
+  "FIREBASE_CONFIG_AUTH_DOMAIN": "",
+  "FIREBASE_CONFIG_PROJECT_ID": "dev-project-id",
+  "FIREBASE_CONFIG_STORAGE_BUCKET": "",
+  "FIREBASE_CONFIG_MESSAGING_SENDER_ID": "",
+  "FIREBASE_CONFIG_APP_ID": "",
+  "FIREBASE_CONFIG_GOOGLE_CLIENT_ID": "",
+
+  // The name of the cookie Oppia will place the session cookie into. The name
+  // is arbitrary. If it is changed later on, then the cookie will live on in
+  // the users' browsers as garbage (although it'd expire eventually).
+  "FIREBASE_AUTH_SESSION_COOKIE_NAME": "session",
 
   "ALLOW_YAML_FILE_UPLOAD": false,
 
   // A regular expression for tags.
   "TAG_REGEX": "^[a-z ]+$",
 
+  // A regular expression for allowed character in tags for blog post.
+  "BLOG_POST_TAG_REGEX": "^[a-zA-Z0-9 ]+$",
+
   // A regular expression for allowed characters in URL fragment fields.
   "VALID_URL_FRAGMENT_REGEX": "^[a-z]+(-[a-z]+)*$",
+
+  // A regular expression for allowed characters for thumbnail filename.
+  "VALID_THUMBNAIL_FILENAME_REGEX": "^[^.](?!.*/)(?!.*\\.\\.).*.svg$",
+
+  // A regular expression for allowed entity id's.
+  "ENTITY_ID_REGEX": "^[a-zA-Z0-9-_]{1,12}$",
+
+  // A regular expression for allowed learner group IDs.
+  "LEARNER_GROUP_ID_REGEX": "^[a-zA-Z]{1,12}$",
+
+  // A regular expression for allowed characters in Title field for Blog Post.
+  // eslint-disable-next-line max-len
+  "VALID_BLOG_POST_TITLE_REGEX": "^[a-zA-Z0-9(&!,'/)][a-zA-Z0-9(&!,'/) ]+([-:][ a-zA-Z0-9(&!,'/)]+)*$",
+
+  // A regular expression for allowed characters in URL fragment for Blog Post.
+  "VALID_URL_BLOG_FRAGMENT_REGEX": "^[a-z0-9]+(-[a-z0-9]+)*$",
+
+  // A regular expression for allowed characters in URL fragment for Blog Post.
+  // eslint-disable-next-line max-len
+  "VALID_THREAD_ID_REGEX": "(exploration|collection|skill).[a-zA-Z0-9]+.[a-zA-Z0-9=]+",
 
   // A regular expression for valid skill misconception id.
   "VALID_SKILL_MISCONCEPTION_ID_REGEX": "[A-Za-z0-9]{12}-[0-9]+",
 
+  // A regular expression for allowed characters in author name field for Author
+  // details Model.
+  "VALID_AUTHOR_NAME_REGEX": "^[a-zA-Z0-9][a-zA-Z0-9 ]+(-[a-zA-Z0-9]+)*$",
   // Invalid names for parameters used in expressions.
   "INVALID_PARAMETER_NAMES": [
     "answer", "choices", "abs", "all", "and", "any", "else",
@@ -5395,8 +6150,8 @@ export = {
     "upsilon", "phi", "chi", "psi", "omega", "Gamma", "Delta", "Theta",
     "Lambda", "Xi", "Pi", "Sigma", "Phi", "Psi", "Omega"],
 
-  // Allowed letters in the OSK.
-  "VALID_CUSTOM_OSK_LETTERS": [
+  // Valid allowed letters for math lessons.
+  "VALID_ALLOWED_VARIABLES": [
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o",
     "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D",
     "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S",
@@ -5414,6 +6169,9 @@ export = {
     "log", "ln", "sqrt", "abs", "sin", "cos", "tan", "sec", "csc", "cot",
     "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh"
   ],
+
+  // Supported functions for math interactions.
+  "SUPPORTED_FUNCTION_NAMES": ["sqrt", "abs"],
 
   "OSK_MAIN_TAB": "mainTab",
   "OSK_FUNCTIONS_TAB": "functionsTab",
@@ -5439,41 +6197,45 @@ export = {
 
   // Placeholder texts for the math interactions.
   "MATH_INTERACTION_PLACEHOLDERS": {
-    "AlgebraicExpressionInput": "Type an expression here.",
-    "NumericExpressionInput": "Type an expression here, using only numbers.",
-    "MathEquationInput": "Type an equation here."
+    "AlgebraicExpressionInput": "I18N_INTERACTIONS_ALGEBRAIC_EXPR_INSTRUCTION",
+    "MathEquationInput": "I18N_INTERACTIONS_MATH_EQ_INSTRUCTION",
+    // The following is user editable and hence, is not translated.
+    "NumericExpressionInput": "Type an expression here, using only numbers."
   },
 
   // Unfinished features.
   "SHOW_TRAINABLE_UNRESOLVED_ANSWERS": false,
 
   // eslint-disable-next-line max-len
-  "DEFAULT_TWITTER_SHARE_MESSAGE_EDITOR": "Check out this interactive lesson I created on Oppia - a free platform for teaching and learning!",
+  "DEFAULT_TWITTER_SHARE_MESSAGE_EDITOR": "Check out this interactive lesson on Oppia - a free platform for teaching and learning!",
+
+  // eslint-disable-next-line max-len
+  "DEFUALT_BLOG_POST_SHARE_TWITTER_TEXT": "Check out this new blog post on Oppia!",
 
   "OPPORTUNITY_TYPE_SKILL": "skill",
   "OPPORTUNITY_TYPE_TRANSLATION": "translation",
-  "OPPORTUNITY_TYPE_VOICEOVER": "voiceover",
 
-  // The bucket name is set to None-resources to enable it to be used
-  // in prod mode when the resource bucket name is not allowed to be null.
-  "GCS_RESOURCE_BUCKET_NAME": "None-resources",
+  // The bucket name is set to app_default_bucket which is used to store files
+  // in GCS when local development server is running. This should be changed
+  // in prod appropriately.
+  "GCS_RESOURCE_BUCKET_NAME": "app_default_bucket",
 
   "ENABLE_EXP_FEEDBACK_FOR_LOGGED_OUT_USERS": true,
-
-  // Used to disable account removal until it is fully implemented.
-  "ENABLE_ACCOUNT_DELETION": true,
-
-  // Used to disable account data export until it is fully implemented.
-  "ENABLE_ACCOUNT_EXPORT": true,
-
-  // Link to open when the Oppia avatar is clicked on any page.
-  "OPPIA_AVATAR_LINK_URL": null,
 
   // Maximum allowed length of a username.
   "MAX_USERNAME_LENGTH": 30,
 
+  // Maximum allowed length of a blog post author's name.
+  "MAX_AUTHOR_NAME_LENGTH": 35,
+
+  // Maximum allowed characters in a blog post author's bio.
+  "MAX_CHARS_IN_AUTHOR_BIO": 250,
+
   // Maximum allowed length of a state name.
   "MAX_STATE_NAME_LENGTH": 50,
+
+  // Maximum allowed length of unique progress url ID.
+  "MAX_PROGRESS_URL_ID_LENGTH": 6,
 
   "PLATFORM_PARAMETER_ALLOWED_BROWSER_TYPES": [
     "Chrome", "Edge", "Safari", "Firefox", "Others"],
@@ -5488,5 +6250,686 @@ export = {
   "PLATFORM_PARAMETER_APP_VERSION_WITH_HASH_REGEXP":
     "^(\\d+(?:\\.\\d+){2})(?:-[a-z0-9]+(?:-(.+))?)?$",
 
-  "DEV_MODE": true
+  // Maximum allowed commit message length. 375 characters because indexed
+  // fields must be at most 1500 bytes, and UTF-8 encoded characters can be
+  // up to 4 bytes long.
+  "MAX_COMMIT_MESSAGE_LENGTH": 375,
+  "MAX_REVIEW_MESSAGE_LENGTH": 10000,
+
+  "EMAIL_DASHBOARD_PREDICATE_DEFINITION": [
+    {
+      "backend_id": "user_inactivity",
+      "backend_attr": "inactive_in_last_n_days",
+      "description": "Inactive in last n days",
+      "schema": {
+        "type": "int",
+        "validators": [{
+          "id": "is_at_least",
+          "min_value": 0
+        }]
+      },
+      "default_value": null
+    },
+    {
+      "backend_id": "user_login_activity",
+      "backend_attr": "has_not_logged_in_for_n_days",
+      "description": "Has not logged in for n days",
+      "schema": {
+        "type": "int",
+        "validators": [{
+          "id": "is_at_least",
+          "min_value": 0
+        }]
+      },
+      "default_value": null
+    },
+    {
+      "backend_id": "minimum_exp_created",
+      "backend_attr": "created_at_least_n_exps",
+      "description": "Has created at least n explorations",
+      "schema": {
+        "type": "int",
+        "validators": [{
+          "id": "is_at_least",
+          "min_value": 0
+        }]
+      },
+      "default_value": null
+    },
+    {
+      "backend_id": "maximum_exp_created",
+      "backend_attr": "created_fewer_than_n_exps",
+      "description": "Has created fewer than n explorations",
+      "schema": {
+        "type": "int",
+        "validators": [{
+          "id": "is_at_least",
+          "min_value": 0
+        }]
+      },
+      "default_value": null
+    },
+    {
+      "backend_id": "minimum_exp_edited",
+      "backend_attr": "edited_at_least_n_exps",
+      "description": "Has edited at least n explorations",
+      "schema": {
+        "type": "int",
+        "validators": [{
+          "id": "is_at_least",
+          "min_value": 0
+        }]
+      },
+      "default_value": null
+    },
+    {
+      "backend_id": "maximum_exp_edited",
+      "backend_attr": "edited_fewer_than_n_exps",
+      "description": "Has edited fewer than n explorations",
+      "schema": {
+        "type": "int",
+        "validators": [{
+          "id": "is_at_least",
+          "min_value": 0
+        }]
+      },
+      "default_value": null
+    },
+    {
+      "backend_id": "created_collection",
+      "backend_attr": "created_collection",
+      "description": "Has created collection",
+      "schema": {
+        "type": "bool",
+        "validators": [{
+          "id": "is_nonempty"
+        }]
+      },
+      "default_value": false
+    }
+  ],
+
+  // When the site cookie policy was last updated in UNIX time milliseconds.
+  "COOKIE_POLICY_LAST_UPDATED_MSECS": 1624909164000,
+
+  // Pages registered with angular router.
+  "PAGES_REGISTERED_WITH_FRONTEND": {
+    "ABOUT": {
+      "ROUTE": "about",
+      "TITLE": "I18N_ABOUT_PAGE_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "With Oppia, you can access free lessons on math, physics, statistics, chemistry, music, history and more from anywhere in the world. Oppia is a nonprofit with the mission of providing high-quality education to those who lack access to it."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "With Oppia, you can access free lessons on math, physics, statistics, chemistry, music, history and more from anywhere in the world. Oppia is a nonprofit with the mission of providing high-quality education to those who lack access to it."
+        }
+      ]
+    },
+    "ABOUT_FOUNDATION": {
+      "ROUTE": "about-foundation",
+      "TITLE": "About the Oppia Foundation | Oppia",
+      "META": []
+    },
+    "EXPLORATION_PLAYER": {
+      "ROUTE": "explore/:exploration_id",
+      "TITLE": "",
+      // Some routes contain url fragments, as syntax for url fragments are
+      // different for angular router and backend. They have to be registered
+      // manually in the backend. Please use angular router syntax here.
+      "MANUALLY_REGISTERED_WITH_BACKEND": true,
+      "META": []
+    },
+    "EXPLORATION_PLAYER_EMBED": {
+      "ROUTE": "embed/exploration/:exploration_id",
+      "TITLE": "",
+      // Some routes contain url fragments, as syntax for url fragments are
+      // different for angular router and backend. They have to be registered
+      // manually in the backend. Please use angular router syntax here.
+      "MANUALLY_REGISTERED_WITH_BACKEND": true,
+      "META": []
+    },
+    "ANDROID": {
+      "ROUTE": "android",
+      "TITLE": "Android | Oppia",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "With Oppia, you can access free lessons on math, physics, statistics, chemistry, music, history and more from anywhere in the world. Oppia is a nonprofit with the mission of providing high-quality education to those who lack access to it."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "With Oppia, you can access free lessons on math, physics, statistics, chemistry, music, history and more from anywhere in the world. Oppia is a nonprofit with the mission of providing high-quality education to those who lack access to it."
+        }
+      ]
+    },
+    "CONTACT": {
+      "ROUTE": "contact",
+      "TITLE": "I18N_CONTACT_PAGE_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Contact the Oppia team, submit feedback, and learn how to get involved with the Oppia project."
+        },
+        {
+          "PROPERTY_TYPE": "property",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Contact the Oppia team, submit feedback, and learn how to get involved with the Oppia project."
+        }
+      ]
+    },
+    "DONATE": {
+      "ROUTE": "donate",
+      "TITLE": "Donate | Oppia",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Donate to The Oppia Foundation to enable more students to receive the quality education they deserve."
+        },
+        {
+          "PROPERTY_TYPE": "property",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Donate to The Oppia Foundation to enable more students to receive the quality education they deserve."
+        }
+      ]
+    },
+    "GET_STARTED": {
+      "ROUTE": "get-started",
+      "TITLE": "I18N_GET_STARTED_PAGE_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          "CONTENT": "Learn how to get started using Oppia."
+        },
+        {
+          "PROPERTY_TYPE": "property",
+          "PROPERTY_VALUE": "og:description",
+          "CONTENT": "Learn how to get started using Oppia."
+        }
+      ]
+    },
+    "LICENSE": {
+      "ROUTE": "license",
+      "TITLE": "I18N_LICENSE_PAGE_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          "CONTENT": "License terms that Oppia is attributed under."
+        },
+        {
+          "PROPERTY_TYPE": "property",
+          "PROPERTY_VALUE": "og:description",
+          "CONTENT": "License terms that Oppia is attributed under."
+        }
+      ]
+    },
+    "LOGIN": {
+      "ROUTE": "login",
+      "TITLE": "I18N_LOGIN_PAGE_TITLE",
+      "META": []
+    },
+    "LOGOUT": {
+      "ROUTE": "logout",
+      "TITLE": "I18N_LOGOUT_PAGE_BROWSER_TAB_TITLE",
+      "META": []
+    },
+    "PARTNERSHIPS": {
+      "ROUTE": "partnerships",
+      "TITLE": "Partnerships | Oppia",
+      "META": []
+    },
+    "PLAYBOOK": {
+      "ROUTE": "creator-guidelines",
+      "TITLE": "I18N_PLAYBOOK_PAGE_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "The Oppia library is full of user-created lessons called 'explorations'. Read about how to participate in the community and begin creating explorations."
+        },
+        {
+          "PROPERTY_TYPE": "property",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "The Oppia library is full of user-created lessons called 'explorations'. Read about how to participate in the community and begin creating explorations."
+        }
+      ]
+    },
+    "PRIVACY": {
+      "ROUTE": "privacy-policy",
+      "TITLE": "I18N_PRIVACY_POLICY_PAGE_TITLE",
+      "META": []
+    },
+    "SIGNUP": {
+      "ROUTE": "signup",
+      "TITLE": "I18N_SIGNUP_PAGE_TITLE",
+      "MANUALLY_REGISTERED_WITH_BACKEND": true,
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          "CONTENT": "Sign up for Oppia and begin exploring a new subject."
+        },
+        {
+          "PROPERTY_TYPE": "property",
+          "PROPERTY_VALUE": "og:description",
+          "CONTENT": "Sign up for Oppia and begin exploring a new subject."
+        }
+      ]
+    },
+    "TEACH": {
+      "ROUTE": "teach",
+      "TITLE": "I18N_TEACH_PAGE_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "The Oppia library is full of user-created lessons called 'explorations'. Read about how to participate in the community and begin creating explorations."
+        },
+        {
+          "PROPERTY_TYPE": "property",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "The Oppia library is full of user-created lessons called 'explorations'. Read about how to participate in the community and begin creating explorations."
+        }
+      ]
+    },
+    "TERMS": {
+      "ROUTE": "terms",
+      "TITLE": "I18N_TERMS_PAGE_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Oppia is a 501(c)(3) registered non-profit open-source e-learning platform. Learn about our terms and conditions for creating and distributing learning material."
+        },
+        {
+          "PROPERTY_TYPE": "property",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Oppia is a 501(c)(3) registered non-profit open-source e-learning platform. Learn about our terms and conditions for creating and distributing learning material."
+        }
+      ]
+    },
+    "THANKS": {
+      "ROUTE": "thanks",
+      "TITLE": "I18N_THANKS_PAGE_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          "CONTENT": "Thank you for donating to The Oppia Foundation!"
+        },
+        {
+          "PROPERTY_TYPE": "property",
+          "PROPERTY_VALUE": "og:description",
+          "CONTENT": "Thank you for donating to The Oppia Foundation!"
+        }
+      ]
+    },
+    "DELETE_ACCOUNT": {
+      "ROUTE": "delete-account",
+      "TITLE": "I18N_DELETE_ACCOUNT_PAGE_TITLE",
+      "META": []
+    },
+    "LIBRARY_INDEX": {
+      "ROUTE": "community-library",
+      "TITLE": "Oppia",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Looking to learn something new? Learn any subject of your choice created by professors, teachers and Oppia users! Free lessons are always available for any topic and level you want."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Looking to learn something new? Learn any subject of your choice created by professors, teachers and Oppia users! Free lessons are always available for any topic and level you want."
+        }
+      ]
+    },
+    "LIBRARY_RECENTLY_PUBLISHED": {
+      "ROUTE": "community-library/recently-published",
+      "TITLE": "Oppia",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Looking to learn something new? Learn any subject of your choice created by professors, teachers and Oppia users! Free lessons are always available for any topic and level you want."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Looking to learn something new? Learn any subject of your choice created by professors, teachers and Oppia users! Free lessons are always available for any topic and level you want."
+        }
+      ]
+    },
+    "LIBRARY_SEARCH": {
+      "ROUTE": "search/find",
+      "TITLE": "Oppia",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Looking to learn something new? Learn any subject of your choice created by professors, teachers and Oppia users! Free lessons are always available for any topic and level you want."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Looking to learn something new? Learn any subject of your choice created by professors, teachers and Oppia users! Free lessons are always available for any topic and level you want."
+        }
+      ]
+    },
+    "LIBRARY_TOP_RATED": {
+      "ROUTE": "community-library/top-rated",
+      "TITLE": "Oppia",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Looking to learn something new? Learn any subject of your choice created by professors, teachers and Oppia users! Free lessons are always available for any topic and level you want."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Looking to learn something new? Learn any subject of your choice created by professors, teachers and Oppia users! Free lessons are always available for any topic and level you want."
+        }
+      ]
+    },
+    "PENDING_ACCOUNT_DELETION": {
+      "ROUTE": "pending-account-deletion",
+      "TITLE": "I18N_PENDING_ACCOUNT_DELETION_PAGE_TITLE",
+      "META": []
+    },
+    "PREFERENCES": {
+      "ROUTE": "preferences",
+      "TITLE": "I18N_PREFERENCES_PAGE_BROWSER_TAB_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          "CONTENT": "Change your Oppia profile settings and preferences"
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          "CONTENT": "Change your Oppia profile settings and preferences"
+        }
+      ]
+    },
+    "PROFILE": {
+      "ROUTE": "profile/:username_fragment",
+      "TITLE": "I18N_PROFILE_PAGE_TITLE",
+      // Some routes contain url fragments, as syntax for url fragments are
+      // different for angular router and backend. They have to be registered
+      // manually in the backend. Please use angular router syntax here.
+      "MANUALLY_REGISTERED_WITH_BACKEND": true,
+      "META": []
+    },
+    "RELEASE_COORDINATOR_PAGE": {
+      "ROUTE": "release-coordinator",
+      "TITLE": "I18N_RELEASE_COORDINATOR_PAGE_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "With Oppia, you can access free lessons on math, physics, statistics, chemistry, music, history and more from anywhere in the world. Oppia is a nonprofit with the mission of providing high-quality education to those who lack access to it."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "With Oppia, you can access free lessons on math, physics, statistics, chemistry, music, history and more from anywhere in the world. Oppia is a nonprofit with the mission of providing high-quality education to those who lack access to it."
+        }
+      ]
+    },
+    "STORY_VIEWER": {
+      // eslint-disable-next-line max-len
+      "ROUTE": "learn/:classroom_url_fragment/:topic_url_fragment/story/:story_url_fragment",
+      "TITLE": "Oppia",
+      // Some routes contain url fragments, as syntax for url fragments are
+      // different for angular router and backend. They have to be registered
+      // manually in the backend. Please use angular router syntax here.
+      "MANUALLY_REGISTERED_WITH_BACKEND": true,
+      "META": []
+    },
+    "VOLUNTEER": {
+      "ROUTE": "volunteer",
+      "TITLE": "Volunteer | Oppia",
+      "META": []
+    },
+    "CLASSROOM": {
+      "ROUTE": "learn/:classroom_url_fragment",
+      "TITLE": "Oppia",
+      "LIGHTWEIGHT": true,
+      // Some routes contain url fragments, as syntax for url fragments are
+      // different for angular router and backend. They have to be registered
+      // manually in the backend. Please use angular router syntax here.
+      "MANUALLY_REGISTERED_WITH_BACKEND": true,
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "With Oppia, you can access free lessons on math, physics, statistics, chemistry, music, history and more from anywhere in the world. Oppia is a nonprofit with the mission of providing high-quality education to those who lack access to it"
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "With Oppia, you can access free lessons on math, physics, statistics, chemistry, music, history and more from anywhere in the world. Oppia is a nonprofit with the mission of providing high-quality education to those who lack access to it"
+        }
+      ]
+    },
+    "BLOG_HOMEPAGE": {
+      "ROUTE": "blog",
+      "TITLE": "I18N_BLOG_HOME_PAGE_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Read the latest on what's new and exciting with Oppia."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Read the latest on what's new and exciting with Oppia."
+        }
+      ]
+    },
+    "BLOG_HOMEPAGE_SEARCH": {
+      "ROUTE": "blog/search/find",
+      "TITLE": "I18N_BLOG_HOME_PAGE_TITLE",
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Read the latest on what's new and exciting with Oppia."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Read the latest on what's new and exciting with Oppia."
+        }
+      ]
+    },
+    "BLOG_AUTHOR_PROFILE_PAGE": {
+      "ROUTE": "blog/author/:author_username",
+      "TITLE": "I18N_BLOG_AUTHOR_PROFILE_PAGE_TITLE",
+      "MANUALLY_REGISTERED_WITH_BACKEND": true,
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Read the latest on what's new and exciting with Oppia."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Read the latest on what's new and exciting with Oppia."
+        }
+      ]
+    },
+    "BLOG_POST_PAGE": {
+      "ROUTE": "blog/:blog_post_url_fragment",
+      "TITLE": "I18N_BLOG_POST_PAGE_TITLE",
+      // Some routes contain url fragments, as syntax for url fragments are
+      // different for angular router and backend. They have to be registered
+      // manually in the backend. Please use angular router syntax here.
+      "MANUALLY_REGISTERED_WITH_BACKEND": true,
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Read the latest on what's new and exciting with Oppia."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "Read the latest on what's new and exciting with Oppia."
+        }
+      ]
+    },
+    "LEARNER_GROUP_VIEWER": {
+      "ROUTE": "learner-group/:learner_group_id",
+      "TITLE": "I18N_LEARNER_GROUP_PAGE_TITLE",
+      // Some routes contain url fragments, as syntax for url fragments are
+      // different for angular router and backend. They have to be registered
+      // manually in the backend. Please use angular router syntax here.
+      "MANUALLY_REGISTERED_WITH_BACKEND": true,
+      "META": []
+    },
+    "SPLASH": {
+      "ROUTE": "",
+      "TITLE": "Oppia | Free, Online and Interactive Lessons for Anyone",
+      "LIGHTWEIGHT": true,
+      "META": [
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "With Oppia, you can access free lessons on math, physics, statistics, chemistry, music, history and more from anywhere in the world. Oppia is a nonprofit with the mission of providing high-quality education to those who lack access to it."
+        },
+        {
+          "PROPERTY_TYPE": "itemprop",
+          "PROPERTY_VALUE": "og:description",
+          // eslint-disable-next-line max-len
+          "CONTENT": "With Oppia, you can access free lessons on math, physics, statistics, chemistry, music, history and more from anywhere in the world. Oppia is a nonprofit with the mission of providing high-quality education to those who lack access to it."
+        }
+      ]
+    }
+  },
+
+  "STEWARDS_LANDING_PAGE": {
+    "ROUTES": ["parents", "partners", "nonprofits", "teachers", "volunteers"],
+    "TITLE": "Getting Started with Oppia",
+    "META": []
+  },
+
+  // A dict representing available landing pages, having subject as a key
+  // and list of topics as the value.
+  // Note: This dict needs to be keep in sync with frontend
+  // TOPIC_LANDING_PAGE_DATA oppia constant defined in
+  // core/templates/pages/landing-pages/topic-landing-page/
+  // topic-landing-page.constants.ts file.
+  "AVAILABLE_LANDING_PAGES": {
+    "math": ["fractions", "negative-numbers", "ratios"]
+  },
+
+  "SCHEMA_FOR_TOPIC_URL_FRAGMENTS": {
+    "schema": {
+      "type": "basestring",
+      "validators": [{
+        "id": "is_regex_matched",
+        "regex_pattern": "^[a-z]+(-[a-z]+)*$"
+      }, {
+        "id": "has_length_at_most",
+        "max_value": 20
+      }]
+    }
+  },
+
+  "SCHEMA_FOR_CLASSROOM_URL_FRAGMENTS": {
+    "schema": {
+      "type": "basestring",
+      "validators": [{
+        "id": "is_regex_matched",
+        "regex_pattern": "^[a-z]+(-[a-z]+)*$"
+      }, {
+        "id": "has_length_at_most",
+        "max_value": 20
+      }]
+    }
+  },
+
+  "SCHEMA_FOR_STORY_URL_FRAGMENTS": {
+    "schema": {
+      "type": "basestring",
+      "validators": [{
+        "id": "is_regex_matched",
+        "regex_pattern": "^[a-z]+(-[a-z]+)*$"
+      }, {
+        "id": "has_length_at_most",
+        "max_value": 30
+      }]
+    }
+  },
+
+  "DEV_MODE": true,
+  "EMULATOR_MODE": true,
+  "ASSET_TYPE_AUDIO": "audio",
+  "ASSET_TYPE_IMAGE": "image",
+  "ASSET_TYPE_THUMBNAIL": "thumbnail",
+
+  "FAVICON_ALERT_PATH": "/assets/images/favicon_alert/favicon_alert.ico",
+
+  "METADATA_PROPERTIES": [
+    "title", "category", "objective", "language_code", "tags", "blurb",
+    "author_notes", "states_schema_version", "init_state_name", "param_specs",
+    "param_changes", "auto_tts_enabled", "correctness_feedback_enabled",
+    "edits_allowed"
+  ],
+  "NON_METADATA_PROPERTIES": [
+    "id", "states", "next_content_id_index", "version"
+  ],
+  "CONTRIBUTOR_CERTIFICATE_WIDTH": 1493,
+  "CONTRIBUTOR_CERTIFICATE_HEIGHT": 1313
 } as const;

@@ -22,35 +22,33 @@ import { Injectable } from '@angular/core';
 
 import { ExplorationFeatures } from
   'services/exploration-features-backend-api.service';
+import { ParamChangeBackendDict } from 'domain/exploration/ParamChangeObjectFactory';
+import { StateObjectsBackendDict } from 'domain/exploration/StatesObjectFactory';
 
 export interface ExplorationDataDict {
-  'param_changes': ParamChanges[] | [];
-  states: {
-    [propsName : string]: {
-      'param_changes': ParamChanges[] | []
-    }
-  };
-}
-
-export interface ParamChanges {
-  name: string;
-  'generator_id': string;
-  'customization_args': {
-    'parse_with_jinja': boolean,
-    value: string
-  };
+  'param_changes': ParamChangeBackendDict[] | [];
+  states: StateObjectsBackendDict;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class ExplorationFeaturesService {
+  /**
+   * Variable to keep track of whether the service has been initialised.
+   */
   static serviceIsInitialized = false;
   static settings = {
     areParametersEnabled: false,
     isPlaythroughRecordingEnabled: false
   };
 
+  /**
+   * Initialises the service by enabling the parameters feature based
+   * on whether the exploration contains parameters.
+   * @param explorationData - An ExplorationData object.
+   * @param featuresData - An ExplorationFeatures object.
+   */
   init(
       explorationData: ExplorationDataDict,
       featuresData: ExplorationFeatures): void {
@@ -73,18 +71,30 @@ export class ExplorationFeaturesService {
     ExplorationFeaturesService.serviceIsInitialized = true;
   }
 
+  /**
+   * @returns - Whether a service is initialized.
+   */
   isInitialized(): boolean {
     return ExplorationFeaturesService.serviceIsInitialized;
   }
 
+  /**
+   * @returns - Checks whether the parameters are enabled.
+   */
   areParametersEnabled(): boolean {
     return ExplorationFeaturesService.settings.areParametersEnabled;
   }
 
+  /**
+   * @returns - Whether the play through recording is enabled.
+   */
   isPlaythroughRecordingEnabled(): boolean {
     return ExplorationFeaturesService.settings.isPlaythroughRecordingEnabled;
   }
 
+  /**
+   * Enables the parameters feature.
+   */
   enableParameters(): void {
     ExplorationFeaturesService.settings.areParametersEnabled = true;
   }

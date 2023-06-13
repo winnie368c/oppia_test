@@ -14,48 +14,55 @@
 
 """Tests for the page that allows learners to play through a collection."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
+from core import feconf
 from core.domain import collection_services
 from core.domain import rights_manager
 from core.domain import user_services
 from core.tests import test_utils
-import feconf
+
+from typing import Final
 
 
 class CollectionViewerPermissionsTests(test_utils.GenericTestBase):
     """Test permissions for learners to view collections."""
 
-    COLLECTION_ID = 'cid'
-    OTHER_EDITOR_EMAIL = 'another@example.com'
+    COLLECTION_ID: Final = 'cid'
+    OTHER_EDITOR_EMAIL: Final = 'another@example.com'
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Before each individual test, create a dummy collection."""
-        super(CollectionViewerPermissionsTests, self).setUp()
+        super().setUp()
 
         self.signup(self.EDITOR_EMAIL, self.EDITOR_USERNAME)
         self.editor_id = self.get_user_id_from_email(self.EDITOR_EMAIL)
-        self.editor = user_services.UserActionsInfo(self.editor_id)
+        self.editor = user_services.get_user_actions_info(self.editor_id)
 
         self.signup(self.NEW_USER_EMAIL, self.NEW_USER_USERNAME)
         self.new_user_id = self.get_user_id_from_email(self.NEW_USER_EMAIL)
 
         self.save_new_valid_collection(self.COLLECTION_ID, self.editor_id)
 
-    def test_unpublished_collections_are_invisible_to_logged_out_users(self):
+    def test_unpublished_collections_are_invisible_to_logged_out_users(
+        self
+    ) -> None:
         self.get_html_response(
             '%s/%s' % (feconf.COLLECTION_URL_PREFIX, self.COLLECTION_ID),
             expected_status_int=404)
 
-    def test_unpublished_collections_are_invisible_to_unconnected_users(self):
+    def test_unpublished_collections_are_invisible_to_unconnected_users(
+        self
+    ) -> None:
         self.login(self.NEW_USER_EMAIL)
         self.get_html_response(
             '%s/%s' % (feconf.COLLECTION_URL_PREFIX, self.COLLECTION_ID),
             expected_status_int=404)
         self.logout()
 
-    def test_unpublished_collections_are_invisible_to_other_editors(self):
+    def test_unpublished_collections_are_invisible_to_other_editors(
+        self
+    ) -> None:
         self.signup(self.OTHER_EDITOR_EMAIL, 'othereditorusername')
 
         self.save_new_valid_collection('cid2', self.OTHER_EDITOR_EMAIL)
@@ -66,34 +73,40 @@ class CollectionViewerPermissionsTests(test_utils.GenericTestBase):
             expected_status_int=404)
         self.logout()
 
-    def test_unpublished_collections_are_visible_to_their_editors(self):
+    def test_unpublished_collections_are_visible_to_their_editors(
+        self
+    ) -> None:
         self.login(self.EDITOR_EMAIL)
         self.get_html_response(
             '%s/%s' % (feconf.COLLECTION_URL_PREFIX, self.COLLECTION_ID))
         self.logout()
 
-    def test_unpublished_collections_are_visible_to_admins(self):
-        self.signup(self.ADMIN_EMAIL, self.ADMIN_USERNAME)
-        self.set_admins([self.ADMIN_USERNAME])
-        self.login(self.ADMIN_EMAIL)
+    def test_unpublished_collections_are_visible_to_admins(self) -> None:
+        self.signup(self.MODERATOR_EMAIL, self.MODERATOR_USERNAME)
+        self.set_moderators([self.MODERATOR_USERNAME])
+        self.login(self.MODERATOR_EMAIL)
         self.get_html_response(
             '%s/%s' % (feconf.COLLECTION_URL_PREFIX, self.COLLECTION_ID))
         self.logout()
 
-    def test_published_collections_are_visible_to_logged_out_users(self):
+    def test_published_collections_are_visible_to_logged_out_users(
+        self
+    ) -> None:
         rights_manager.publish_collection(self.editor, self.COLLECTION_ID)
 
         self.get_html_response(
             '%s/%s' % (feconf.COLLECTION_URL_PREFIX, self.COLLECTION_ID))
 
-    def test_published_collections_are_visible_to_logged_in_users(self):
+    def test_published_collections_are_visible_to_logged_in_users(
+        self
+    ) -> None:
         rights_manager.publish_collection(self.editor, self.COLLECTION_ID)
 
         self.login(self.NEW_USER_EMAIL)
         self.get_html_response(
             '%s/%s' % (feconf.COLLECTION_URL_PREFIX, self.COLLECTION_ID))
 
-    def test_invalid_collection_error(self):
+    def test_invalid_collection_error(self) -> None:
         self.login(self.EDITOR_EMAIL)
         self.get_html_response(
             '%s/%s' % (feconf.COLLECTION_URL_PREFIX, 'none'),
@@ -104,13 +117,13 @@ class CollectionViewerPermissionsTests(test_utils.GenericTestBase):
 class CollectionViewerControllerEndToEndTests(test_utils.GenericTestBase):
     """Test the collection viewer controller using a sample collection."""
 
-    def setUp(self):
-        super(CollectionViewerControllerEndToEndTests, self).setUp()
+    def setUp(self) -> None:
+        super().setUp()
 
         self.signup(self.VIEWER_EMAIL, self.VIEWER_USERNAME)
         self.viewer_id = self.get_user_id_from_email(self.VIEWER_EMAIL)
 
-    def test_welcome_collection(self):
+    def test_welcome_collection(self) -> None:
         """Test a learner's progression through the default collection."""
         collection_services.load_demo('0')
 

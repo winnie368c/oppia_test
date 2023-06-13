@@ -20,8 +20,6 @@
 // QuestionObjectFactory.ts is upgraded to Angular 8.
 import { AnswerGroupObjectFactory } from
   'domain/exploration/AnswerGroupObjectFactory';
-import { FractionObjectFactory } from 'domain/objects/FractionObjectFactory';
-import { HintObjectFactory } from 'domain/exploration/HintObjectFactory';
 import { MisconceptionObjectFactory } from
   'domain/skill/MisconceptionObjectFactory';
 import { OutcomeObjectFactory } from
@@ -30,14 +28,7 @@ import { ParamChangeObjectFactory } from
   'domain/exploration/ParamChangeObjectFactory';
 import { ParamChangesObjectFactory } from
   'domain/exploration/ParamChangesObjectFactory';
-import { RecordedVoiceoversObjectFactory } from
-  'domain/exploration/RecordedVoiceoversObjectFactory';
-import { RuleObjectFactory } from 'domain/exploration/RuleObjectFactory';
-import { SubtitledHtmlObjectFactory } from
-  'domain/exploration/SubtitledHtmlObjectFactory';
 import { UnitsObjectFactory } from 'domain/objects/UnitsObjectFactory';
-import { VoiceoverObjectFactory } from
-  'domain/exploration/VoiceoverObjectFactory';
 import { WrittenTranslationObjectFactory } from
   'domain/exploration/WrittenTranslationObjectFactory';
 import { WrittenTranslationsObjectFactory } from
@@ -46,7 +37,7 @@ import { UpgradedServices } from 'services/UpgradedServices';
 // ^^^ This block is to be removed.
 // TODO(#7222): Remove usage of importAllAngularServices once upgraded to
 // Angular 8.
-import { importAllAngularServices } from 'tests/unit-test-utils';
+import { importAllAngularServices } from 'tests/unit-test-utils.ajs';
 
 require('domain/question/QuestionObjectFactory.ts');
 require('domain/state/StateObjectFactory.ts');
@@ -63,29 +54,16 @@ describe('Question object factory', function() {
   beforeEach(angular.mock.module('oppia', function($provide) {
     $provide.value(
       'AnswerGroupObjectFactory', new AnswerGroupObjectFactory(
-        new OutcomeObjectFactory(new SubtitledHtmlObjectFactory()),
-        new RuleObjectFactory()));
-    $provide.value('FractionObjectFactory', new FractionObjectFactory());
-    $provide.value(
-      'HintObjectFactory', new HintObjectFactory(
-        new SubtitledHtmlObjectFactory()));
+        new OutcomeObjectFactory()));
     $provide.value(
       'MisconceptionObjectFactory', new MisconceptionObjectFactory());
     $provide.value(
-      'OutcomeObjectFactory', new OutcomeObjectFactory(
-        new SubtitledHtmlObjectFactory()));
+      'OutcomeObjectFactory', new OutcomeObjectFactory());
     $provide.value('ParamChangeObjectFactory', new ParamChangeObjectFactory());
     $provide.value(
       'ParamChangesObjectFactory', new ParamChangesObjectFactory(
         new ParamChangeObjectFactory()));
-    $provide.value(
-      'RecordedVoiceoversObjectFactory',
-      new RecordedVoiceoversObjectFactory(new VoiceoverObjectFactory()));
-    $provide.value('RuleObjectFactory', new RuleObjectFactory());
-    $provide.value(
-      'SubtitledHtmlObjectFactory', new SubtitledHtmlObjectFactory());
     $provide.value('UnitsObjectFactory', new UnitsObjectFactory());
-    $provide.value('VoiceoverObjectFactory', new VoiceoverObjectFactory());
     $provide.value(
       'WrittenTranslationObjectFactory',
       new WrittenTranslationObjectFactory());
@@ -134,6 +112,7 @@ describe('Question object factory', function() {
           answer_groups: [{
             outcome: {
               dest: 'outcome 1',
+              dest_if_really_stuck: null,
               feedback: {
                 content_id: 'content_5',
                 html: ''
@@ -155,10 +134,14 @@ describe('Question object factory', function() {
                 unicode_str: ''
               }
             },
-            rows: { value: 1 }
+            rows: { value: 1 },
+            catchMisspellings: {
+              value: false
+            }
           },
           default_outcome: {
             dest: null,
+            dest_if_really_stuck: null,
             feedback: {
               html: 'Correct Answer',
               content_id: 'content_2'
@@ -229,17 +212,17 @@ describe('Question object factory', function() {
       ['abc-123']);
     var stateData = sampleQuestion.getStateData();
     expect(stateData.name).toEqual('question');
-    expect(stateData.content.getHtml()).toEqual('Question 1');
+    expect(stateData.content.html).toEqual('Question 1');
     var interaction = stateData.interaction;
     expect(interaction.id).toEqual('TextInput');
-    expect(interaction.hints[0].hintContent.getHtml()).toEqual('Hint 1');
-    expect(interaction.solution.explanation.getHtml()).toEqual(
+    expect(interaction.hints[0].hintContent.html).toEqual('Hint 1');
+    expect(interaction.solution.explanation.html).toEqual(
       'Solution explanation');
     expect(interaction.solution.correctAnswer).toEqual(
       'This is the correct answer');
     var defaultOutcome = interaction.defaultOutcome;
     expect(defaultOutcome.labelledAsCorrect).toEqual(false);
-    expect(defaultOutcome.feedback.getHtml()).toEqual('Correct Answer');
+    expect(defaultOutcome.feedback.html).toEqual('Correct Answer');
   });
 
   it('should correctly get backend dict', function() {
@@ -275,6 +258,12 @@ describe('Question object factory', function() {
 
     expect(sampleQuestion.getValidationErrorMessage()).toBeNull();
 
+    interaction.defaultOutcome.feedback.html = '';
+    expect(sampleQuestion.getValidationErrorMessage()).toEqual(
+      'Please enter a feedback for the default outcome.');
+
+    interaction.defaultOutcome.feedback.html = 'feedback';
+
     interaction.answerGroups[0].outcome.labelledAsCorrect = false;
     expect(sampleQuestion.getValidationErrorMessage()).toEqual(
       'At least one answer should be marked correct');
@@ -290,12 +279,18 @@ describe('Question object factory', function() {
     interaction.id = null;
     expect(sampleQuestion.getValidationErrorMessage()).toEqual(
       'An interaction must be specified');
+
+    var questionContent = sampleQuestion.getStateData().content;
+    questionContent.html = '';
+    expect(sampleQuestion.getValidationErrorMessage()).toEqual(
+      'Please enter a question.');
   });
 
   it('should correctly create a Default Question', function() {
     var sampleQuestion1 = QuestionObjectFactory.createDefaultQuestion(
       ['skill_id3', 'skill_id4']);
-    var state = StateObjectFactory.createDefaultState(null);
+    var state = StateObjectFactory.createDefaultState(
+      null, 'content_0', 'default_outcome_1');
 
     expect(sampleQuestion1.getId()).toEqual(null);
     expect(sampleQuestion1.getLanguageCode()).toEqual('en');

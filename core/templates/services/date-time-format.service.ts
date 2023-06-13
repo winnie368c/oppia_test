@@ -20,6 +20,7 @@
 import { downgradeInjectable } from '@angular/upgrade/static';
 import { Injectable } from '@angular/core';
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 
 @Injectable({
   providedIn: 'root'
@@ -50,6 +51,7 @@ export class DateTimeFormatService {
       return dayjs(date).format('MM/DD/YY');
     }
   }
+
   /**
    * This function converts a millisecond date to a date in the
    * format 'MMM D HH:mm A' along with time.
@@ -58,8 +60,26 @@ export class DateTimeFormatService {
    */
   getLocaleDateTimeHourString(millisSinceEpoch: number): string {
     let date = new Date(millisSinceEpoch);
-    return dayjs(date).format('MMM D hh:mm A');
+    if (date.getFullYear() === new Date().getFullYear()) {
+      // Dayjs will return Oct 10 10:15 AM.
+      return dayjs(date).format('MMM D, h:mm A');
+    } else {
+      // Dayjs will return Oct 10, 2020.
+      return dayjs(date).format('MMM D, YYYY');
+    }
   }
+
+  /**
+   * This function converts a millisecond date to date in words.
+   * @param {number} millisSinceEpoch - The millisecond date to be converted
+   * @returns {string} a date and time string
+   */
+  getDateTimeInWords(millisSinceEpoch: number): string {
+    let date = new Date(millisSinceEpoch);
+    // Dayjs will return Monday, January 18, 2021 at 12:30 PM.
+    return dayjs(date).format('dddd, MMMM D, YYYY [at] h:mm A');
+  }
+
   /**
    * This function converts a millisecond date to a date string, using locale
    * conventions.
@@ -70,6 +90,7 @@ export class DateTimeFormatService {
     let date = new Date(millisSinceEpoch);
     return date.toLocaleDateString();
   }
+
   /**
    * This function returns whether the date is at most one week before the
    * current date.
@@ -80,6 +101,17 @@ export class DateTimeFormatService {
   isRecent(millisSinceEpoch: number): boolean {
     let ONE_WEEK_IN_MILLIS = 7 * 24 * 60 * 60 * 1000;
     return new Date().getTime() - millisSinceEpoch < ONE_WEEK_IN_MILLIS;
+  }
+
+  /**
+   * This function returns the relative time from now.
+   * @param {number} millisSinceEpoch - milliseconds since Epoch
+   * @returns {string} string representing the relative time from now
+   */
+  getRelativeTimeFromNow(millisSinceEpoch: number): string {
+    dayjs.extend(relativeTime);
+    let date = new Date(millisSinceEpoch);
+    return dayjs(date).fromNow();
   }
 }
 

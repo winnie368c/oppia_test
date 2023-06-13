@@ -1,44 +1,30 @@
 <div class="stories-list">
   <div class="oppia-stories-list-container">
     <mat-card class="oppia-page-card oppia-long-text">
-      <h2 class="tab-title">{{ topicName }}</h2>
-      <div class="topic-description">
-        {{ topicDescription }}
+      <h2 class="tab-title">
+        <span *ngIf="!isHackyTopicNameTranslationDisplayed()">
+          {{ topicName }}
+        </span>
+        <span *ngIf="isHackyTopicNameTranslationDisplayed()">
+          {{ topicNameTranslationKey | translate }}
+        </span>
+      </h2>
+      <div class="topic-description e2e-test-topic-description">
+        <span *ngIf="!isHackyTopicNameTranslationDisplayed()">
+          {{ topicDescription }}
+        </span>
+        <span *ngIf="isHackyTopicNameTranslationDisplayed()">
+          {{ topicDescTranslationKey | translate }}
+        </span>
       </div>
+      <strong class="stories-can-play text-capitalize" *ngIf="checkTabletView()">{{'I18N_TOPIC_VIEWER_STORIES_HEAD' | translate}}</strong>
       <div *ngFor="let storySummary of canonicalStorySummaries" class="story-info-container">
-        <story-summary-tile [classroomUrlFragment]="classroomUrlFragment"
-                            [storySummary]="storySummary"
-                            [topicUrlFragment]="topicUrlFragment">
-        </story-summary-tile>
+        <oppia-story-summary-tile [classroomUrlFragment]="classroomUrlFragment"
+                                  [storySummary]="storySummary"
+                                  [topicUrlFragment]="topicUrlFragment"
+                                  [allChaptersAreShown]="canonicalStorySummaries.length === 1">
+        </oppia-story-summary-tile>
       </div>
     </mat-card>
   </div>
 </div>
-
-<style>
-  .stories-list .oppia-stories-list-container .oppia-page-card {
-    margin-top: 10em;
-    max-width: 100%;
-    padding: 30px 55px 30px 45px;
-  }
-
-  .stories-list .tab-title {
-    margin: .83em 0 0.1em 0;
-  }
-
-  .stories-list .story-info-container {
-    padding-top: 4vh;
-  }
-
-  .stories-list .topic-description {
-    border-bottom: 1px solid #7B7B7B;
-    font-size: 1.1em;
-    padding-bottom: 2vh;
-  }
-
-  @media(max-width: 500px) {
-    .stories-list .oppia-stories-list-container .oppia-page-card {
-      padding: 30px 30px 30px 25px;
-    }
-  }
-</style>

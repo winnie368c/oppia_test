@@ -16,8 +16,7 @@
 
 """Tests for registered platform parameters."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 from core.domain import platform_parameter_list as params
 from core.tests import test_utils
@@ -28,15 +27,21 @@ class ExistingPlatformParameterValidityTests(test_utils.GenericTestBase):
     core/domain/platform_parameter_list.py.
     """
 
-    EXPECTED_PARAM_NAMES = ['dummy_feature', 'dummy_parameter']
+    EXPECTED_PARAM_NAMES = ['dummy_feature', 'dummy_parameter',
+                            'end_chapter_celebration',
+                            'checkpoint_celebration',
+                            'android_beta_landing_page',
+                            'blog_pages',
+                            'contributor_dashboard_accomplishments',
+                            'diagnostic_test']
 
-    def test_all_defined_parameters_are_valid(self):
+    def test_all_defined_parameters_are_valid(self) -> None:
         all_names = params.Registry.get_all_platform_parameter_names()
         for name in all_names:
             param = params.Registry.get_platform_parameter(name)
             param.validate()
 
-    def test_number_of_parameters_meets_expectation(self):
+    def test_number_of_parameters_meets_expectation(self) -> None:
         """Test that the Registry and EXPECTED_PARAM_NAMES have the same number
         of platform parameters.
 
@@ -53,7 +58,7 @@ class ExistingPlatformParameterValidityTests(test_utils.GenericTestBase):
             len(params.Registry.get_all_platform_parameter_names()),
             len(self.EXPECTED_PARAM_NAMES))
 
-    def test_all_expected_parameters_are_present_in_registry(self):
+    def test_all_expected_parameters_are_present_in_registry(self) -> None:
         """Test that all parameters in EXPECTED_PARAM_NAMES are present in
         Registry.
 
@@ -74,7 +79,7 @@ class ExistingPlatformParameterValidityTests(test_utils.GenericTestBase):
                 list(missing_names))
         )
 
-    def test_no_unexpected_parameter_in_registry(self):
+    def test_no_unexpected_parameter_in_registry(self) -> None:
         """Test that all parameters registered in Registry are expected.
 
         If this test fails, it means some parameters in

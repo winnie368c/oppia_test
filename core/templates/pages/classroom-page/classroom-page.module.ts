@@ -16,75 +16,41 @@
  * @fileoverview Module for the classroom page.
  */
 
-import 'core-js/es7/reflect';
-import 'zone.js';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { NgModule } from '@angular/core';
+import { TranslateModule } from '@ngx-translate/core';
 
-angular.module('oppia', [
-  require('angular-cookies'), 'headroom', 'ngAnimate',
-  'ngMaterial', 'ngSanitize', 'ngTouch', 'pascalprecht.translate',
-  'toastr', 'ui.bootstrap'
-]);
-
-import { APP_INITIALIZER, NgModule, StaticProvider } from '@angular/core';
-import { BrowserModule } from '@angular/platform-browser';
-import { downgradeComponent } from '@angular/upgrade/static';
-import { HttpClientModule } from '@angular/common/http';
-import { HTTP_INTERCEPTORS } from '@angular/common/http';
-import { RequestInterceptor } from 'services/request-interceptor.service';
-import { SharedComponentsModule } from 'components/shared-component.module';
-import { OppiaAngularRootComponent } from
-  'components/oppia-angular-root.component';
-import { platformFeatureInitFactory, PlatformFeatureService } from
-  'services/platform-feature.service';
+import { BackgroundBannerModule } from 'components/common-layout-directives/common-elements/background-banner.module';
+import { BaseModule } from 'base-components/base.module';
+import { ClassroomPageComponent } from './classroom-page.component';
+import { ClassroomPageRootComponent } from './classroom-page-root.component';
+import { ClassroomPageRoutingModule } from './classroom-page-routing.module';
+import { RichTextComponentsModule } from 'rich_text_components/rich-text-components.module';
+import { SearchBarModule } from 'pages/library-page/search-bar/search-bar.module';
+import { StringUtilityPipesModule } from 'filters/string-utility-filters/string-utility-pipes.module';
+import { SummaryTilesModule } from 'components/summary-tile/summary-tile.module';
 
 @NgModule({
   imports: [
-    BrowserModule,
-    HttpClientModule,
-    SharedComponentsModule
+    BackgroundBannerModule,
+    BaseModule,
+    CommonModule,
+    ClassroomPageRoutingModule,
+    FormsModule,
+    RichTextComponentsModule,
+    SearchBarModule,
+    StringUtilityPipesModule,
+    SummaryTilesModule,
+    TranslateModule,
   ],
   declarations: [
-    OppiaAngularRootComponent
+    ClassroomPageComponent,
+    ClassroomPageRootComponent,
   ],
   entryComponents: [
-    OppiaAngularRootComponent
-  ],
-  providers: [
-    {
-      provide: HTTP_INTERCEPTORS,
-      useClass: RequestInterceptor,
-      multi: true
-    },
-    {
-      provide: APP_INITIALIZER,
-      useFactory: platformFeatureInitFactory,
-      deps: [PlatformFeatureService],
-      multi: true
-    }
+    ClassroomPageComponent,
+    ClassroomPageRootComponent
   ]
 })
-class ClassroomPageModule {
-  // Empty placeholder method to satisfy the `Compiler`.
-  ngDoBootstrap() {}
-}
-
-import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
-import { downgradeModule } from '@angular/upgrade/static';
-
-const bootstrapFn = (extraProviders: StaticProvider[]) => {
-  const platformRef = platformBrowserDynamic(extraProviders);
-  return platformRef.bootstrapModule(ClassroomPageModule);
-};
-const downgradedModule = downgradeModule(bootstrapFn);
-
-declare var angular: ng.IAngularStatic;
-
-angular.module('oppia').requires.push(downgradedModule);
-
-angular.module('oppia').directive(
-  // This directive is the downgraded version of the Angular component to
-  // bootstrap the Angular 8.
-  'oppiaAngularRoot',
-  downgradeComponent({
-    component: OppiaAngularRootComponent
-  }) as angular.IDirectiveFactory);
+export class ClassroomPageModule {}

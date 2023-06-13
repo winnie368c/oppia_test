@@ -18,7 +18,7 @@
 
 export const SkillDomainConstants = {
   CONCEPT_CARD_DATA_URL_TEMPLATE:
-    '/concept_card_handler/<comma_separated_skill_ids>',
+    '/concept_card_handler/<selected_skill_ids>',
   EDITABLE_SKILL_DATA_URL_TEMPLATE:
     '/skill_editor_handler/data/<skill_id>',
 
@@ -28,8 +28,14 @@ export const SkillDomainConstants = {
   SKILL_EDITOR_QUESTION_URL_TEMPLATE:
     '/skill_editor_question_handler/<skill_id>?cursor=<cursor>',
 
+  SKILL_DESCRIPTION_HANDLER_URL_TEMPLATE:
+    '/skill_description_handler/<skill_description>',
+
   SKILL_MASTERY_DATA_URL_TEMPLATE:
     '/skill_mastery_handler/data',
+
+  SKILL_ASSIGNMENT_FOR_DIAGNOSTIC_TEST_URL_TEMPLATE:
+    '/diagnostic_test_skill_assignment_handler/<skill_id>',
 
   SKILL_PROPERTY_DESCRIPTION: 'description',
   SKILL_PROPERTY_LANGUAGE_CODE: 'language_code',

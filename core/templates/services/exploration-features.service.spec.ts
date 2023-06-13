@@ -18,16 +18,18 @@
  */
 
 import { TestBed } from '@angular/core/testing';
+import { ParamChangeBackendDict } from 'domain/exploration/ParamChangeObjectFactory';
 
-import { ExplorationFeaturesService, ExplorationDataDict, ParamChanges } from
+import { ExplorationFeaturesService, ExplorationDataDict} from
   'services/exploration-features.service';
+import { ExplorationFeatures } from './exploration-features-backend-api.service';
 
 describe('ExplorationFeatureService', () => {
-  let explorationFeatureService: ExplorationFeaturesService = null;
-  let featureData = null;
-  let explorationData: ExplorationDataDict = null;
-  let explorationData2: ExplorationDataDict = null;
-  let testParamChanges: ParamChanges = null;
+  let explorationFeatureService: ExplorationFeaturesService;
+  let featureData: ExplorationFeatures;
+  let explorationData: ExplorationDataDict;
+  let explorationData2: ExplorationDataDict;
+  let testParamChange: ParamChangeBackendDict;
 
   beforeEach(() => {
     explorationFeatureService = TestBed.get(ExplorationFeaturesService);
@@ -35,22 +37,63 @@ describe('ExplorationFeatureService', () => {
     ExplorationFeaturesService.settings.isPlaythroughRecordingEnabled = false;
     ExplorationFeaturesService.serviceIsInitialized = false;
 
+    // The property alwaysAskLearnersForAnswerDetails is not used. It is just
+    // for complete the ExplorationFeatures interface.
     featureData = {
       isExplorationWhitelisted: true,
+      alwaysAskLearnersForAnswerDetails: false
     };
     explorationData = {
-      param_changes: [testParamChanges],
+      param_changes: [testParamChange],
       states: {}
     };
     explorationData2 = {
       param_changes: [],
       states: {
         testState: {
-          param_changes: [testParamChanges],
+          param_changes: [testParamChange],
+          classifier_model_id: '',
+          content: {
+            content_id: 'content',
+            html: ''
+          },
+          recorded_voiceovers: {
+            voiceovers_mapping: {
+              content: {},
+              default_outcome: {}
+            }
+          },
+          interaction: {
+            answer_groups: [],
+            confirmed_unclassified_answers: [],
+            customization_args: {
+              buttonText: {
+                value: 'Continue'
+              }
+            },
+            default_outcome: {
+              dest: 'End State',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'default_outcome',
+                html: ''
+              },
+              param_changes: [],
+              labelled_as_correct: true,
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null
+            },
+            hints: [],
+            solution: null,
+            id: 'Continue'
+          },
+          linked_skill_id: null,
+          solicit_answer_details: false,
+          card_is_checkpoint: false
         }
       }
     };
-    testParamChanges = {
+    testParamChange = {
       name: 'param_1',
       generator_id: 'test_id',
       customization_args: {

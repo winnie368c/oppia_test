@@ -24,33 +24,55 @@ import { AppConstants } from 'app.constants';
 import { EntityContext } from 'domain/utilities/entity-context.model';
 import { ServicesConstants } from 'services/services.constants';
 import { UrlService } from 'services/contextual/url.service';
+import { BlogPostPageService } from 'pages/blog-post-page/services/blog-post-page.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ContextService {
   constructor(
-    private urlService: UrlService) {}
+    private urlService: UrlService,
+    private blogPostPageService: BlogPostPageService
+  ) {}
 
-  pageContext = null;
-  explorationIsLinkedToStory = false;
-  explorationId = null;
-  questionPlayerIsManuallySet = false;
-  questionId = null;
-  editorContext = null;
-  customEntityContext = null;
-  imageSaveDestination: string = AppConstants.IMAGE_SAVE_DESTINATION_SERVER;
+  // Entity context needs to be a static variable since multiple instances of
+  // the ContextService class accesses the same class variable.
+  // Eg: In the translation modal, a custom entity context was defined, and this
+  // was accessed in the filepath component when the copy service was called.
+  // Without the static declaration, the latter call returned undefined.
+  // NOTE TO DEV: Make sure any tests that directly access these variables clear
+  // it (using the appropriate reset fn) initially. Since these are static,
+  // depending on the order of tests, values may be retained across tests.
+  static customEntityContext: EntityContext | null = null;
+  static imageSaveDestination: string = (
+    AppConstants.IMAGE_SAVE_DESTINATION_SERVER);
+
+  // Page Context is null initially when no shared service exist.
+  pageContext: string | null = null;
+  // Null ExplorationId implies that no exploration has been created.
+  explorationId: string | null = null;
+  explorationIsLinkedToStory: boolean = false;
+  questionPlayerIsManuallySet: boolean = false;
+  // Context of the editor is null until initialized by init fuctions
+  // at respective editors.
+  editorContext: string | null = null;
+  // Depending on this value, new images can be either saved in the localStorage
+  // or uploaded directly to the datastore.
+
+  learnerGroupId!: string;
 
   init(editorName: string): void {
     this.editorContext = editorName;
   }
+
   // Following method helps to know the whether the context of editor is
   // question editor or exploration editor. The variable editorContext is
   // set from the init function that is called upon initialization in the
   // respective editors.
-  getEditorContext(): string {
+  getEditorContext(): string | null {
     return this.editorContext;
   }
+
   // Returns a string representing the current tab of the editor (either
   // 'editor' or 'preview'), or null if the current tab is neither of these,
   // or the current page is not the editor.
@@ -64,6 +86,7 @@ export class ContextService {
       return null;
     }
   }
+
   // Returns a string representing the context of the current page.
   // This is PAGE_CONTEXT.EXPLORATION_EDITOR or
   // PAGE_CONTEXT.EXPLORATION_PLAYER or PAGE_CONTEXT.QUESTION_EDITOR.
@@ -111,12 +134,21 @@ export class ContextService {
           this.pageContext = (
             ServicesConstants.PAGE_CONTEXT.CONTRIBUTOR_DASHBOARD);
           return ServicesConstants.PAGE_CONTEXT.CONTRIBUTOR_DASHBOARD;
+        } else if (pathnameArray[i] === 'blog-dashboard') {
+          this.pageContext = (
+            ServicesConstants.PAGE_CONTEXT.BLOG_DASHBOARD);
+          return ServicesConstants.PAGE_CONTEXT.BLOG_DASHBOARD;
+        } else if (pathnameArray[i] === 'edit-learner-group') {
+          this.pageContext = (
+            ServicesConstants.PAGE_CONTEXT.LEARNER_GROUP_EDITOR);
+          return ServicesConstants.PAGE_CONTEXT.LEARNER_GROUP_EDITOR;
         }
       }
 
       return ServicesConstants.PAGE_CONTEXT.OTHER;
     }
   }
+
   // This is required in cases like when we need to access question player
   // from the skill editor preview tab.
   setQuestionPlayerIsOpen(): void {
@@ -131,20 +163,12 @@ export class ContextService {
     return this.questionPlayerIsManuallySet;
   }
 
-  canEntityReferToSkills(): boolean {
-    return (
-      this.getPageContext() === ServicesConstants.PAGE_CONTEXT.TOPIC_EDITOR ||
-      this.getPageContext() === ServicesConstants.PAGE_CONTEXT.SKILL_EDITOR ||
-      (
-        this.getPageContext() === (
-          ServicesConstants.PAGE_CONTEXT.EXPLORATION_EDITOR) &&
-        this.explorationIsLinkedToStory
-      )
-    );
-  }
-
   setExplorationIsLinkedToStory(): void {
     this.explorationIsLinkedToStory = true;
+  }
+
+  isExplorationLinkedToStory(): boolean {
+    return this.explorationIsLinkedToStory;
   }
 
   isInExplorationContext(): boolean {
@@ -159,17 +183,17 @@ export class ContextService {
   // correct context for some case. eg: Viewing a skill's concept card on
   // any page via the RTE.
   setCustomEntityContext(entityType: string, entityId: string): void {
-    this.customEntityContext = new EntityContext(
+    ContextService.customEntityContext = new EntityContext(
       entityId, entityType);
   }
 
   removeCustomEntityContext(): void {
-    this.customEntityContext = null;
+    ContextService.customEntityContext = null;
   }
 
   getEntityId(): string {
-    if (this.customEntityContext !== null) {
-      return this.customEntityContext.getId();
+    if (ContextService.customEntityContext !== null) {
+      return ContextService.customEntityContext.getId();
     }
     let pathnameArray = this.urlService.getPathname().split('/');
     let hashValues = this.urlService.getHash().split('#');
@@ -180,14 +204,20 @@ export class ContextService {
       if (hashValues.length === 3 && hashValues[1] === '/questions') {
         return decodeURI(hashValues[2]);
       }
+      if (pathnameArray[i] === 'blog-dashboard') {
+        return decodeURI(this.urlService.getBlogPostIdFromUrl());
+      }
+      if (pathnameArray[i] === 'blog') {
+        return this.blogPostPageService.blogPostId;
+      }
     }
     return decodeURI(pathnameArray[2]);
   }
 
   // Add constants for entity type.
-  getEntityType(): string {
-    if (this.customEntityContext !== null) {
-      return this.customEntityContext.getType();
+  getEntityType(): string | undefined {
+    if (ContextService.customEntityContext !== null) {
+      return ContextService.customEntityContext.getType();
     }
     let pathnameArray = this.urlService.getPathname().split('/');
     let hashValues = this.urlService.getHash().split('#');
@@ -212,6 +242,12 @@ export class ContextService {
         }
         return AppConstants.ENTITY_TYPE.SKILL;
       }
+      if (pathnameArray[i] === 'blog-dashboard') {
+        return AppConstants.ENTITY_TYPE.BLOG_POST;
+      }
+      if (pathnameArray[i] === 'blog') {
+        return AppConstants.ENTITY_TYPE.BLOG_POST;
+      }
     }
   }
 
@@ -220,13 +256,17 @@ export class ContextService {
   getExplorationId(): string {
     if (this.explorationId) {
       return this.explorationId;
-    } else if (!this.isInQuestionPlayerMode()) {
+    } else if (
+      !this.isInQuestionPlayerMode() ||
+      this.getQuestionPlayerIsManuallySet()
+    ) {
       // The pathname should be one of /explore/{exploration_id} or
       // /create/{exploration_id} or /embed/exploration/{exploration_id}.
       let pathnameArray = this.urlService.getPathname().split('/');
       for (let i = 0; i < pathnameArray.length; i++) {
         if (pathnameArray[i] === 'explore' ||
-            pathnameArray[i] === 'create') {
+            pathnameArray[i] === 'create' ||
+            pathnameArray[i] === 'skill_editor') {
           this.explorationId = pathnameArray[i + 1];
           return pathnameArray[i + 1];
         }
@@ -235,11 +275,33 @@ export class ContextService {
           return this.explorationId;
         }
       }
-
-      throw new Error(
-        'ContextService should not be used outside the ' +
-        'context of an exploration or a question.');
     }
+    throw new Error(
+      'ContextService should not be used outside the ' +
+      'context of an exploration or a question.'
+    );
+  }
+
+  // Returns a string representing the learnerGroupId (obtained from the
+  // URL).
+  getLearnerGroupId(): string {
+    if (this.learnerGroupId) {
+      return this.learnerGroupId;
+    }
+    // The pathname should be one of /edit-learner-group/{group_id} or
+    // /learner-group/{group_id}.
+    let pathnameArray = this.urlService.getPathname().split('/');
+    for (let i = 0; i < pathnameArray.length; i++) {
+      if (pathnameArray[i] === 'edit-learner-group' ||
+          pathnameArray[i] === 'learner-group') {
+        this.learnerGroupId = pathnameArray[i + 1];
+        return pathnameArray[i + 1];
+      }
+    }
+    throw new Error(
+      'ContextService should not be used outside the ' +
+      'context of a learner group.'
+    );
   }
 
   // Following method helps to know whether exploration editor is
@@ -271,6 +333,13 @@ export class ContextService {
         ServicesConstants.PAGE_CONTEXT.EXPLORATION_EDITOR);
   }
 
+  isInBlogPostEditorPage(): boolean {
+    return (
+      this.getPageContext() ===
+        ServicesConstants.PAGE_CONTEXT.BLOG_DASHBOARD
+    );
+  }
+
   canAddOrEditComponents(): boolean {
     var currentPageContext = this.getPageContext();
     var allowedPageContext: string[] = [
@@ -281,25 +350,25 @@ export class ContextService {
       ServicesConstants.PAGE_CONTEXT.STORY_EDITOR,
       ServicesConstants.PAGE_CONTEXT.SKILL_EDITOR,
       ServicesConstants.PAGE_CONTEXT.TOPICS_AND_SKILLS_DASHBOARD,
-      ServicesConstants.PAGE_CONTEXT.CONTRIBUTOR_DASHBOARD
+      ServicesConstants.PAGE_CONTEXT.CONTRIBUTOR_DASHBOARD,
+      ServicesConstants.PAGE_CONTEXT.BLOG_DASHBOARD,
     ];
     return (allowedPageContext.includes(currentPageContext));
   }
 
-  // Sets the current context to save images in local storage. Depending on this
-  // value, new images can be either saved in the localStorage or uploaded
-  // directly to the datastore.
+  // Sets the current context to save images to the server.
   resetImageSaveDestination(): void {
-    this.imageSaveDestination = AppConstants.IMAGE_SAVE_DESTINATION_SERVER;
+    ContextService.imageSaveDestination = (
+      AppConstants.IMAGE_SAVE_DESTINATION_SERVER);
   }
 
   setImageSaveDestinationToLocalStorage(): void {
-    this.imageSaveDestination = (
+    ContextService.imageSaveDestination = (
       AppConstants.IMAGE_SAVE_DESTINATION_LOCAL_STORAGE);
   }
 
   getImageSaveDestination(): string {
-    return this.imageSaveDestination;
+    return ContextService.imageSaveDestination;
   }
 }
 

@@ -15,88 +15,109 @@
 /**
  * @fileoverview Component for the story preview tab.
  */
-require(
-  'components/forms/custom-forms-directives/thumbnail-uploader.directive.ts');
 
-require('pages/story-editor-page/services/story-editor-state.service.ts');
-require('pages/story-editor-page/story-editor-page.constants.ajs.ts');
-require('pages/story-editor-page/editor-tab/story-node-editor.directive.ts');
-require('services/assets-backend-api.service.ts');
-require('services/contextual/url.service.ts');
-
+import { Component, OnDestroy, OnInit } from '@angular/core';
+import { downgradeComponent } from '@angular/upgrade/static';
+import { StoryNode } from 'domain/story/story-node.model';
+import { StoryContents } from 'domain/story/story-contents-object.model';
+import { Story } from 'domain/story/story.model';
 import { Subscription } from 'rxjs';
+import { AssetsBackendApiService } from 'services/assets-backend-api.service';
+import { UrlService } from 'services/contextual/url.service';
+import { StoryEditorStateService } from '../services/story-editor-state.service';
 
-angular.module('oppia').component('storyPreviewTab', {
-  template: require('./story-preview-tab.component.html'),
-  controller: [
-    'AssetsBackendApiService', 'StoryEditorStateService', 'UrlService',
-    function(
-        AssetsBackendApiService, StoryEditorStateService, UrlService) {
-      var ctrl = this;
-      ctrl.directiveSubscriptions = new Subscription();
-      ctrl.initEditor = function() {
-        ctrl.story = StoryEditorStateService.getStory();
-        ctrl.storyId = StoryEditorStateService.getStory().getId();
-        ctrl.storyContents = ctrl.story.getStoryContents();
-        if (ctrl.storyContents &&
-            ctrl.storyContents.getNodes().length > 0) {
-          ctrl.nodes = ctrl.storyContents.getNodes();
-          ctrl.pathIconParameters = ctrl.generatePathIconParameters();
-        }
-      };
+interface IconsArray {
+    // Thumbnails for the story nodes are null if they are not yet uploaded.
+    // Means when we are making a new story with no nodes, the thumbnails are
+    // null.
+    'thumbnailIconUrl': string | null;
+    'thumbnailBgColor': string | null;
+}
 
-      ctrl.generatePathIconParameters = function() {
-        var storyNodes = ctrl.nodes;
-        var iconParametersArray = [];
-        let thumbnailIconUrl = storyNodes[0].getThumbnailFilename() ? (
-                AssetsBackendApiService.getThumbnailUrlForPreview(
-                  'story', ctrl.storyId,
-                  storyNodes[0].getThumbnailFilename())) : null;
-        iconParametersArray.push({
-          thumbnailIconUrl: thumbnailIconUrl,
-          thumbnailBgColor: storyNodes[0].getThumbnailBgColor()
-        });
+@Component({
+  selector: 'oppia-story-preview-tab',
+  templateUrl: './story-preview-tab.component.html'
+})
+export class StoryPreviewTabComponent implements OnInit, OnDestroy {
+  // These properties are initialized using Angular lifecycle hooks
+  // and we need to do non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  story!: Story;
+  storyId!: string;
+  storyContents!: StoryContents;
+  nodes!: StoryNode[];
+  pathIconParameters!: IconsArray[];
+  constructor(
+    private storyEditorStateService: StoryEditorStateService,
+    private assetsBackendApiService: AssetsBackendApiService,
+    private urlService: UrlService,
+  ) {}
 
-        for (
-          var i = 1; i < ctrl.nodes.length; i++) {
-          thumbnailIconUrl = storyNodes[i].getThumbnailFilename() ? (
-              AssetsBackendApiService.getThumbnailUrlForPreview(
-                'story', ctrl.storyId,
-                storyNodes[i].getThumbnailFilename())) : null;
-          iconParametersArray.push({
-            thumbnailIconUrl: thumbnailIconUrl,
-            thumbnailBgColor: storyNodes[i].getThumbnailBgColor()
-          });
-        }
-        return iconParametersArray;
-      };
-
-      ctrl.getExplorationUrl = function(node) {
-        var result = '/explore/' + node.getExplorationId();
-        result = UrlService.addField(
-          result, 'story_id', ctrl.storyId);
-        result = UrlService.addField(
-          result, 'node_id', node.getId());
-        return result;
-      };
-
-      ctrl.$onInit = function() {
-        ctrl.directiveSubscriptions.add(
-          StoryEditorStateService.onStoryInitialized.subscribe(
-            () => ctrl.initEditor()
-          )
-        );
-        ctrl.directiveSubscriptions.add(
-          StoryEditorStateService.onStoryReinitialized.subscribe(
-            () => ctrl.initEditor()
-          )
-        );
-        ctrl.initEditor();
-      };
-
-      ctrl.$onDestroy = function() {
-        ctrl.directiveSubscriptions.unsubscribe();
-      };
+  directiveSubscriptions = new Subscription();
+  initEditor(): void {
+    this.story = this.storyEditorStateService.getStory();
+    this.storyId = this.story.getId();
+    this.storyContents = this.story.getStoryContents();
+    if (this.storyContents &&
+        this.storyContents.getNodes().length > 0) {
+      this.nodes = this.storyContents.getNodes();
+      this.pathIconParameters = this.generatePathIconParameters();
     }
-  ]
-});
+  }
+
+  generatePathIconParameters(): IconsArray[] {
+    var storyNodes = this.nodes;
+    var iconParametersArray = [];
+    let thumbnailFilename = storyNodes[0].getThumbnailFilename();
+    let thumbnailIconUrl = thumbnailFilename ? (
+            this.assetsBackendApiService.getThumbnailUrlForPreview(
+              'story', this.storyId, thumbnailFilename)) : null;
+    iconParametersArray.push({
+      thumbnailIconUrl: thumbnailIconUrl,
+      thumbnailBgColor: storyNodes[0].getThumbnailBgColor()
+    });
+
+    for (
+      var i = 1; i < this.nodes.length; i++) {
+      let thumbnailFilename = storyNodes[i].getThumbnailFilename();
+      thumbnailIconUrl = thumbnailFilename ? (
+          this.assetsBackendApiService.getThumbnailUrlForPreview(
+            'story', this.storyId, thumbnailFilename)) : null;
+      iconParametersArray.push({
+        thumbnailIconUrl: thumbnailIconUrl,
+        thumbnailBgColor: storyNodes[i].getThumbnailBgColor()
+      });
+    }
+    return iconParametersArray;
+  }
+
+  getExplorationUrl(node: StoryNode): string {
+    var result = '/explore/' + node.getExplorationId();
+    result = this.urlService.addField(
+      result, 'story_id', this.storyId);
+    result = this.urlService.addField(
+      result, 'node_id', node.getId());
+    return result;
+  }
+
+  ngOnInit(): void {
+    this.directiveSubscriptions.add(
+      this.storyEditorStateService.onStoryInitialized.subscribe(
+        () => this.initEditor()
+      )
+    );
+    this.directiveSubscriptions.add(
+      this.storyEditorStateService.onStoryReinitialized.subscribe(
+        () => this.initEditor()
+      )
+    );
+    this.initEditor();
+  }
+
+  ngOnDestroy(): void {
+    this.directiveSubscriptions.unsubscribe();
+  }
+}
+angular.module('oppia').directive(
+  'oppiaStoryPreviewTab', downgradeComponent(
+    {component: StoryPreviewTabComponent}));

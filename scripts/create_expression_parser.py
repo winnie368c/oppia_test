@@ -14,14 +14,12 @@
 
 """This script produces the expression parser."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import argparse
 import os
 import subprocess
-
-import python_utils
+from typing import Optional, Sequence
 
 from . import common
 from . import setup
@@ -34,7 +32,7 @@ The root folder MUST be named 'oppia'.
 """)
 
 
-def main(args=None):
+def main(args: Optional[Sequence[str]] = None) -> None:
     """Produces the expression parser."""
     unused_parsed_args = _PARSER.parse_args(args=args)
     setup.main(args=[])
@@ -50,8 +48,8 @@ def main(args=None):
         os.path.join(common.NODE_MODULES_PATH, 'pegjs', 'bin', 'pegjs'),
         expression_parser_definition, expression_parser_js])
 
-    python_utils.PRINT('Done!')
+    print('Done!')
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     main()

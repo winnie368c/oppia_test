@@ -8,9 +8,6 @@
  *    functions.
  */
 var constants = {
-  // Whether to allow custom event reporting to Google Analytics.
-  "CAN_SEND_ANALYTICS_EVENTS": false,
-
   "ALL_CATEGORIES": ["Algebra", "Algorithms", "Architecture", "Arithmetic",
     "Art", "Astronomy", "Biology", "Business", "Calculus", "Chemistry",
     "Combinatorics", "Computing", "Economics", "Education", "Engineering",
@@ -454,13 +451,14 @@ var constants = {
   // These categories and interactions are displayed in the order in which they
   // appear in the interaction selector.
   "ALLOWED_INTERACTION_CATEGORIES": [{
-    "name": "General",
+    "name": "Commonly Used",
     "interaction_ids": [
         "Continue",
         "EndExploration",
         "ImageClickInput",
         "ItemSelectionInput",
         "MultipleChoiceInput",
+        "NumericInput",
         "TextInput",
         "DragAndDropSortInput"
     ]
@@ -469,7 +467,6 @@ var constants = {
     "interaction_ids": [
         "FractionInput",
         "GraphInput",
-        "LogicProof",
         "NumericInput",
         "SetInput",
         "NumericExpressionInput",
@@ -565,6 +562,7 @@ var constants = {
             "default_outcome": {}
           }
       },
+      "linked_skill_id": null,
       "next_content_id_index": 0
   }
 };

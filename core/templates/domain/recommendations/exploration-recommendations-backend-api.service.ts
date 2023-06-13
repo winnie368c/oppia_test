@@ -25,13 +25,20 @@ import {
   LearnerExplorationSummaryBackendDict
 } from 'domain/summary/learner-exploration-summary.model';
 
+// Eslint disable is added because we need to use 'type' instead of 'interface'
+// to create the 'RecommendationsUrlParams' type. This is done, because
+// when using the interface style, TypeScript throws an error because
+// this type and the type of the method's expected argument don't match
+// exactly (even though they are compatible).
 // This is the type used for params that are sent to the backend.
 // This type has optional properties because they may not be present in the URL.
 // If we send these params always, the request URL would have something like
 // '?collection_id=null' and the backend would start looking for a collection
 // with id "null" which is not correct.
+
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 type RecommendationsUrlParams = {
-  'stringified_author_recommended_ids': string;
+  'author_recommended_ids': string;
   'collection_id'?: string;
   'story_id'?: string;
   'current_node_id'?: string;
@@ -49,13 +56,18 @@ export class ExplorationRecommendationsBackendApiService {
   constructor(
     private http: HttpClient) { }
 
-  getRecommendedSummaryDicts(
+  async getRecommendedSummaryDictsAsync(
       authorRecommendedExpIds: string[],
       includeSystemRecommendations: string,
-      collectionId: string, storyId: string, currentNodeId: string,
-      explorationId: string): Promise<LearnerExplorationSummary[]> {
+      // 'collectionId', 'storyId' and 'currentNodeId' can be null
+      // since they may not be present in the URL.
+      collectionId: string | null,
+      storyId: string | null,
+      currentNodeId: string | null,
+      explorationId: string
+  ): Promise<LearnerExplorationSummary[]> {
     let recommendationsUrlParams: RecommendationsUrlParams = {
-      stringified_author_recommended_ids: JSON.stringify(
+      author_recommended_ids: JSON.stringify(
         authorRecommendedExpIds),
       include_system_recommendations: includeSystemRecommendations,
     };
@@ -73,7 +85,7 @@ export class ExplorationRecommendationsBackendApiService {
     return this.http.get<RecommendedExplorationSummariesBackendDict>(
       '/explorehandler/recommendations/' + explorationId, {
         params: recommendationsUrlParams
-      }).toPromise().then(backendDict => backendDict.summaries.map(
+      } as Object).toPromise().then(backendDict => backendDict.summaries.map(
       summaryDict => LearnerExplorationSummary.createFromBackendDict(
         summaryDict)));
   }

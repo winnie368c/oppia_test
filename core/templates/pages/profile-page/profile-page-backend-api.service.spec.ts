@@ -26,9 +26,9 @@ import { ProfilePageBackendApiService } from
 import { UrlService } from 'services/contextual/url.service';
 
 describe('Profile test backend API service', () => {
-  let profilePageBackendApiService: ProfilePageBackendApiService = null;
+  let profilePageBackendApiService: ProfilePageBackendApiService;
   let httpTestingController: HttpTestingController;
-  let urlService: UrlService = null;
+  let urlService: UrlService;
   let expectedBody = { creator_username: 'testUsername' };
 
   let ERROR_STATUS_CODE = 500;
@@ -201,7 +201,6 @@ describe('Profile test backend API service', () => {
       subject_interests: [],
       username_of_viewed_profile: 'user2',
       user_bio: 'hi',
-      profile_picture_data_url: 'image',
     });
 
     flushMicrotasks();

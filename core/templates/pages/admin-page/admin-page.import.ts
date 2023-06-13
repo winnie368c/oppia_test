@@ -16,10 +16,21 @@
  * @fileoverview Directives required in admin panel.
  */
 
+import 'core-js/es7/reflect';
+import 'zone.js';
+
+import uiValidate from 'angular-ui-validate';
+
+angular.module('oppia', [
+  require('angular-cookies'), 'ngAnimate',
+  'ngMaterial', 'ngSanitize', 'ngTouch', 'pascalprecht.translate',
+  'ui.bootstrap', uiValidate
+]);
+
+require('Polyfills.ts');
+
 // The module needs to be loaded directly after jquery since it defines the
 // main module the elements are attached to.
 require('pages/admin-page/admin-page.module.ts');
 require('App.ts');
 require('base-components/oppia-root.directive.ts');
-
-require('pages/admin-page/admin-page.directive.ts');

@@ -16,17 +16,23 @@
 
 """Tests for email_subscription_services."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
+from core import feconf
 from core.domain import email_subscription_services
 from core.domain import subscription_services
 from core.platform import models
 from core.tests import test_utils
-import feconf
+
+from typing import Final, Sequence
+
+MYPY = False
+if MYPY: # pragma: no cover
+    from mypy_imports import email_models
+    from mypy_imports import user_models
 
 (email_models, user_models) = models.Registry.import_models([
-    models.NAMES.email, models.NAMES.user])
+    models.Names.EMAIL, models.Names.USER])
 
 
 class InformSubscribersTest(test_utils.EmailTestBase):
@@ -34,14 +40,14 @@ class InformSubscribersTest(test_utils.EmailTestBase):
     creator.
     """
 
-    USER_NAME = 'user'
-    USER_EMAIL = 'user@test.com'
+    USER_NAME: Final = 'user'
+    USER_EMAIL: Final = 'user@test.com'
 
-    USER_NAME_2 = 'user2'
-    USER_EMAIL_2 = 'user2@test.com'
+    USER_NAME_2: Final = 'user2'
+    USER_EMAIL_2: Final = 'user2@test.com'
 
-    def setUp(self):
-        super(InformSubscribersTest, self).setUp()
+    def setUp(self) -> None:
+        super().setUp()
         self.signup(self.EDITOR_EMAIL, self.EDITOR_USERNAME)
         self.signup(self.USER_EMAIL, self.USER_NAME)
         self.signup(self.NEW_USER_EMAIL, self.NEW_USER_USERNAME)
@@ -60,7 +66,7 @@ class InformSubscribersTest(test_utils.EmailTestBase):
         self.can_send_subscription_email_ctx = self.swap(
             feconf, 'CAN_SEND_SUBSCRIPTION_EMAILS', True)
 
-    def test_inform_subscribers(self):
+    def test_inform_subscribers(self) -> None:
         subscription_services.subscribe_to_creator(
             self.user_id_2, self.editor_id)
         subscription_services.subscribe_to_creator(
@@ -95,7 +101,8 @@ class InformSubscribersTest(test_utils.EmailTestBase):
             self.assertEqual(len(messages), 0)
 
             # Make sure correct email models are stored.
-            all_models = email_models.SentEmailModel.get_all().fetch()
+            all_models: Sequence[email_models.SentEmailModel] = (
+                email_models.SentEmailModel.get_all().fetch())
             self.assertEqual(True, any(
                 model.recipient_id == self.user_id for model in all_models))
             self.assertEqual(True, any(

@@ -24,9 +24,12 @@ import {
   StateObjectFactory,
   State
 } from 'domain/state/StateObjectFactory';
-import { Voiceover } from 'domain/exploration/VoiceoverObjectFactory';
+import { Voiceover } from 'domain/exploration/voiceover.model';
+import { WrittenTranslation } from
+  'domain/exploration/WrittenTranslationObjectFactory';
 
 import INTERACTION_SPECS from 'interactions/interaction_specs.json';
+import { InteractionSpecsKey } from 'pages/interaction-specs.constants';
 
 export interface StateObjectsDict {
   [state: string]: State;
@@ -40,10 +43,15 @@ export interface VoiceoverObjectsDict {
   [state: string]: Voiceover[];
 }
 
+export interface WrittenTranslationObjectsDict {
+  [stateName: string]: WrittenTranslation[];
+}
+
 export class States {
   constructor(
     private _stateObject: StateObjectFactory,
-    private _states: StateObjectsDict) { }
+    private _states: StateObjectsDict
+  ) {}
 
   getState(stateName: string): State {
     return this._states[stateName];
@@ -56,64 +64,89 @@ export class States {
   getStateObjects(): StateObjectsDict {
     return this._states;
   }
-  addState(newStateName: string): void {
+
+  addState(
+      newStateName: string,
+      contentIdForContent: string,
+      contentIdForDefaultOutcome: string): void {
     this._states[newStateName] = this._stateObject.createDefaultState(
-      newStateName);
+      newStateName, contentIdForContent, contentIdForDefaultOutcome);
   }
+
   setState(stateName: string, stateData: State): void {
     // We use the copy method defined in the StateObjectFactory to make
     // sure that this._states[stateName] remains a State object as opposed to
     // Object.assign(..) which returns an object with the content of stateData.
     this._states[stateName].copy(stateData);
   }
+
   hasState(stateName: string): boolean {
     return this._states.hasOwnProperty(stateName);
   }
+
   deleteState(deleteStateName: string): void {
     delete this._states[deleteStateName];
-    for (var otherStateName in this._states) {
-      var interaction = this._states[otherStateName].interaction;
-      var groups = interaction.answerGroups;
-      for (var i = 0; i < groups.length; i++) {
+    for (let otherStateName in this._states) {
+      let interaction = this._states[otherStateName].interaction;
+      let groups = interaction.answerGroups;
+      for (let i = 0; i < groups.length; i++) {
         if (groups[i].outcome.dest === deleteStateName) {
           groups[i].outcome.dest = otherStateName;
+        }
+        if (groups[i].outcome.destIfReallyStuck === deleteStateName) {
+          groups[i].outcome.destIfReallyStuck = otherStateName;
         }
       }
       if (interaction.defaultOutcome) {
         if (interaction.defaultOutcome.dest === deleteStateName) {
           interaction.defaultOutcome.dest = otherStateName;
         }
+        if (interaction.defaultOutcome.destIfReallyStuck === deleteStateName) {
+          interaction.defaultOutcome.destIfReallyStuck = otherStateName;
+        }
       }
     }
   }
+
   renameState(oldStateName: string, newStateName: string): void {
     this._states[newStateName] = this._states[oldStateName];
     this._states[newStateName].setName(newStateName);
     delete this._states[oldStateName];
 
-    for (var otherStateName in this._states) {
-      var interaction = this._states[otherStateName].interaction;
-      var groups = interaction.answerGroups;
-      for (var i = 0; i < groups.length; i++) {
+    for (let otherStateName in this._states) {
+      let interaction = this._states[otherStateName].interaction;
+      let groups = interaction.answerGroups;
+      for (let i = 0; i < groups.length; i++) {
         if (groups[i].outcome.dest === oldStateName) {
           groups[i].outcome.dest = newStateName;
+        }
+        if (groups[i].outcome.destIfReallyStuck === oldStateName) {
+          groups[i].outcome.destIfReallyStuck = newStateName;
         }
       }
       if (interaction.defaultOutcome) {
         if (interaction.defaultOutcome.dest === oldStateName) {
           interaction.defaultOutcome.dest = newStateName;
         }
+        if (interaction.defaultOutcome.destIfReallyStuck === oldStateName) {
+          interaction.defaultOutcome.destIfReallyStuck = newStateName;
+        }
       }
     }
   }
+
   getStateNames(): string[] {
     return Object.keys(this._states);
   }
+
   getFinalStateNames(): string[] {
-    var finalStateNames = [];
-    for (var stateName in this._states) {
-      var interaction = this._states[stateName].interaction;
-      if (interaction.id && INTERACTION_SPECS[interaction.id].is_terminal) {
+    let finalStateNames = [];
+    for (let stateName in this._states) {
+      let interaction = this._states[stateName].interaction;
+      if (
+        interaction.id &&
+        INTERACTION_SPECS[interaction.id as InteractionSpecsKey].is_terminal
+      ) {
         finalStateNames.push(stateName);
       }
     }
@@ -121,31 +154,27 @@ export class States {
   }
 
   getAllVoiceoverLanguageCodes(): string[] {
-    var allAudioLanguageCodes = [];
-    for (var stateName in this._states) {
-      var state = this._states[stateName];
-      var contentIdsList = state.recordedVoiceovers.getAllContentId();
-      contentIdsList.forEach(function(contentId) {
-        var audioLanguageCodes = (
-          state.recordedVoiceovers.getVoiceoverLanguageCodes(contentId));
-        audioLanguageCodes.forEach(function(languageCode) {
-          if (allAudioLanguageCodes.indexOf(languageCode) === -1) {
-            allAudioLanguageCodes.push(languageCode);
-          }
-        });
+    const allLanguageCodes = new Set<string>();
+    Object.values(this._states).forEach(state => {
+      state.recordedVoiceovers.getAllContentIds().forEach(contentId => {
+        const contentLanguageCodes = (
+          state.recordedVoiceovers.getLanguageCodes(contentId));
+        contentLanguageCodes.forEach(
+          allLanguageCodes.add,
+          allLanguageCodes);
       });
-    }
-    return allAudioLanguageCodes;
+    });
+    return [...allLanguageCodes];
   }
 
   getAllVoiceovers(languageCode: string): VoiceoverObjectsDict {
-    var allAudioTranslations = {};
-    for (var stateName in this._states) {
-      var state = this._states[stateName];
+    let allAudioTranslations: VoiceoverObjectsDict = {};
+    for (let stateName in this._states) {
+      let state = this._states[stateName];
       allAudioTranslations[stateName] = [];
-      var contentIdsList = state.recordedVoiceovers.getAllContentId();
-      contentIdsList.forEach(function(contentId) {
-        var audioTranslations = (
+      let contentIdsList = state.recordedVoiceovers.getAllContentIds();
+      contentIdsList.forEach((contentId) => {
+        let audioTranslations = (
           state.recordedVoiceovers.getBindableVoiceovers(contentId));
         if (audioTranslations.hasOwnProperty(languageCode)) {
           allAudioTranslations[stateName].push(
@@ -163,8 +192,8 @@ export class States {
 export class StatesObjectFactory {
   constructor(private stateObject: StateObjectFactory) {}
   createFromBackendDict(statesBackendDict: StateObjectsBackendDict): States {
-    var stateObjectsDict = {};
-    for (var stateName in statesBackendDict) {
+    let stateObjectsDict: StateObjectsDict = {};
+    for (let stateName in statesBackendDict) {
       stateObjectsDict[stateName] = this.stateObject.createFromBackendDict(
         stateName, statesBackendDict[stateName]);
     }

@@ -14,14 +14,21 @@
 
 """Models for storing the skill data models."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
-from constants import constants
+from core.constants import constants
 from core.platform import models
 
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+
+MYPY = False
+if MYPY: # pragma: no cover
+    from mypy_imports import base_models
+    from mypy_imports import datastore_services
+
 (base_models, user_models,) = models.Registry.import_models([
-    models.NAMES.base_model, models.NAMES.user])
+    models.Names.BASE_MODEL, models.Names.USER
+])
 
 datastore_services = models.Registry.import_datastore_services()
 
@@ -36,9 +43,54 @@ class SkillSnapshotContentModel(base_models.BaseSnapshotContentModel):
     """Storage model for the content of a skill snapshot."""
 
     @staticmethod
-    def get_deletion_policy():
+    def get_deletion_policy() -> base_models.DELETION_POLICY:
         """Model doesn't contain any data directly corresponding to a user."""
         return base_models.DELETION_POLICY.NOT_APPLICABLE
+
+
+class SkillCommitLogEntryModel(base_models.BaseCommitLogEntryModel):
+    """Log of commits to skills.
+
+    A new instance of this model is created and saved every time a commit to
+    SkillModel occurs.
+
+    The id for this model is of the form 'skill-[skill_id]-[version]'.
+    """
+
+    # The id of the skill being edited.
+    skill_id = datastore_services.StringProperty(indexed=True, required=True)
+
+    @classmethod
+    def get_instance_id(cls, skill_id: str, version: int) -> str:
+        """This function returns the generated id for the get_commit function
+        in the parent class.
+
+        Args:
+            skill_id: str. The id of the skill being edited.
+            version: int. The version number of the skill after the commit.
+
+        Returns:
+            str. The commit id with the skill id and version number.
+        """
+        return 'skill-%s-%s' % (skill_id, version)
+
+    @staticmethod
+    def get_model_association_to_user(
+    ) -> base_models.MODEL_ASSOCIATION_TO_USER:
+        """The history of commits is not relevant for the purposes of Takeout
+        since commits don't contain relevant data corresponding to users.
+        """
+        return base_models.MODEL_ASSOCIATION_TO_USER.NOT_CORRESPONDING_TO_USER
+
+    @classmethod
+    def get_export_policy(cls) -> Dict[str, base_models.EXPORT_POLICY]:
+        """Model contains data corresponding to a user, but this isn't exported
+        because the history of commits isn't deemed as useful for users since
+        commit logs don't contain relevant data corresponding to those users.
+        """
+        return dict(super(cls, cls).get_export_policy(), **{
+            'skill_id': base_models.EXPORT_POLICY.NOT_APPLICABLE
+        })
 
 
 class SkillModel(base_models.VersionedModel):
@@ -50,6 +102,7 @@ class SkillModel(base_models.VersionedModel):
 
     SNAPSHOT_METADATA_CLASS = SkillSnapshotMetadataModel
     SNAPSHOT_CONTENT_CLASS = SkillSnapshotContentModel
+    COMMIT_LOG_ENTRY_CLASS = SkillCommitLogEntryModel
     ALLOW_REVERT = False
 
     # The description of the skill.
@@ -91,12 +144,12 @@ class SkillModel(base_models.VersionedModel):
         datastore_services.BooleanProperty(indexed=True, required=True))
 
     @staticmethod
-    def get_deletion_policy():
+    def get_deletion_policy() -> base_models.DELETION_POLICY:
         """Model doesn't contain any data directly corresponding to a user."""
         return base_models.DELETION_POLICY.NOT_APPLICABLE
 
     @classmethod
-    def get_merged_skills(cls):
+    def get_merged_skills(cls) -> List[SkillModel]:
         """Returns the skill models which have been merged.
 
         Returns:
@@ -107,8 +160,17 @@ class SkillModel(base_models.VersionedModel):
             skill.superseding_skill_id is not None and (
                 len(skill.superseding_skill_id) > 0))]
 
-    def _trusted_commit(
-            self, committer_id, commit_type, commit_message, commit_cmds):
+    def compute_models_to_commit(
+        self,
+        committer_id: str,
+        commit_type: str,
+        commit_message: Optional[str],
+        commit_cmds: base_models.AllowedCommitCmdsListType,
+        # We expect Mapping because we want to allow models that inherit
+        # from BaseModel as the values, if we used Dict this wouldn't
+        # be allowed.
+        additional_models: Mapping[str, base_models.BaseModel]
+    ) -> base_models.ModelsToPutDict:
         """Record the event to the commit log after the model commit.
 
         Note that this extends the superclass method.
@@ -118,31 +180,48 @@ class SkillModel(base_models.VersionedModel):
                 change.
             commit_type: str. The type of commit. Possible values are in
                 core.storage.base_models.COMMIT_TYPE_CHOICES.
-            commit_message: str. The commit description message.
+            commit_message: str|None. The commit description message, for
+                unpublished skills, it may be equal to None.
             commit_cmds: list(dict). A list of commands, describing changes
                 made in this model, which should give sufficient information to
                 reconstruct the commit. Each dict always contains:
                     cmd: str. Unique command.
                 and then additional arguments for that command.
+            additional_models: dict(str, BaseModel). Additional models that are
+                needed for the commit process.
+
+        Returns:
+            ModelsToPutDict. A dict of models that should be put into
+            the datastore.
         """
-        super(SkillModel, self)._trusted_commit(
-            committer_id, commit_type, commit_message, commit_cmds)
+        models_to_put = super().compute_models_to_commit(
+            committer_id,
+            commit_type,
+            commit_message,
+            commit_cmds,
+            additional_models
+        )
 
         skill_commit_log_entry = SkillCommitLogEntryModel.create(
             self.id, self.version, committer_id, commit_type, commit_message,
             commit_cmds, constants.ACTIVITY_STATUS_PUBLIC, False
         )
         skill_commit_log_entry.skill_id = self.id
-        skill_commit_log_entry.update_timestamps()
-        skill_commit_log_entry.put()
+        return {
+            'snapshot_metadata_model': models_to_put['snapshot_metadata_model'],
+            'snapshot_content_model': models_to_put['snapshot_content_model'],
+            'commit_log_model': skill_commit_log_entry,
+            'versioned_model': models_to_put['versioned_model'],
+        }
 
     @staticmethod
-    def get_model_association_to_user():
+    def get_model_association_to_user(
+    ) -> base_models.MODEL_ASSOCIATION_TO_USER:
         """Model does not contain user data."""
         return base_models.MODEL_ASSOCIATION_TO_USER.NOT_CORRESPONDING_TO_USER
 
     @classmethod
-    def get_export_policy(cls):
+    def get_export_policy(cls) -> Dict[str, base_models.EXPORT_POLICY]:
         """Model doesn't contain any data directly corresponding to a user."""
         return dict(super(cls, cls).get_export_policy(), **{
             'description': base_models.EXPORT_POLICY.NOT_APPLICABLE,
@@ -161,49 +240,19 @@ class SkillModel(base_models.VersionedModel):
             'all_questions_merged': base_models.EXPORT_POLICY.NOT_APPLICABLE
         })
 
-
-class SkillCommitLogEntryModel(base_models.BaseCommitLogEntryModel):
-    """Log of commits to skills.
-
-    A new instance of this model is created and saved every time a commit to
-    SkillModel occurs.
-
-    The id for this model is of the form 'skill-[skill_id]-[version]'.
-    """
-
-    # The id of the skill being edited.
-    skill_id = datastore_services.StringProperty(indexed=True, required=True)
-
     @classmethod
-    def _get_instance_id(cls, skill_id, version):
-        """This function returns the generated id for the get_commit function
-        in the parent class.
+    def get_by_description(cls, description: str) -> Optional[SkillModel]:
+        """Gets SkillModel by description. Returns None if the skill with
+        description doesn't exist.
 
         Args:
-            skill_id: str. The id of the skill being edited.
-            version: int. The version number of the skill after the commit.
+            description: str. The description of the skill.
 
         Returns:
-            str. The commit id with the skill id and version number.
+            SkillModel|None. The skill model of the skill or None if not
+            found.
         """
-        return 'skill-%s-%s' % (skill_id, version)
-
-    @staticmethod
-    def get_model_association_to_user():
-        """This model is only stored for archive purposes. The commit log of
-        entities is not related to personal user data.
-        """
-        return base_models.MODEL_ASSOCIATION_TO_USER.NOT_CORRESPONDING_TO_USER
-
-    @classmethod
-    def get_export_policy(cls):
-        """Model doesn't contain any data directly corresponding to a user.
-        This model is only stored for archive purposes. The commit log of
-        entities is not related to personal user data.
-        """
-        return dict(super(cls, cls).get_export_policy(), **{
-            'skill_id': base_models.EXPORT_POLICY.NOT_APPLICABLE
-        })
+        return cls.get_all().filter(cls.description == description).get()
 
 
 class SkillSummaryModel(base_models.BaseModel):
@@ -243,17 +292,18 @@ class SkillSummaryModel(base_models.BaseModel):
     version = datastore_services.IntegerProperty(required=True)
 
     @staticmethod
-    def get_deletion_policy():
+    def get_deletion_policy() -> base_models.DELETION_POLICY:
         """Model doesn't contain any data directly corresponding to a user."""
         return base_models.DELETION_POLICY.NOT_APPLICABLE
 
     @staticmethod
-    def get_model_association_to_user():
+    def get_model_association_to_user(
+    ) -> base_models.MODEL_ASSOCIATION_TO_USER:
         """Model does not contain user data."""
         return base_models.MODEL_ASSOCIATION_TO_USER.NOT_CORRESPONDING_TO_USER
 
     @classmethod
-    def get_export_policy(cls):
+    def get_export_policy(cls) -> Dict[str, base_models.EXPORT_POLICY]:
         """Model doesn't contain any data directly corresponding to a user."""
         return dict(super(cls, cls).get_export_policy(), **{
             'description': base_models.EXPORT_POLICY.NOT_APPLICABLE,
@@ -266,14 +316,23 @@ class SkillSummaryModel(base_models.BaseModel):
             'version': base_models.EXPORT_POLICY.NOT_APPLICABLE
         })
 
+    # TODO(#13523): Change the return value of the function below from
+    # tuple(list, str|None, bool) to a domain object.
     @classmethod
-    def fetch_page(cls, page_size, urlsafe_start_cursor, sort_by):
+    def fetch_page(
+        cls,
+        page_size: int,
+        urlsafe_start_cursor: Optional[str],
+        sort_by: Optional[str]
+    ) -> Tuple[Sequence[SkillSummaryModel], Optional[str], bool]:
         """Returns the models according to values specified.
 
         Args:
             page_size: int. Number of skills to fetch.
-            urlsafe_start_cursor: str. The cursor to the next page.
-            sort_by: str. A string indicating how to sort the result.
+            urlsafe_start_cursor: str|None. The cursor to the next page or
+                None. If None, this means that the search should start from the
+                first page of results.
+            sort_by: str|None. A string indicating how to sort the result.
 
         Returns:
             3-tuple(query_models, urlsafe_start_cursor, more). where:
@@ -302,8 +361,23 @@ class SkillSummaryModel(base_models.BaseModel):
                     'DecreasingUpdatedOn']):
             sort = cls.skill_model_last_updated
 
-        query_models, next_cursor, more = (
-            cls.query().order(sort).fetch_page(page_size, start_cursor=cursor))
+        sort_query = cls.query().order(sort)
+        fetch_result: Tuple[
+            Sequence[SkillSummaryModel], datastore_services.Cursor, bool
+        ] = sort_query.fetch_page(page_size, start_cursor=cursor)
+        query_models, next_cursor, _ = fetch_result
+        # TODO(#13462): Refactor this so that we don't do the lookup.
+        # Do a forward lookup so that we can know if there are more values.
+        fetch_result = sort_query.fetch_page(page_size + 1, start_cursor=cursor)
+        plus_one_query_models, _, _ = fetch_result
+        # The urlsafe returns bytes and we need to decode them to string.
+        more_results = len(plus_one_query_models) == page_size + 1
         new_urlsafe_start_cursor = (
-            next_cursor.urlsafe() if (next_cursor and more) else None)
-        return query_models, new_urlsafe_start_cursor, more
+            next_cursor.urlsafe().decode('utf-8')
+            if (next_cursor and more_results) else None
+        )
+        return (
+            query_models,
+            new_urlsafe_start_cursor,
+            more_results
+        )

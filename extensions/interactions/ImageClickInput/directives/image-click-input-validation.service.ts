@@ -107,8 +107,8 @@ export class ImageClickInputValidationService {
 
   getAllWarnings(
       stateName: string, customizationArgs: ImageClickInputCustomizationArgs,
-      answerGroups: AnswerGroup[], defaultOutcome: Outcome): Warning[] {
-    var warningsList = [];
+      answerGroups: AnswerGroup[], defaultOutcome: Outcome | null): Warning[] {
+    var warningsList: Warning[] = [];
 
     warningsList = warningsList.concat(
       this.getCustomizationArgsWarnings(customizationArgs));
@@ -128,13 +128,13 @@ export class ImageClickInputValidationService {
       var rules = answerGroups[i].rules;
       for (var j = 0; j < rules.length; j++) {
         if (rules[j].type === 'IsInRegion') {
-          var label = <string> rules[j].inputs.x;
+          var label = rules[j].inputs.x as string;
           if (seenRegionStrings.indexOf(label) === -1) {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.CRITICAL,
               message: (
-                'The region label \'' + label + '\' in rule ' +
-                String(j + 1) + ' in group ' + String(i + 1) +
+                'The region label \'' + label + '\' in learner answer ' +
+                String(j + 1) + ' in Oppia response ' + String(i + 1) +
                 ' is invalid.')
             });
           }
@@ -146,8 +146,8 @@ export class ImageClickInputValidationService {
       warningsList.push({
         type: AppConstants.WARNING_TYPES.ERROR,
         message: (
-          'Please add a rule to cover what should happen if none of the ' +
-          'given regions are clicked.')
+          'Please add a learner answer to cover what should ' +
+          'happen if none of the given regions are clicked.')
       });
     }
 

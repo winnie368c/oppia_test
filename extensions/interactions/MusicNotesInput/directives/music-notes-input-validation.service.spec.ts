@@ -44,6 +44,7 @@ describe('MusicNotesInputValidationService', () => {
     currentState = 'First State';
     goodDefaultOutcome = oof.createFromBackendDict({
       dest: 'Second State',
+      dest_if_really_stuck: null,
       feedback: {
         html: '',
         content_id: ''
@@ -53,7 +54,7 @@ describe('MusicNotesInputValidationService', () => {
       refresher_exploration_id: null,
       missing_prerequisite_skill_id: null
     });
-    goodAnswerGroups = [agof.createNew([], goodDefaultOutcome, null, null)];
+    goodAnswerGroups = [agof.createNew([], goodDefaultOutcome, [], '')];
   });
 
   it('should be able to perform basic validation', () => {

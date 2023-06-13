@@ -14,22 +14,38 @@
 
 """Controllers for fetching the features Oppia provides to its users."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
+from core import feconf
+from core.constants import constants
 from core.controllers import acl_decorators
 from core.controllers import base
 from core.domain import config_domain
-import feconf
+
+from typing import Dict
 
 
-class ExplorationFeaturesHandler(base.BaseHandler):
+class ExplorationFeaturesHandler(
+    base.BaseHandler[Dict[str, str], Dict[str, str]]
+):
     """Returns features the given exploration is configured to support."""
 
     GET_HANDLER_ERROR_RETURN_TYPE = feconf.HANDLER_TYPE_JSON
+    URL_PATH_ARGS_SCHEMAS = {
+        'exploration_id': {
+            'schema': {
+                'type': 'basestring',
+                'validators': [{
+                    'id': 'is_regex_matched',
+                    'regex_pattern': constants.ENTITY_ID_REGEX
+                }]
+            }
+        }
+    }
+    HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
 
     @acl_decorators.can_play_exploration
-    def get(self, exploration_id):
+    def get(self, exploration_id: str) -> None:
         """Handles GET requests for an exploration's features.
 
         Args:

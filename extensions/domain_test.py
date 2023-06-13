@@ -16,8 +16,7 @@
 
 """Tests for extensions domain."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 from core.tests import test_utils
 from extensions import domain
@@ -26,7 +25,7 @@ from extensions import domain
 class CustomizationArgSpecDomainUnitTests(test_utils.GenericTestBase):
     """Tests for CustomizationArgSpec domain object methods."""
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         ca_spec = domain.CustomizationArgSpec(
             'name', 'description', {}, None)
         self.assertEqual(ca_spec.to_dict(), {

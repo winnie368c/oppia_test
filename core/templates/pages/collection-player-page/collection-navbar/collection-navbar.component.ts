@@ -21,8 +21,8 @@ import { downgradeComponent } from '@angular/upgrade/static';
 
 import { Subscription } from 'rxjs';
 
-import { ReadOnlyCollectionBackendApiService } from 'domain/collection/read-only-collection-backend-api.service.ts';
-import { UrlService } from 'services/contextual/url.service.ts';
+import { ReadOnlyCollectionBackendApiService } from 'domain/collection/read-only-collection-backend-api.service';
+import { UrlService } from 'services/contextual/url.service';
 
 @Component({
   selector: 'collection-navbar',
@@ -43,9 +43,13 @@ export class CollectionNavbarComponent implements OnInit, OnDestroy {
     this.directiveSubscriptions.add(
       this.readOnlyCollectionBackendApiService.onCollectionLoad.subscribe(
         () => {
-          this.collectionTitle = (
+          let title = (
             this.readOnlyCollectionBackendApiService.getCollectionDetails(
               this.urlService.getCollectionIdFromUrl()).title);
+          if (title === null) {
+            throw new Error('Collection title is null');
+          }
+          this.collectionTitle = title;
         }
       )
     );

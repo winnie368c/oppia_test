@@ -33,11 +33,15 @@ import { MathInteractionsService } from 'services/math-interactions.service';
 import { Outcome } from
   'domain/exploration/OutcomeObjectFactory';
 import { AppConstants } from 'app.constants';
+import { AlgebraicExpressionInputRulesService } from 'interactions/AlgebraicExpressionInput/directives/algebraic-expression-input-rules.service';
+import { NumericExpressionInputRulesService } from 'interactions/NumericExpressionInput/directives/numeric-expression-input-rules.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class MathEquationInputValidationService {
+  private supportedFunctionNames = AppConstants.SUPPORTED_FUNCTION_NAMES;
+
   constructor(
       private baseInteractionValidationServiceInstance:
         baseInteractionValidationService) {}
@@ -47,7 +51,7 @@ export class MathEquationInputValidationService {
     let warningsList = [];
 
     let allowedLettersLimit = AppConstants.MAX_CUSTOM_LETTERS_FOR_OSK;
-    if (customizationArgs.customOskLetters.value.length > allowedLettersLimit) {
+    if (customizationArgs.allowedVariables.value.length > allowedLettersLimit) {
       warningsList.push({
         type: AppConstants.WARNING_TYPES.ERROR,
         message: (
@@ -63,8 +67,13 @@ export class MathEquationInputValidationService {
       stateName: string,
       customizationArgs: MathEquationInputCustomizationArgs,
       answerGroups: AnswerGroup[], defaultOutcome: Outcome): Warning[] {
-    let warningsList = [];
-    let meirs = new MathEquationInputRulesService();
+    let warningsList: Warning[] = [];
+    let meirs = new MathEquationInputRulesService(
+      new AlgebraicExpressionInputRulesService(
+        new MathInteractionsService(),
+        new NumericExpressionInputRulesService()
+      )
+    );
     let mathInteractionsService = new MathInteractionsService();
 
     warningsList = warningsList.concat(
@@ -86,9 +95,9 @@ export class MathEquationInputValidationService {
     for (let i = 0; i < answerGroups.length; i++) {
       let rules = answerGroups[i].rules;
       for (let j = 0; j < rules.length; j++) {
-        let currentInput = <string> rules[j].inputs.x;
-        let currentPositionOfTerms = <string> rules[j].inputs.y;
-        let currentRuleType = <string> rules[j].type;
+        let currentInput = rules[j].inputs.x as string;
+        let currentPositionOfTerms = rules[j].inputs.y as string;
+        let currentRuleType = rules[j].type as string;
 
         let splitInput = currentInput.split('=');
 
@@ -110,9 +119,31 @@ export class MathEquationInputValidationService {
           }
         }
 
+        let unsupportedFunctions = (
+          mathInteractionsService.checkUnsupportedFunctions(
+            splitInput[0]
+          ).concat(
+            mathInteractionsService.checkUnsupportedFunctions(
+              splitInput[1]
+            )
+          )
+        );
+        if (unsupportedFunctions.length > 0) {
+          warningsList.push({
+            type: AppConstants.WARNING_TYPES.ERROR,
+            message: (
+              'Input for learner answer ' + (j + 1) + ' from Oppia response ' +
+              (i + 1) + ' uses these function(s) that aren\'t supported: ' +
+              '[' + unsupportedFunctions + ']' +
+              ' The supported functions are: ' +
+              '[' + this.supportedFunctionNames + ']'
+            )
+          });
+        }
+
         for (let seenRule of seenRules) {
-          let seenInput = <string> seenRule.inputs.x;
-          let seenRuleType = <string> seenRule.type;
+          let seenInput = seenRule.inputs.x as string;
+          let seenRuleType = seenRule.type as string;
 
           if (seenRuleType === 'IsEquivalentTo' && (
             meirs.IsEquivalentTo(seenInput, {x: currentInput}))) {
@@ -121,9 +152,9 @@ export class MathEquationInputValidationService {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
               message: (
-                'Rule ' + (j + 1) + ' from answer group ' + (i + 1) +
-                ' will never be matched because it is preceded ' +
-                'by an \'IsEquivalentTo\' rule with a matching input.')
+                'Learner answer ' + (j + 1) + ' from Oppia response ' +
+                (i + 1) + ' will never be matched because it is preceded by ' +
+                'an \'IsEquivalentTo\' learner answer with a matching input.')
             });
           } else if (currentRuleType === 'MatchesExactlyWith' && (
             meirs.MatchesExactlyWith(
@@ -133,9 +164,10 @@ export class MathEquationInputValidationService {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
               message: (
-                'Rule ' + (j + 1) + ' from answer group ' + (i + 1) +
-                ' will never be matched because it is preceded ' +
-                'by a \'MatchesExactlyWith\' rule with a matching input.')
+                'Learner answer ' + (j + 1) + ' from Oppia response ' +
+                (i + 1) + ' will never be matched because it is preceded by ' +
+                'a \'MatchesExactlyWith\' learner answer with ' +
+                'a matching input.')
             });
           }
         }
@@ -153,7 +185,7 @@ export class MathEquationInputValidationService {
       if (variable.length > 1) {
         variable = greekSymbols[greekLetters.indexOf(variable)];
       }
-      if (customizationArgs.customOskLetters.value.indexOf(variable) === -1) {
+      if (customizationArgs.allowedVariables.value.indexOf(variable) === -1) {
         if (missingVariables.indexOf(variable) === -1) {
           missingVariables.push(variable);
         }
@@ -164,8 +196,9 @@ export class MathEquationInputValidationService {
       warningsList.push({
         type: AppConstants.WARNING_TYPES.ERROR,
         message: (
-          'The following variables are present in some of the answer groups ' +
-          'but are missing from the custom letters list: ' + missingVariables)
+          'The following variables are present in some of the Oppia ' +
+          'responses but are missing from the custom letters list: ' +
+          missingVariables)
       });
     }
 

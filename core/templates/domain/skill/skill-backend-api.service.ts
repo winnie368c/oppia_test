@@ -20,7 +20,7 @@ import { downgradeInjectable } from '@angular/upgrade/static';
 import { Injectable } from '@angular/core';
 
 import { HttpClient } from '@angular/common/http';
-import { SkillChange } from 'domain/editor/undo_redo/change.model';
+import { BackendChangeObject } from 'domain/editor/undo_redo/change.model';
 import { SkillDomainConstants } from 'domain/skill/skill-domain.constants';
 import { Skill, SkillBackendDict, SkillObjectFactory } from
   'domain/skill/SkillObjectFactory';
@@ -28,6 +28,7 @@ import { SkillSummaryBackendDict } from
   'domain/skill/skill-summary.model';
 import { UrlInterpolationService } from
   'domain/utilities/url-interpolation.service';
+import { Observable } from 'rxjs';
 
 interface FetchSkillBackendResponse {
   'skill': SkillBackendDict;
@@ -36,10 +37,10 @@ interface FetchSkillBackendResponse {
   };
   'grouped_skill_summaries': {
     [topicName: string]: SkillSummaryBackendDict[];
-  }
+  };
 }
 
-interface FetchSkillResponse {
+export interface FetchSkillResponse {
   skill: Skill;
   assignedSkillTopicData: {
     [topicName: string]: string;
@@ -57,6 +58,14 @@ interface UpdateSkillBackendResponse {
   skill: SkillBackendDict;
 }
 
+interface DoesSkillWithDescriptionExistBackendResponse {
+  'skill_description_exists': boolean;
+}
+
+interface SkillAssignmentForDiagnosticTestBackendResponse {
+  'topic_names': string[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -66,7 +75,7 @@ export class SkillBackendApiService {
     private skillObjectFactory: SkillObjectFactory,
     private urlInterpolationService: UrlInterpolationService) {}
 
-  fetchSkill(skillId: string): Promise<FetchSkillResponse> {
+  async fetchSkillAsync(skillId: string): Promise<FetchSkillResponse> {
     return new Promise((resolve, reject) => {
       const skillDataUrl = this.urlInterpolationService.interpolateUrl(
         SkillDomainConstants.EDITABLE_SKILL_DATA_URL_TEMPLATE, {
@@ -89,7 +98,13 @@ export class SkillBackendApiService {
     });
   }
 
-  fetchMultiSkills(skillIds: string[]): Promise<Skill[]> {
+  fetchAllSkills(): Observable<{skills: SkillBackendDict[]}> {
+    return this.http.get<{skills: SkillBackendDict[]}>(
+      SkillDomainConstants.FETCH_SKILLS_URL_TEMPLATE
+    );
+  }
+
+  async fetchMultiSkillsAsync(skillIds: string[]): Promise<Skill[]> {
     return new Promise((resolve, reject) => {
       const skillDataUrl = this.urlInterpolationService.interpolateUrl(
         SkillDomainConstants.SKILL_DATA_URL_TEMPLATE, {
@@ -108,14 +123,13 @@ export class SkillBackendApiService {
     });
   }
 
-  deleteSkill(skillId: string): Promise<void> {
+  async deleteSkillAsync(skillId: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const skillDataUrl = this.urlInterpolationService.interpolateUrl(
         SkillDomainConstants.EDITABLE_SKILL_DATA_URL_TEMPLATE, {
           skill_id: skillId
         });
 
-      // eslint-disable-next-line dot-notation
       this.http.delete<void>(skillDataUrl).toPromise().then(() => {
         resolve();
       }, function(errorResponse) {
@@ -124,9 +138,10 @@ export class SkillBackendApiService {
     });
   }
 
-  updateSkill(
+  async updateSkillAsync(
       skillId: string, skillVersion: number,
-      commitMessage: string, changeList: SkillChange): Promise<Skill> {
+      commitMessage: string,
+      changeList: BackendChangeObject[]): Promise<Skill> {
     return new Promise((resolve, reject) => {
       const editableSkillDataUrl = this.urlInterpolationService.interpolateUrl(
         SkillDomainConstants.EDITABLE_SKILL_DATA_URL_TEMPLATE, {
@@ -143,6 +158,50 @@ export class SkillBackendApiService {
         editableSkillDataUrl, putData).toPromise().then(response => {
         resolve(this.skillObjectFactory.createFromBackendDict(response.skill));
       }, errorResponse => {
+        reject(errorResponse.error.error);
+      });
+    });
+  }
+
+  private _doesSkillWithDescriptionExist(
+      description: string,
+      successCallback: (value: boolean | PromiseLike<boolean>) => void,
+      errorCallback: (reason?: string) => void): void {
+    let skillDescriptionUrl = this.urlInterpolationService.interpolateUrl(
+      SkillDomainConstants.SKILL_DESCRIPTION_HANDLER_URL_TEMPLATE, {
+        skill_description: description
+      });
+    this.http.get<DoesSkillWithDescriptionExistBackendResponse>(
+      skillDescriptionUrl).toPromise().then((response) => {
+      if (successCallback) {
+        successCallback(response.skill_description_exists);
+      }
+    }, (errorResponse) => {
+      errorCallback(errorResponse.error.error);
+    });
+  }
+
+  async doesSkillWithDescriptionExistAsync(description: string):
+      Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      this._doesSkillWithDescriptionExist(description, resolve, reject);
+    });
+  }
+
+  async getTopicNamesWithGivenSkillAssignedForDiagnosticTest(skillId: string):
+      Promise<string[]> {
+    return new Promise((resolve, reject) => {
+      let skillAssignmentForDiagnosticTestUrl = (
+        this.urlInterpolationService.interpolateUrl(
+          SkillDomainConstants
+            .SKILL_ASSIGNMENT_FOR_DIAGNOSTIC_TEST_URL_TEMPLATE, {
+            skill_id: skillId
+          }));
+
+      this.http.get<SkillAssignmentForDiagnosticTestBackendResponse>(
+        skillAssignmentForDiagnosticTestUrl).toPromise().then((response) => {
+        resolve(response.topic_names);
+      }, (errorResponse) => {
         reject(errorResponse.error.error);
       });
     });

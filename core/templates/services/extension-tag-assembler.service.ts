@@ -30,7 +30,7 @@ import {
   'interactions/customization-args-defs';
 import { SubtitledUnicode } from
   'domain/exploration/SubtitledUnicodeObjectFactory';
-import { SubtitledHtml } from 'domain/exploration/SubtitledHtmlObjectFactory';
+import { SubtitledHtml } from 'domain/exploration/subtitled-html.model';
 
 // Service for assembling extension tags (for interactions).
 @Injectable({
@@ -40,6 +40,7 @@ export class ExtensionTagAssemblerService {
   constructor(
     private htmlEscaperService: HtmlEscaperService,
     private camelCaseToHyphens: CamelCaseToHyphensPipe) {}
+
   _convertCustomizationArgsToBackendDict(
       customizationArgs: InteractionCustomizationArgs
   ): InteractionCustomizationArgsBackendDict {
@@ -51,29 +52,29 @@ export class ExtensionTagAssemblerService {
     const traverseSchemaAndConvertSubtitledToDicts = (
         value: Object[] | Object
     ): Object[] | Object => {
-      let result: Object[] | Object;
-
       if (value instanceof SubtitledUnicode || value instanceof SubtitledHtml) {
-        result = value.toBackendDict();
+        return value.toBackendDict();
       } else if (value instanceof Array) {
-        result = value.map(
+        return value.map(
           element => traverseSchemaAndConvertSubtitledToDicts(element));
       } else if (value instanceof Object) {
-        result = {};
-        Object.keys(value).forEach(key => {
-          result[key] = traverseSchemaAndConvertSubtitledToDicts(value[key]);
+        type KeyOfValue = keyof typeof value;
+        let _result: Record<KeyOfValue, Object> = {};
+        let keys = Object.keys(value) as KeyOfValue[];
+        keys.forEach(key => {
+          _result[key] = traverseSchemaAndConvertSubtitledToDicts(value[key]);
         });
+        return _result as Object;
       }
 
-      return result || value;
+      return value;
     };
 
-    const customizationArgsBackendDict:
-      InteractionCustomizationArgsBackendDict = {};
-    Object.keys(customizationArgs).forEach(caName => {
+    const customizationArgsBackendDict: Record<string, Object> = {};
+    Object.entries(customizationArgs).forEach(([caName, caValue]) => {
       customizationArgsBackendDict[caName] = {
         value: traverseSchemaAndConvertSubtitledToDicts(
-          customizationArgs[caName].value)
+          caValue.value)
       };
     });
 
@@ -81,14 +82,14 @@ export class ExtensionTagAssemblerService {
   }
 
   formatCustomizationArgAttrs(
-      element: JQuery,
-      customizationArgs: InteractionCustomizationArgs
-  ): JQuery {
+      element: HTMLElement, customizationArgs: InteractionCustomizationArgs
+  ): HTMLElement {
+    const caBackendDict = (
+      this._convertCustomizationArgsToBackendDict(customizationArgs)
+    ) as Record<string, Record<string, Object>>;
     for (const caName in customizationArgs) {
-      const caBackendDict = (
-        this._convertCustomizationArgsToBackendDict(customizationArgs));
-      let caBackendDictValue = caBackendDict[caName].value;
-      element.attr(
+      const caBackendDictValue = caBackendDict[caName].value;
+      element.setAttribute(
         this.camelCaseToHyphens.transform(caName) + '-with-value',
         this.htmlEscaperService.objToEscapedJson(caBackendDictValue));
     }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Oppia Authors. All Rights Reserved.
+// Copyright 2022 The Oppia Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,65 +18,43 @@
  * an entity.
  */
 
-require('base-components/base-content.directive.ts');
-require(
-  'components/common-layout-directives/common-elements/' +
-    'background-banner.component.ts');
-require(
-  'components/review-material-editor/review-material-editor.directive.ts');
-require(
-  'components/forms/custom-forms-directives/select2-dropdown.directive.ts');
-require('components/entity-creation-services/skill-creation.service.ts');
-require('domain/skill/RubricObjectFactory.ts');
-require('components/rubrics-editor/rubrics-editor.directive.ts');
-require(
-  'pages/topics-and-skills-dashboard-page/' +
-  'create-new-skill-modal.controller.ts');
-require('pages/topic-editor-page/services/topic-editor-routing.service.ts');
-require('pages/topic-editor-page/services/topic-editor-state.service.ts');
-require(
-  'pages/topic-editor-page/modal-templates/' +
-  'create-new-subtopic-modal.controller.ts');
-require('services/context.service.ts');
-require('services/image-local-storage.service.ts');
+import { Injectable } from '@angular/core';
+import { downgradeInjectable } from '@angular/upgrade/static';
+import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
+import { CreateNewSubtopicModalComponent } from 'pages/topic-editor-page/modal-templates/create-new-subtopic-modal.component';
+import { CreateNewSkillModalService } from './create-new-skill-modal.service';
+import { TopicEditorRoutingService } from './topic-editor-routing.service';
+import { TopicEditorStateService } from './topic-editor-state.service';
 
-angular.module('oppia').factory('EntityCreationService', [
-  '$uibModal', 'SkillCreationService',
-  'TopicEditorRoutingService', 'TopicEditorStateService',
-  'UrlInterpolationService',
-  function(
-      $uibModal, SkillCreationService,
-      TopicEditorRoutingService, TopicEditorStateService,
-      UrlInterpolationService) {
-    var createSubtopic = function(topic) {
-      $uibModal.open({
-        templateUrl: UrlInterpolationService.getDirectiveTemplateUrl(
-          '/pages/topic-editor-page/modal-templates/' +
-          'create-new-subtopic-modal.template.html'),
-        backdrop: 'static',
-        resolve: {
-          topic: () => topic
-        },
-        controllerAs: '$ctrl',
-        windowClass: 'create-new-subtopic',
-        controller: 'CreateNewSubtopicModalController'
-      }).result.then(function(subtopicId) {
-        TopicEditorRoutingService.navigateToSubtopicEditorWithId(subtopicId);
-      }, function() {
-        // Note to developers:
-        // This callback is triggered when the Cancel button is clicked.
-        // No further action is needed.
-      });
-    };
+@Injectable({
+  providedIn: 'root'
+})
+export class EntityCreationService {
+  constructor(
+    private createNewSkillModalService: CreateNewSkillModalService,
+    private ngbModal: NgbModal,
+    private topicEditorRoutingService: TopicEditorRoutingService,
+    private topicEditorStateService: TopicEditorStateService
+  ) {}
 
-    var createSkill = function() {
-      var topicId = TopicEditorStateService.getTopic().getId();
-      SkillCreationService.createNewSkill([topicId]);
-    };
-
-    return {
-      createSubtopic: createSubtopic,
-      createSkill: createSkill
-    };
+  createSubtopic(): void {
+    this.ngbModal.open(CreateNewSubtopicModalComponent, {
+      backdrop: 'static',
+      windowClass: 'create-new-subtopic'
+    }).result.then((subtopicId) => {
+      this.topicEditorRoutingService.navigateToSubtopicEditorWithId(subtopicId);
+    }, () => {
+      // Note to developers:
+      // This callback is triggered when the Cancel button is clicked.
+      // No further action is needed.
+    });
   }
-]);
+
+  createSkill(): void {
+    let topicId = this.topicEditorStateService.getTopic().getId();
+    this.createNewSkillModalService.createNewSkill([topicId]);
+  }
+}
+
+angular.module('oppia').factory('EntityCreationService',
+  downgradeInjectable(EntityCreationService));

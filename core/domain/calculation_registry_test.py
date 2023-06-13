@@ -16,8 +16,7 @@
 
 """Tests for calculation registry."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 from core.domain import calculation_registry
 from core.tests import test_utils
@@ -27,12 +26,29 @@ from extensions.answer_summarizers import models
 class CalculationRegistryTests(test_utils.GenericTestBase):
     """Provides testing of the calculation registry."""
 
-    def test_get_calculation_by_id(self):
+    def test_get_calculation_by_id(self) -> None:
         self.assertTrue(
             isinstance(
                 calculation_registry.Registry.get_calculation_by_id(
                     'AnswerFrequencies'),
                 models.AnswerFrequencies))
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             TypeError, '\'a\' is not a valid calculation id.'):
             calculation_registry.Registry.get_calculation_by_id('a')
+
+    def test_get_calculation_by_id_when_calculations_dict_have_calculation_id(
+        self) -> None:
+        # Top5AnswerFrequencies is not present in calculations_dict,
+        # So Top5AnswerFrequencies will be inserted into calculations_dict.
+        self.assertTrue(
+            isinstance(
+                calculation_registry.Registry.get_calculation_by_id(
+                    'Top5AnswerFrequencies'),
+                models.Top5AnswerFrequencies))
+        # Top5AnswerFrequencies is present in calculations_dict
+        # So Top5AnswerFrequencies will not be inserted again.
+        self.assertTrue(
+            isinstance(
+                calculation_registry.Registry.get_calculation_by_id(
+                    'Top5AnswerFrequencies'),
+                models.Top5AnswerFrequencies))

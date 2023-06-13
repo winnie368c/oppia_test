@@ -16,38 +16,57 @@
 
 """Tests for core.storage.activity.gae_models."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
-from constants import constants
+from core.constants import constants
 from core.platform import models
 from core.tests import test_utils
 
-(base_models, activity_models) = models.Registry.import_models(
-    [models.NAMES.base_model, models.NAMES.activity])
+MYPY = False
+if MYPY: # pragma: no cover
+    from mypy_imports import activity_models
+    from mypy_imports import base_models
+
+(base_models, activity_models) = models.Registry.import_models([
+    models.Names.BASE_MODEL, models.Names.ACTIVITY
+])
 
 
 class ActivityListModelTest(test_utils.GenericTestBase):
     """Tests the ActivityListModel class."""
 
-    def test_get_deletion_policy(self):
+    def test_get_deletion_policy(self) -> None:
         self.assertEqual(
             activity_models.ActivityReferencesModel.get_deletion_policy(),
             base_models.DELETION_POLICY.NOT_APPLICABLE)
 
-    def test_featured_activity_list_always_exists(self):
+    def test_get_model_association_to_user(self) -> None:
+        self.assertEqual(
+            activity_models.ActivityReferencesModel.
+                get_model_association_to_user(),
+            base_models.MODEL_ASSOCIATION_TO_USER.NOT_CORRESPONDING_TO_USER)
+
+    def test_get_export_policy(self) -> None:
+        sample_dict = base_models.BaseModel.get_export_policy()
+        sample_dict.update(
+            {'activity_references': base_models.EXPORT_POLICY.NOT_APPLICABLE})
+        self.assertEqual(
+            activity_models.ActivityReferencesModel.get_export_policy(),
+            sample_dict)
+
+    def test_featured_activity_list_always_exists(self) -> None:
         featured_model_instance = (
             activity_models.ActivityReferencesModel.get_or_create('featured'))
         self.assertIsNotNone(featured_model_instance)
         self.assertEqual(featured_model_instance.id, 'featured')
         self.assertEqual(featured_model_instance.activity_references, [])
 
-    def test_retrieving_non_existent_list(self):
-        with self.assertRaisesRegexp(Exception, 'Invalid ActivityListModel'):
+    def test_retrieving_non_existent_list(self) -> None:
+        with self.assertRaisesRegex(Exception, 'Invalid ActivityListModel'):
             activity_models.ActivityReferencesModel.get_or_create(
                 'nonexistent_key')
 
-    def test_updating_featured_activity_list(self):
+    def test_updating_featured_activity_list(self) -> None:
         featured_model_instance = (
             activity_models.ActivityReferencesModel.get_or_create('featured'))
         self.assertEqual(featured_model_instance.activity_references, [])

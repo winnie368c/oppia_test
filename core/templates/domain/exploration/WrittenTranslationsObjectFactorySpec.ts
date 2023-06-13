@@ -17,20 +17,20 @@
  */
 import { TestBed } from '@angular/core/testing';
 
-import { WrittenTranslationsObjectFactory } from
+import { WrittenTranslations, WrittenTranslationsObjectFactory } from
   'domain/exploration/WrittenTranslationsObjectFactory';
 import { WrittenTranslationObjectFactory } from
   'domain/exploration/WrittenTranslationObjectFactory';
 
 describe('Written Translations Object Factory', () => {
-  let writtenTranslationsObjectFactory;
-  let writtenTranslationObjectFactory;
-  let writtenTranslationsBackendDict;
+  let writtenTranslationsObjectFactory: WrittenTranslationsObjectFactory;
+  let writtenTranslationObjectFactory: WrittenTranslationObjectFactory;
+  let writtenTranslationsBackendDict: WrittenTranslations;
 
   beforeEach(() => {
-    writtenTranslationsObjectFactory = TestBed.get(
+    writtenTranslationsObjectFactory = TestBed.inject(
       WrittenTranslationsObjectFactory);
-    writtenTranslationObjectFactory = TestBed.get(
+    writtenTranslationObjectFactory = TestBed.inject(
       WrittenTranslationObjectFactory);
 
     writtenTranslationsBackendDict = (
@@ -65,29 +65,29 @@ describe('Written Translations Object Factory', () => {
   it('should create an empty written translations object', () => {
     const emptyWrittenTranslationsObject = (
       writtenTranslationsObjectFactory.createEmpty());
-    expect(emptyWrittenTranslationsObject.getAllContentId()).toEqual([]);
+    expect(emptyWrittenTranslationsObject.getAllContentIds()).toEqual([]);
   });
 
   it('should add and delete contents from a written translations object',
     () => {
-      expect(writtenTranslationsBackendDict.getAllContentId()).toEqual([
+      expect(writtenTranslationsBackendDict.getAllContentIds()).toEqual([
         'content_1']);
       writtenTranslationsBackendDict.addContentId('content_2');
-      expect(writtenTranslationsBackendDict.getAllContentId()).toEqual([
+      expect(writtenTranslationsBackendDict.getAllContentIds()).toEqual([
         'content_1', 'content_2']);
       expect(() => {
         writtenTranslationsBackendDict.addContentId('content_2');
       }).toThrowError('Trying to add duplicate content id.');
-      expect(writtenTranslationsBackendDict.getAllContentId()).toEqual([
+      expect(writtenTranslationsBackendDict.getAllContentIds()).toEqual([
         'content_1', 'content_2']);
 
       writtenTranslationsBackendDict.deleteContentId('content_2');
-      expect(writtenTranslationsBackendDict.getAllContentId()).toEqual([
+      expect(writtenTranslationsBackendDict.getAllContentIds()).toEqual([
         'content_1']);
       expect(() => {
         writtenTranslationsBackendDict.deleteContentId('content_2');
       }).toThrowError('Unable to find the given content id.');
-      expect(writtenTranslationsBackendDict.getAllContentId()).toEqual([
+      expect(writtenTranslationsBackendDict.getAllContentIds()).toEqual([
         'content_1']);
     });
 
@@ -101,7 +101,7 @@ describe('Written Translations Object Factory', () => {
       'content_1', 'en', 'html', 'English HTML');
     expect(
       writtenTranslationsBackendDict
-        .getTranslationsLanguageCodes('content_1')).toEqual(['hi-en', 'en']);
+        .getLanguageCodes('content_1')).toEqual(['hi-en', 'en']);
   });
 
   it('should update the html language code of a written translations object',
@@ -135,7 +135,8 @@ describe('Written Translations Object Factory', () => {
         writtenTranslationsBackendDict.updateWrittenTranslation(
           'content_1', 'en', 'This is the new HTML');
       }).toThrowError('Unable to find the given language code.');
-      expect(writtenTranslationsBackendDict.hasWrittenTranslation('en'))
+      expect(
+        writtenTranslationsBackendDict.hasWrittenTranslation('', 'en'))
         .toBe(false);
     });
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Oppia Authors. All Rights Reserved.
+// Copyright 2021 The Oppia Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,111 +16,93 @@
  * @fileoverview Tests for ExplorationStatesService.
  */
 
-// TODO(#7222): Remove the following block of unnnecessary imports once
-// exploration-states.service.ts is upgraded to Angular 8.
-import { AngularNameService } from
-  'pages/exploration-editor-page/services/angular-name.service';
-import { AnswerGroupObjectFactory } from
-  'domain/exploration/AnswerGroupObjectFactory';
-import { FractionObjectFactory } from 'domain/objects/FractionObjectFactory';
-import { HintObjectFactory } from 'domain/exploration/HintObjectFactory';
-import { OutcomeObjectFactory } from
-  'domain/exploration/OutcomeObjectFactory';
-import { ParamChangeObjectFactory } from
-  'domain/exploration/ParamChangeObjectFactory';
-import { ParamChangesObjectFactory } from
-  'domain/exploration/ParamChangesObjectFactory';
-import { RecordedVoiceoversObjectFactory } from
-  'domain/exploration/RecordedVoiceoversObjectFactory';
-import { RuleObjectFactory } from 'domain/exploration/RuleObjectFactory';
-import { SolutionValidityService } from
-  'pages/exploration-editor-page/editor-tab/services/solution-validity.service';
-import { StateClassifierMappingService } from
-  'pages/exploration-player-page/services/state-classifier-mapping.service';
-import { StateEditorService } from 'components/state-editor/state-editor-properties-services/state-editor.service';
-import { SubtitledHtmlObjectFactory } from
-  'domain/exploration/SubtitledHtmlObjectFactory';
-import { UnitsObjectFactory } from 'domain/objects/UnitsObjectFactory';
-import { VoiceoverObjectFactory } from
-  'domain/exploration/VoiceoverObjectFactory';
-import { WrittenTranslationObjectFactory } from
-  'domain/exploration/WrittenTranslationObjectFactory';
-import { WrittenTranslationsObjectFactory } from
-  'domain/exploration/WrittenTranslationsObjectFactory';
-import { importAllAngularServices } from 'tests/unit-test-utils';
-// ^^^ This block is to be removed.
+import { ChangeListService } from './change-list.service';
+import { fakeAsync, flushMicrotasks, TestBed } from '@angular/core/testing';
+import { NgbModal, NgbModalRef } from '@ng-bootstrap/ng-bootstrap';
+import { ContextService } from 'services/context.service';
+import { ExplorationStatesService } from './exploration-states.service';
+import { AnswerGroup, AnswerGroupObjectFactory } from 'domain/exploration/AnswerGroupObjectFactory';
+import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { GenerateContentIdService } from 'services/generate-content-id.service';
 
-require(
-  'components/state-editor/state-editor-properties-services/' +
-  'state-solicit-answer-details.service.ts');
-require('pages/exploration-editor-page/services/exploration-states.service.ts');
+class MockNgbModalRef {
+  componentInstance = {
+    deleteStateName: null
+  };
+}
 
-describe('ExplorationStatesService', function() {
-  var $q = null;
-  var $rootScope = null;
-  var $uibModal = null;
-  var ChangeListService = null;
-  var ContextService = null;
-  var ExplorationStatesService = null;
+class MockNgbModal {
+  open() {
+    return {
+      componentInstance: MockNgbModalRef,
+      result: Promise.resolve('Hola')
+    };
+  }
+}
 
-  beforeEach(angular.mock.module('oppia'));
-  beforeEach(angular.mock.module(function($provide) {
-    $provide.value('AngularNameService', new AngularNameService());
-    $provide.value(
-      'AnswerGroupObjectFactory', new AnswerGroupObjectFactory(
-        new OutcomeObjectFactory(new SubtitledHtmlObjectFactory()),
-        new RuleObjectFactory()));
-    $provide.value('FractionObjectFactory', new FractionObjectFactory());
-    $provide.value(
-      'HintObjectFactory', new HintObjectFactory(
-        new SubtitledHtmlObjectFactory()));
-    $provide.value(
-      'OutcomeObjectFactory', new OutcomeObjectFactory(
-        new SubtitledHtmlObjectFactory()));
-    $provide.value(
-      'ParamChangeObjectFactory', new ParamChangeObjectFactory());
-    $provide.value(
-      'ParamChangesObjectFactory', new ParamChangesObjectFactory(
-        new ParamChangeObjectFactory()));
-    $provide.value(
-      'RecordedVoiceoversObjectFactory',
-      new RecordedVoiceoversObjectFactory(new VoiceoverObjectFactory()));
-    $provide.value('RuleObjectFactory', new RuleObjectFactory());
-    $provide.value('SolutionValidityService', new SolutionValidityService());
-    $provide.value(
-      'StateClassifierMappingService', new StateClassifierMappingService());
-    $provide.value(
-      'StateEditorService', new StateEditorService(
-        new SolutionValidityService()));
-    $provide.value(
-      'SubtitledHtmlObjectFactory', new SubtitledHtmlObjectFactory());
-    $provide.value('UnitsObjectFactory', new UnitsObjectFactory());
-    $provide.value('VoiceoverObjectFactory', new VoiceoverObjectFactory());
-    $provide.value(
-      'WrittenTranslationObjectFactory',
-      new WrittenTranslationObjectFactory());
-    $provide.value(
-      'WrittenTranslationsObjectFactory',
-      new WrittenTranslationsObjectFactory(
-        new WrittenTranslationObjectFactory()));
-  }));
-  importAllAngularServices();
-  beforeEach(angular.mock.inject(function(
-      _$q_, _$rootScope_, _$uibModal_, _ChangeListService_, _ContextService_,
-      _ExplorationStatesService_, _StateSolicitAnswerDetailsService_) {
-    $q = _$q_;
-    $rootScope = _$rootScope_;
-    $uibModal = _$uibModal_;
-    ChangeListService = _ChangeListService_;
-    ContextService = _ContextService_;
-    ExplorationStatesService = _ExplorationStatesService_;
-  }));
+describe('ExplorationStatesService', () => {
+  let ngbModal: NgbModal;
+  let changeListService: ChangeListService;
+  let contextService: ContextService;
+  let explorationStatesService: ExplorationStatesService;
+  let answerGroupObjectFactory: AnswerGroupObjectFactory;
+  let answerGroup: AnswerGroup;
+  let generateContentIdService: GenerateContentIdService;
 
-  beforeEach(function() {
-    this.EXP_ID = '7';
-    spyOn(ContextService, 'getExplorationId').and.returnValue(this.EXP_ID);
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [
+        ChangeListService,
+        {
+          provide: NgbModal,
+          useClass: MockNgbModal
+        }
+      ]
+    });
+  });
 
-    ExplorationStatesService.init({
+  beforeEach(() => {
+    ngbModal = TestBed.inject(NgbModal);
+    changeListService = TestBed.inject(ChangeListService);
+    contextService = TestBed.inject(ContextService);
+    explorationStatesService = TestBed.inject(ExplorationStatesService);
+    answerGroupObjectFactory = TestBed.inject(AnswerGroupObjectFactory);
+    generateContentIdService = TestBed.inject(GenerateContentIdService);
+    generateContentIdService.init(() => 0, () => {});
+  });
+
+  beforeEach(() => {
+    let EXP_ID = '7';
+    spyOn(contextService, 'getExplorationId').and.returnValue(EXP_ID);
+
+    answerGroup = answerGroupObjectFactory.createFromBackendDict({
+      rule_specs: [{
+        rule_type: 'Contains',
+        inputs: {
+          x: {
+            contentId: 'rule_input',
+            normalizedStrSet: ['hola']
+          }
+        }
+      }],
+      outcome: {
+        dest: 'Me Llamo',
+        dest_if_really_stuck: null,
+        feedback: {
+          content_id: 'feedback_1',
+          html: 'buen trabajo!',
+        },
+        labelled_as_correct: true,
+        param_changes: [],
+        refresher_exploration_id: null,
+        missing_prerequisite_skill_id: null
+      },
+      training_data: [],
+      tagged_skill_misconception_id: null
+    }, 'TextInput');
+
+    explorationStatesService.init({
       Hola: {
         content: {content_id: 'content', html: ''},
         recorded_voiceovers: {
@@ -128,24 +110,13 @@ describe('ExplorationStatesService', function() {
             content: {},
             default_outcome: {},
             feedback_1: {},
+            rule_input: {}
           },
         },
         param_changes: [],
         interaction: {
-          answer_groups: [{
-            rule_specs: [{
-              rule_type: 'Contains',
-              inputs: {x: 'hola'}
-            }],
-            outcome: {
-              dest: 'Me Llamo',
-              feedback: {
-                content_id: 'feedback_1',
-                html: 'buen trabajo!',
-              },
-              labelled_as_correct: true,
-            },
-          }],
+          confirmed_unclassified_answers: [],
+          answer_groups: [answerGroup.toBackendDict()],
           customization_args: {
             placeholder: {
               value: {
@@ -153,99 +124,112 @@ describe('ExplorationStatesService', function() {
                 unicode_str: ''
               }
             },
-            rows: { value: 1 }
+            rows: { value: 1 },
+            catchMisspellings: {
+              value: false
+            }
           },
           default_outcome: {
-            dest: 'Hola',
+            dest: 'Me Llamo',
+            dest_if_really_stuck: null,
             feedback: {
-              content_id: 'default_outcome',
-              html: 'try again!',
+              content_id: 'feedback_1',
+              html: 'buen trabajo!',
             },
-            labelled_as_correct: false,
+            labelled_as_correct: true,
+            param_changes: [],
+            refresher_exploration_id: null,
+            missing_prerequisite_skill_id: null
           },
           hints: [],
           id: 'TextInput',
           solution: null,
         },
+        linked_skill_id: null,
         solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {},
-            default_outcome: {},
-            feedback_1: {},
-          },
-        },
-        classifier_model_id: 0,
+        classifier_model_id: '0',
+        card_is_checkpoint: false,
       },
-    });
+    }, false);
   });
 
-  describe('Callback Registration', function() {
-    describe('.registerOnStateAddedCallback', function() {
-      it('should callback when a new state is added', function() {
-        var spy = jasmine.createSpy('callback');
-        spyOn(ChangeListService, 'addState');
+  describe('Callback Registration', () => {
+    describe('.registerOnStateAddedCallback', () => {
+      it('should callback when a new state is added', fakeAsync(() => {
+        spyOn(ngbModal, 'open').and.callFake(() => {
+          return ({
+            componentInstance: NgbModalRef,
+            result: Promise.resolve()
+          } as NgbModalRef);
+        });
+        let spy = jasmine.createSpy('callback');
+        spyOn(changeListService, 'addState');
 
-        ExplorationStatesService.registerOnStateAddedCallback(spy);
-        ExplorationStatesService.addState('Me Llamo');
+        explorationStatesService.registerOnStateAddedCallback(spy);
+        explorationStatesService.addState('Me Llamo', () => {});
 
         expect(spy).toHaveBeenCalledWith('Me Llamo');
-      });
+      }));
     });
 
-    describe('.registerOnStateDeletedCallback', function() {
-      it('should callback when a state is deleted', function(done) {
-        spyOn($uibModal, 'open').and.callFake(function() {
-          return {result: $q.resolve()};
+    describe('.registerOnStateDeletedCallback', () => {
+      it('should callback when a state is deleted', fakeAsync(() => {
+        spyOn(ngbModal, 'open').and.callFake(() => {
+          return ({
+            componentInstance: MockNgbModalRef,
+            result: Promise.resolve('Hola')
+          } as NgbModalRef);
         });
-        spyOn(ChangeListService, 'deleteState');
+        spyOn(changeListService, 'deleteState');
 
-        var spy = jasmine.createSpy('callback');
-        ExplorationStatesService.registerOnStateDeletedCallback(spy);
+        let spy = jasmine.createSpy('callback');
+        explorationStatesService.registerOnStateDeletedCallback(spy);
+        explorationStatesService.deleteState('Hola');
+        flushMicrotasks();
 
-        ExplorationStatesService.deleteState('Hola').then(function() {
-          expect(spy).toHaveBeenCalledWith('Hola');
-        }).then(done, done.fail);
-        $rootScope.$digest();
-      });
+        expect(spy).toHaveBeenCalledWith('Hola');
+        flushMicrotasks();
+      }));
     });
 
-    describe('.registerOnStateRenamedCallback', function() {
-      it('should callback when a state is renamed', function() {
-        var spy = jasmine.createSpy('callback');
-        spyOn(ChangeListService, 'renameState');
+    describe('.registerOnStateRenamedCallback', () => {
+      it('should callback when a state is renamed', () => {
+        let spy = jasmine.createSpy('callback');
+        spyOn(changeListService, 'renameState');
 
-        ExplorationStatesService.registerOnStateRenamedCallback(spy);
-        ExplorationStatesService.renameState('Hola', 'Bonjour');
+        explorationStatesService.registerOnStateRenamedCallback(spy);
+        explorationStatesService.renameState('Hola', 'Bonjour');
 
         expect(spy).toHaveBeenCalledWith('Hola', 'Bonjour');
       });
     });
 
-    describe('.registerOnStateInteractionSaved', function() {
+    describe('.registerOnStateInteractionSaved', () => {
       it('should callback when answer groups of a state are saved',
-        function() {
-          var spy = jasmine.createSpy('callback');
-          spyOn(ChangeListService, 'editStateProperty');
+        () => {
+          let spy = jasmine.createSpy('callback');
+          spyOn(changeListService, 'editStateProperty');
 
-          ExplorationStatesService.registerOnStateInteractionSavedCallback(spy);
-          ExplorationStatesService.saveInteractionAnswerGroups('Hola', []);
+          explorationStatesService.registerOnStateInteractionSavedCallback(spy);
+          explorationStatesService.saveInteractionAnswerGroups(
+            'Hola', [answerGroup]);
 
-          expect(spy)
-            .toHaveBeenCalledWith(ExplorationStatesService.getState('Hola'));
+          expect(spy).toHaveBeenCalledWith(
+            explorationStatesService.getState('Hola'));
         });
     });
   });
 
-  it('should save the solicitAnswerDetails correctly', function() {
+  it('should save the solicitAnswerDetails correctly', () => {
     expect(
-      ExplorationStatesService.getSolicitAnswerDetailsMemento(
-        'Hola', 'solicit_answer_details')).toEqual(false);
-    spyOn(ChangeListService, 'editStateProperty');
-    ExplorationStatesService.saveSolicitAnswerDetails('Hola', true);
-    expect(ChangeListService.editStateProperty).toHaveBeenCalledWith(
+      explorationStatesService.getSolicitAnswerDetailsMemento(
+        'Hola')).toEqual(false);
+    const changeListSpy = spyOn(changeListService, 'editStateProperty');
+    explorationStatesService.saveSolicitAnswerDetails('Hola', true);
+    expect(changeListSpy).toHaveBeenCalledWith(
       'Hola', 'solicit_answer_details', true, false);
-    expect(ExplorationStatesService.getSolicitAnswerDetailsMemento(
-      'Hola', 'solicit_answer_details')).toEqual(true);
+    expect(
+      explorationStatesService.getSolicitAnswerDetailsMemento('Hola')
+    ).toBeTrue();
   });
 });

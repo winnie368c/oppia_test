@@ -24,7 +24,7 @@ import { InteractiveMapValidationService } from
   'interactions/InteractiveMap/directives/interactive-map-validation.service';
 import { Outcome, OutcomeObjectFactory } from
   'domain/exploration/OutcomeObjectFactory';
-import { RuleObjectFactory } from 'domain/exploration/RuleObjectFactory';
+import { Rule } from 'domain/exploration/rule.model';
 
 import { AppConstants } from 'app.constants';
 import { InteractiveMapCustomizationArgs } from
@@ -37,8 +37,7 @@ describe('InteractiveMapValidationService', () => {
   let currentState: string;
   let goodAnswerGroups: AnswerGroup[], goodDefaultOutcome: Outcome;
   let customizationArguments: InteractiveMapCustomizationArgs;
-  let oof: OutcomeObjectFactory, agof: AnswerGroupObjectFactory,
-    rof: RuleObjectFactory;
+  let oof: OutcomeObjectFactory, agof: AnswerGroupObjectFactory;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -49,10 +48,10 @@ describe('InteractiveMapValidationService', () => {
     WARNING_TYPES = AppConstants.WARNING_TYPES;
     oof = TestBed.get(OutcomeObjectFactory);
     agof = TestBed.get(AnswerGroupObjectFactory);
-    rof = TestBed.get(RuleObjectFactory);
     currentState = 'First State';
     goodDefaultOutcome = oof.createFromBackendDict({
       dest: 'Second State',
+      dest_if_really_stuck: null,
       feedback: {
         html: '',
         content_id: ''
@@ -75,19 +74,19 @@ describe('InteractiveMapValidationService', () => {
       }
     };
     goodAnswerGroups = [agof.createNew(
-      [rof.createFromBackendDict({
+      [Rule.createFromBackendDict({
         rule_type: 'Within',
         inputs: {
           d: 100
         }
-      }), rof.createFromBackendDict({
+      }, 'InteractiveMap'), Rule.createFromBackendDict({
         rule_type: 'NotWithin',
         inputs: {
           d: 50
         }
-      })],
+      }, 'InteractiveMap')],
       goodDefaultOutcome,
-      null,
+      [],
       null
     )];
   });
@@ -103,7 +102,8 @@ describe('InteractiveMapValidationService', () => {
     () => {
       expect(() => {
         validatorService.getAllWarnings(
-          // This throws "Argument of type '{}' is not assignable to
+          // This throws "Argument of type '{}'. We need to suppress this error
+          // because ..  oppia/comment-style is not assignable to
           // parameter of type 'InteractiveMapCustomizationArgs'." We are
           // purposely assigning the wrong type of customization args in
           // order to test validations.
@@ -155,11 +155,13 @@ describe('InteractiveMapValidationService', () => {
       expect(warnings).toEqual([{
         type: WARNING_TYPES.CRITICAL,
         message: (
-          'Please ensure that rule 1 in group 1 refers to a valid distance.')
+          'Please ensure that learner answer 1 in Oppia response 1 refers ' +
+          'to a valid distance.')
       }, {
         type: WARNING_TYPES.CRITICAL,
         message: (
-          'Please ensure that rule 2 in group 1 refers to a valid distance.')
+          'Please ensure that learner answer 2 in Oppia response 1 refers ' +
+          'to a valid distance.')
       }]);
     }
   );

@@ -20,15 +20,15 @@ import { Injectable } from '@angular/core';
 
 import { AlertsService } from 'services/alerts.service';
 import { Solution } from 'domain/exploration/SolutionObjectFactory';
-import { StatePropertyService } from
-  // eslint-disable-next-line max-len
-  'components/state-editor/state-editor-properties-services/state-property.service';
+import { StatePropertyService } from 'components/state-editor/state-editor-properties-services/state-property.service';
 import { UtilsService } from 'services/utils.service';
 
 @Injectable({
   providedIn: 'root'
 })
-export class StateSolutionService extends StatePropertyService<Solution> {
+export class StateSolutionService
+    // The state property is null until a solution is specified or removed.
+    extends StatePropertyService<Solution | null> {
   constructor(alertsService: AlertsService, utilsService: UtilsService) {
     super(alertsService, utilsService);
     this.setterMethodKey = 'saveSolution';
