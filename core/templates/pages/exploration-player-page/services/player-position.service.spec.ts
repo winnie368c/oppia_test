@@ -25,20 +25,23 @@ import { PlayerPositionService } from
   'pages/exploration-player-page/services/player-position.service';
 import { PlayerTranscriptService } from
   'pages/exploration-player-page/services/player-transcript.service';
-import { StateCardObjectFactory } from
-  'domain/state_card/StateCardObjectFactory';
+import { StateCard } from 'domain/state_card/state-card.model';
+import { AudioTranslationLanguageService } from
+  'pages/exploration-player-page/services/audio-translation-language.service';
+import { Interaction } from 'domain/exploration/InteractionObjectFactory';
+import { RecordedVoiceovers } from 'domain/exploration/recorded-voiceovers.model';
 
 describe('Player position service', () => {
-  let pts = null;
-  let pps: PlayerPositionService = null;
-  let scof = null;
+  let pts: PlayerTranscriptService;
+  let pps: PlayerPositionService;
   let onQuestionChangeSpy: jasmine.Spy;
   let subscriptions: Subscription;
+  let atls: AudioTranslationLanguageService;
 
   beforeEach(() => {
-    pts = TestBed.get(PlayerTranscriptService);
-    pps = TestBed.get(PlayerPositionService);
-    scof = TestBed.get(StateCardObjectFactory);
+    pts = TestBed.inject(PlayerTranscriptService);
+    pps = TestBed.inject(PlayerPositionService);
+    atls = TestBed.inject(AudioTranslationLanguageService);
     onQuestionChangeSpy = jasmine.createSpy('onQuestionChangeSpy');
     subscriptions = new Subscription();
     subscriptions.add(pps.onCurrentQuestionChange.subscribe(
@@ -50,34 +53,37 @@ describe('Player position service', () => {
   });
 
   it('should record answer submission as true', () => {
-    expect(pps.hasLearnerJustSubmittedAnAnswer()).toBe(false);
+    expect(pps.hasLearnerJustSubmittedAnAnswer()).toBeFalse();
     pps.recordAnswerSubmission();
-    expect(pps.hasLearnerJustSubmittedAnAnswer()).toBe(true);
+    expect(pps.hasLearnerJustSubmittedAnAnswer()).toBeTrue();
   });
 
   it('should record answer submission by the learner as false', () => {
-    expect(pps.hasLearnerJustSubmittedAnAnswer()).toBe(false);
+    expect(pps.hasLearnerJustSubmittedAnAnswer()).toBeFalse();
     pps.recordAnswerSubmission();
-    expect(pps.hasLearnerJustSubmittedAnAnswer()).toBe(true);
+    expect(pps.hasLearnerJustSubmittedAnAnswer()).toBeTrue();
     pps.recordNavigationButtonClick();
-    expect(pps.hasLearnerJustSubmittedAnAnswer()).toBe(false);
+    expect(pps.hasLearnerJustSubmittedAnAnswer()).toBeFalse();
   });
 
   it('should set displayed index card to given value', () => {
     let callBack = () => {};
-    expect(pps.getDisplayedCardIndex()).toBe(null);
+    expect(pps.getDisplayedCardIndex()).toBeUndefined();
     pps.init(callBack);
     pps.setDisplayedCardIndex(4);
     expect(pps.getDisplayedCardIndex()).toBe(4);
   });
 
   it('should get current state name', () => {
-    pts.addNewCard(scof.createNewCard(
+    pts.addNewCard(StateCard.createNewCard(
       'First state', 'Content HTML',
-      '<oppia-text-input-html></oppia-text-input-html>'));
-    pts.addNewCard(scof.createNewCard(
+      '<oppia-text-input-html></oppia-text-input-html>',
+      {} as Interaction, {} as RecordedVoiceovers, '', atls));
+
+    pts.addNewCard(StateCard.createNewCard(
       'Second state', 'Content HTML',
-      '<oppia-text-input-html></oppia-text-input-html>'));
+      '<oppia-text-input-html></oppia-text-input-html>',
+      {} as Interaction, {} as RecordedVoiceovers, '', atls));
     let callBack = () => {};
     pps.init(callBack);
     pps.setDisplayedCardIndex(0);
@@ -86,10 +92,17 @@ describe('Player position service', () => {
     expect(pps.getCurrentStateName()).toBe('Second state');
   });
 
-  it('should not change displayed card index if it is the same as the' +
+  it('should throw error if callback ftn is not defined on changing index',
+    () => {
+      expect(() => {
+        pps.setDisplayedCardIndex(3);
+      }).toThrowError('The callback function has not been initialized');
+    });
+
+  it('should not change displayed card index if it is the same as the ' +
      'previously displayed card index', () => {
     let callBack = () => {};
-    expect(pps.getDisplayedCardIndex()).toBe(null);
+    expect(pps.getDisplayedCardIndex()).toBeUndefined();
     pps.init(callBack);
     pps.setDisplayedCardIndex(4);
     pps.setDisplayedCardIndex(4);
@@ -116,5 +129,11 @@ describe('Player position service', () => {
   it('should fetch EventEmitter when help card is available', () => {
     let mockHelpCardAvailableEvent = new EventEmitter();
     expect(pps.onHelpCardAvailable).toEqual(mockHelpCardAvailableEvent);
+  });
+
+  it('should fetch EventEmitter for loading most recent checkpoint', () => {
+    let mockLoadMostRecentCheckpointEvent = new EventEmitter();
+    expect(pps.onLoadedMostRecentCheckpoint).toEqual(
+      mockLoadMostRecentCheckpointEvent);
   });
 });

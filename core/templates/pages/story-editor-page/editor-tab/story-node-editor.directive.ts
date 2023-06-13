@@ -17,17 +17,18 @@
  */
 
 require(
-  'components/forms/custom-forms-directives/thumbnail-uploader.directive.ts');
-require('components/skill-selector/select-skill-modal.controller.ts');
+  'components/forms/custom-forms-directives/thumbnail-uploader.component.ts');
+import { SelectSkillModalComponent } from 'components/skill-selector/select-skill-modal.component';
+import { NgbModalRef } from '@ng-bootstrap/ng-bootstrap';
 require(
-  'components/skill-selector/skill-selector.directive.ts');
+  'components/skill-selector/skill-selector.component.ts');
 require(
   'pages/story-editor-page/modal-templates/' +
   'new-chapter-title-modal.controller.ts');
 require(
   'pages/topic-editor-page/modal-templates/preview-thumbnail.component.ts');
 require('domain/story/story-update.service.ts');
-require('domain/exploration/exploration-id-validation.service.ts');
+require('domain/exploration/curated-exploration-validation.service.ts');
 require('pages/story-editor-page/services/story-editor-state.service.ts');
 require('services/alerts.service.ts');
 require(
@@ -36,13 +37,13 @@ require(
 
 require('pages/story-editor-page/story-editor-page.constants.ajs.ts');
 require('services/contextual/window-dimensions.service.ts');
+require('services/ngb-modal.service.ts');
 require('services/page-title.service.ts');
-
+require('services/stateful/focus-manager.service.ts');
+require('domain/skill/skill-backend-api.service.ts');
 import { Subscription } from 'rxjs';
 
-// TODO(#9186): Change variable name to 'constants' once this file
-// is migrated to Angular.
-import storyNodeConstants from 'assets/constants';
+import { AppConstants } from 'app.constants';
 
 angular.module('oppia').directive('storyNodeEditor', [
   'UrlInterpolationService', function(UrlInterpolationService) {
@@ -63,21 +64,26 @@ angular.module('oppia').directive('storyNodeEditor', [
       templateUrl: UrlInterpolationService.getDirectiveTemplateUrl(
         '/pages/story-editor-page/editor-tab/story-node-editor.directive.html'),
       controller: [
-        '$scope', '$uibModal', 'AlertsService',
-        'ExplorationIdValidationService', 'PageTitleService',
+        '$rootScope', '$scope', '$timeout',
+        'AlertsService', 'CuratedExplorationValidationService',
+        'FocusManagerService', 'NgbModal',
+        'PageTitleService', 'SkillBackendApiService',
         'StoryEditorStateService', 'StoryUpdateService',
         'TopicsAndSkillsDashboardBackendApiService',
         'WindowDimensionsService', 'MAX_CHARS_IN_CHAPTER_DESCRIPTION',
-        'MAX_CHARS_IN_CHAPTER_TITLE', function(
-            $scope, $uibModal, AlertsService,
-            ExplorationIdValidationService, PageTitleService,
+        'MAX_CHARS_IN_EXPLORATION_TITLE', function(
+            $rootScope, $scope, $timeout,
+            AlertsService, CuratedExplorationValidationService,
+            FocusManagerService, NgbModal,
+            PageTitleService, SkillBackendApiService,
             StoryEditorStateService, StoryUpdateService,
             TopicsAndSkillsDashboardBackendApiService,
             WindowDimensionsService, MAX_CHARS_IN_CHAPTER_DESCRIPTION,
-            MAX_CHARS_IN_CHAPTER_TITLE) {
+            MAX_CHARS_IN_EXPLORATION_TITLE) {
           var ctrl = this;
           ctrl.directiveSubscriptions = new Subscription();
-          $scope.MAX_CHARS_IN_CHAPTER_TITLE = MAX_CHARS_IN_CHAPTER_TITLE;
+          $scope.MAX_CHARS_IN_EXPLORATION_TITLE = (
+            MAX_CHARS_IN_EXPLORATION_TITLE);
           $scope.MAX_CHARS_IN_CHAPTER_DESCRIPTION = (
             MAX_CHARS_IN_CHAPTER_DESCRIPTION);
           var _recalculateAvailableNodes = function() {
@@ -113,22 +119,28 @@ angular.module('oppia').directive('storyNodeEditor', [
             $scope.nodeIdToTitleMap =
               $scope.story.getStoryContents().getNodeIdsToTitleMap(
                 $scope.storyNodeIds);
+            $scope.skillInfoHasLoaded = false;
             _recalculateAvailableNodes();
             $scope.allowedBgColors = (
-              storyNodeConstants.ALLOWED_THUMBNAIL_BG_COLORS.chapter);
+              AppConstants.ALLOWED_THUMBNAIL_BG_COLORS.chapter);
             var skillSummaries = StoryEditorStateService.getSkillSummaries();
-            TopicsAndSkillsDashboardBackendApiService.fetchDashboardData().then(
-              function(response) {
+            TopicsAndSkillsDashboardBackendApiService.fetchDashboardDataAsync()
+              .then(function(response) {
                 categorizedSkills = response.categorizedSkillsDict;
                 untriagedSkillSummaries = response.untriagedSkillSummaries;
+                $scope.skillInfoHasLoaded = true;
+                $rootScope.$applyAsync();
               });
             for (var idx in skillSummaries) {
               $scope.skillIdToSummaryMap[skillSummaries[idx].id] =
                 skillSummaries[idx].description;
             }
+            $scope.getPrerequisiteSkillsDescription();
+
             $scope.isStoryPublished = StoryEditorStateService.isStoryPublished;
             $scope.currentTitle = $scope.nodeIdToTitleMap[$scope.getId()];
-            PageTitleService.setPageSubtitleForMobileView($scope.currentTitle);
+            PageTitleService.setNavbarSubtitleForMobileView(
+              $scope.currentTitle);
             $scope.editableTitle = $scope.currentTitle;
             $scope.currentDescription = $scope.getDescription();
             $scope.editableDescription = $scope.currentDescription;
@@ -152,6 +164,23 @@ angular.module('oppia').directive('storyNodeEditor', [
 
           $scope.getSkillEditorUrl = function(skillId) {
             return '/skill_editor/' + skillId;
+          };
+
+          $scope.getPrerequisiteSkillsDescription = function() {
+            const skills = $scope.getPrerequisiteSkillIds();
+            if (skills && skills.length > 0) {
+              SkillBackendApiService.fetchMultiSkillsAsync(skills).then(
+                function(response) {
+                  for (let idx in response) {
+                    $scope.skillIdToSummaryMap[response[idx].getId()] =
+                      response[idx].getDescription();
+                  }
+                  $rootScope.$applyAsync();
+                }, function(error) {
+                  AlertsService.addWarning();
+                }
+              );
+            }
           };
 
           $scope.checkCanSaveExpId = function() {
@@ -192,6 +221,7 @@ angular.module('oppia').directive('storyNodeEditor', [
                 $scope.story, $scope.getId(), newThumbnailFilename);
               $scope.editableThumbnailFilename = newThumbnailFilename;
             }
+            $scope.$applyAsync();
           };
 
           $scope.updateThumbnailBgColor = function(newThumbnailBgColor) {
@@ -220,7 +250,7 @@ angular.module('oppia').directive('storyNodeEditor', [
                   5000);
                 return;
               }
-              ExplorationIdValidationService.isExpPublished(
+              CuratedExplorationValidationService.isExpPublishedAsync(
                 explorationId).then(function(expIdIsValid) {
                 $scope.expIdIsValid = expIdIsValid;
                 if ($scope.expIdIsValid) {
@@ -250,6 +280,7 @@ angular.module('oppia').directive('storyNodeEditor', [
           $scope.removePrerequisiteSkillId = function(skillId) {
             StoryUpdateService.removePrerequisiteSkillIdFromNode(
               $scope.story, $scope.getId(), skillId);
+            $scope.$applyAsync();
           };
 
           $scope.addPrerequisiteSkillId = function() {
@@ -257,29 +288,36 @@ angular.module('oppia').directive('storyNodeEditor', [
               StoryEditorStateService.getSkillSummaries());
             var allowSkillsFromOtherTopics = true;
             var skillsInSameTopicCount = 0;
-            $uibModal.open({
-              templateUrl: UrlInterpolationService.getDirectiveTemplateUrl(
-                '/components/skill-selector/select-skill-modal.template.html'),
-              backdrop: true,
-              resolve: {
-                skillsInSameTopicCount: () => skillsInSameTopicCount,
-                sortedSkillSummaries: () => sortedSkillSummaries,
-                categorizedSkills: () => categorizedSkills,
-                allowSkillsFromOtherTopics: () => allowSkillsFromOtherTopics,
-                untriagedSkillSummaries: () => untriagedSkillSummaries
-              },
-              controller: 'SelectSkillModalController',
-              windowClass: 'skill-select-modal',
-              size: 'xl'
-            }).result.then(function(summary) {
+            let modalRef: NgbModalRef = NgbModal.open(
+              SelectSkillModalComponent, {
+                backdrop: 'static',
+                windowClass: 'skill-select-modal',
+                size: 'xl'
+              });
+            modalRef.componentInstance.skillSummaries = sortedSkillSummaries;
+            modalRef.componentInstance.skillsInSameTopicCount = (
+              skillsInSameTopicCount);
+            modalRef.componentInstance.categorizedSkills = categorizedSkills;
+            modalRef.componentInstance.allowSkillsFromOtherTopics = (
+              allowSkillsFromOtherTopics);
+            modalRef.componentInstance.untriagedSkillSummaries = (
+              untriagedSkillSummaries);
+            modalRef.result.then(function(summary) {
               try {
                 $scope.skillIdToSummaryMap[summary.id] = summary.description;
                 StoryUpdateService.addPrerequisiteSkillIdToNode(
                   $scope.story, $scope.getId(), summary.id);
-              } catch (err) {
-                AlertsService.addInfoMessage(
-                  'Given skill is already a prerequisite skill', 5000);
+                // Unknown type is used because we don't know which type of
+                // error is thrown.
+              } catch (err: unknown) {
+                if (err instanceof Error) {
+                  AlertsService.addInfoMessage(
+                    err.message, 5000);
+                }
               }
+              // TODO(#8521): Remove the use of $rootScope.$apply()
+              // once the controller is migrated to angular.
+              $rootScope.$applyAsync();
             }, function() {
               // Note to developers:
               // This callback is triggered when the Cancel button is clicked.
@@ -295,21 +333,21 @@ angular.module('oppia').directive('storyNodeEditor', [
             var topicName = StoryEditorStateService.getTopicName();
             var categorizedSkillsInTopic = {};
             categorizedSkillsInTopic[topicName] = categorizedSkills[topicName];
-            $uibModal.open({
-              templateUrl: UrlInterpolationService.getDirectiveTemplateUrl(
-                '/components/skill-selector/select-skill-modal.template.html'),
-              backdrop: true,
-              resolve: {
-                skillsInSameTopicCount: () => skillsInSameTopicCount,
-                sortedSkillSummaries: () => sortedSkillSummaries,
-                categorizedSkills: () => categorizedSkillsInTopic,
-                allowSkillsFromOtherTopics: () => allowSkillsFromOtherTopics,
-                untriagedSkillSummaries: () => null
-              },
-              controller: 'SelectSkillModalController',
-              windowClass: 'skill-select-modal',
-              size: 'xl'
-            }).result.then(function(summary) {
+            let modalRef: NgbModalRef = NgbModal.open(
+              SelectSkillModalComponent, {
+                backdrop: 'static',
+                windowClass: 'skill-select-modal',
+                size: 'xl'
+              });
+            modalRef.componentInstance.skillSummaries = sortedSkillSummaries;
+            modalRef.componentInstance.skillsInSameTopicCount = (
+              skillsInSameTopicCount);
+            modalRef.componentInstance.categorizedSkills = categorizedSkills;
+            modalRef.componentInstance.allowSkillsFromOtherTopics = (
+              allowSkillsFromOtherTopics);
+            modalRef.componentInstance.untriagedSkillSummaries = (
+              untriagedSkillSummaries);
+            modalRef.result.then(function(summary) {
               try {
                 StoryUpdateService.addAcquiredSkillIdToNode(
                   $scope.story, $scope.getId(), summary.id);
@@ -317,6 +355,9 @@ angular.module('oppia').directive('storyNodeEditor', [
                 AlertsService.addInfoMessage(
                   'Given skill is already an acquired skill', 5000);
               }
+              // TODO(#8521): Remove the use of $rootScope.$apply()
+              // once the controller is migrated to angular.
+              $rootScope.$applyAsync();
             }, function() {
               // Note to developers:
               // This callback is triggered when the Cancel button is clicked.
@@ -327,6 +368,7 @@ angular.module('oppia').directive('storyNodeEditor', [
           $scope.removeAcquiredSkillId = function(skillId) {
             StoryUpdateService.removeAcquiredSkillIdFromNode(
               $scope.story, $scope.getId(), skillId);
+            $scope.$applyAsync();
           };
 
           $scope.unfinalizeOutline = function() {
@@ -393,7 +435,6 @@ angular.module('oppia').directive('storyNodeEditor', [
             $scope.chapterOutlineButtonsAreShown = (
               !$scope.chapterOutlineButtonsAreShown);
           };
-
           ctrl.$onInit = function() {
             // Regex pattern for exploration id,
             // EXPLORATION_AND_SKILL_ID_PATTERN
@@ -404,7 +445,7 @@ angular.module('oppia').directive('storyNodeEditor', [
             $scope.explorationInputButtonsAreShown = false;
             $scope.chapterOutlineButtonsAreShown = false;
             $scope.skillIdToSummaryMap = {};
-            PageTitleService.setPageTitleForMobileView('Chapter Editor');
+            PageTitleService.setNavbarTitleForMobileView('Chapter Editor');
             $scope.chapterOutlineIsShown = (
               !WindowDimensionsService.isWindowNarrow());
             $scope.chapterTodoCardIsShown = (
@@ -429,6 +470,12 @@ angular.module('oppia').directive('storyNodeEditor', [
               )
             );
             _init();
+            // The $timeout is required because at execution time,
+            // the element may not be present in the DOM yet.Thus it ensure
+            // that the element is visible before focussing.
+            $timeout(() => {
+              FocusManagerService.setFocusWithoutScroll('storyNodeDesc');
+            }, 0);
           };
 
           ctrl.$onDestroy = function() {

@@ -16,7 +16,7 @@
  * @fileoverview Unit tests for state interaction stats service.
  */
 
-import { TestBed, flushMicrotasks, fakeAsync } from '@angular/core/testing';
+import { TestBed, flushMicrotasks, fakeAsync, tick } from '@angular/core/testing';
 import { HttpClientTestingModule, HttpTestingController } from
   '@angular/common/http/testing';
 
@@ -27,7 +27,7 @@ import { NormalizeWhitespacePunctuationAndCasePipe } from
   'filters/string-utility-filters/normalize-whitespace-punctuation-and-case.pipe';
 import { StateInteractionStats, StateInteractionStatsService } from
   'services/state-interaction-stats.service';
-import { SubtitledHtml } from 'domain/exploration/SubtitledHtmlObjectFactory';
+import { SubtitledHtml } from 'domain/exploration/subtitled-html.model';
 import { State, StateBackendDict, StateObjectFactory } from
   'domain/state/StateObjectFactory';
 
@@ -75,49 +75,61 @@ describe('State Interaction Stats Service', () => {
           {
             rule_specs: [{
               rule_type: 'Equals',
-              inputs: {x: ['hola!']}
+              inputs: {x: {
+                contentId: 'rule_input',
+                normalizedStrSet: ['hola!']
+              }}
             }],
             outcome: {
               dest: 'Me Llamo',
+              dest_if_really_stuck: null,
               feedback: {content_id: 'feedback_1', html: '¡Buen trabajo!'},
               labelled_as_correct: true,
               param_changes: [],
               refresher_exploration_id: null,
               missing_prerequisite_skill_id: null,
             },
-            training_data: null,
+            training_data: [],
             tagged_skill_misconception_id: null,
           },
           {
             rule_specs: [{
               rule_type: 'Contains',
-              inputs: {x: ['hola']}
+              inputs: {x: {
+                contentId: 'rule_input',
+                normalizedStrSet: ['hola']
+              }}
             }],
             outcome: {
               dest: 'Me Llamo',
+              dest_if_really_stuck: null,
               feedback: {content_id: 'feedback_1', html: '¡Buen trabajo!'},
               labelled_as_correct: true,
               param_changes: [],
               refresher_exploration_id: null,
               missing_prerequisite_skill_id: null,
             },
-            training_data: null,
+            training_data: [],
             tagged_skill_misconception_id: null,
           },
           {
             rule_specs: [{
               rule_type: 'FuzzyEquals',
-              inputs: {x: ['hola']}
+              inputs: {x: {
+                contentId: 'rule_input',
+                normalizedStrSet: ['hola']
+              }}
             }],
             outcome: {
               dest: 'Me Llamo',
+              dest_if_really_stuck: null,
               feedback: {content_id: 'feedback_1', html: '¡Buen trabajo!'},
               labelled_as_correct: true,
               param_changes: [],
               refresher_exploration_id: null,
               missing_prerequisite_skill_id: null,
             },
-            training_data: null,
+            training_data: [],
             tagged_skill_misconception_id: null,
           }
         ],
@@ -129,10 +141,14 @@ describe('State Interaction Stats Service', () => {
               unicode_str: ''
             }
           },
-          rows: { value: 1 }
+          rows: { value: 1 },
+          catchMisspellings: {
+            value: false
+          }
         },
         default_outcome: {
           dest: 'Hola',
+          dest_if_really_stuck: null,
           feedback: {content_id: 'default_outcome', html: ''},
           labelled_as_correct: true,
           param_changes: [],
@@ -152,10 +168,8 @@ describe('State Interaction Stats Service', () => {
       },
       param_changes: [],
       solicit_answer_details: false,
-      written_translations: {
-        translations_mapping: {}
-      },
-      next_content_id_index: 0
+      card_is_checkpoint: false,
+      linked_skill_id: null,
     };
 
     mockState = stateObjectFactory.createFromBackendDict('Hola', stateDict);
@@ -167,6 +181,26 @@ describe('State Interaction Stats Service', () => {
     ).toBeTrue();
   });
 
+  it('should throw error if state name does not exist',
+    fakeAsync(async() => {
+      mockState.name = null;
+
+      expect(() => {
+        stateInteractionStatsService.computeStatsAsync(expId, mockState);
+        tick();
+      }).toThrowError();
+    }));
+
+  it('should throw error if interaction id does not exist',
+    fakeAsync(async() => {
+      mockState.interaction.id = null;
+
+      expect(() => {
+        stateInteractionStatsService.computeStatsAsync(expId, mockState);
+        tick();
+      }).toThrowError();
+    }));
+
   describe('when gathering stats from the backend', () => {
     it('should provide cached results after first call', fakeAsync(() => {
       let statsCaptured: StateInteractionStats[] = [];
@@ -175,7 +209,7 @@ describe('State Interaction Stats Service', () => {
         statsCaptured.push(stats);
       };
 
-      stateInteractionStatsService.computeStats(expId, mockState)
+      stateInteractionStatsService.computeStatsAsync(expId, mockState)
         .then(captureStats);
       const req = httpTestingController.expectOne(
         '/createhandler/state_interaction_stats/expid/Hola');
@@ -191,7 +225,7 @@ describe('State Interaction Stats Service', () => {
       });
       flushMicrotasks();
 
-      stateInteractionStatsService.computeStats(expId, mockState)
+      stateInteractionStatsService.computeStatsAsync(expId, mockState)
         .then(captureStats);
       httpTestingController.expectNone(
         '/createhandler/state_interaction_stats/expid/Hola');
@@ -209,7 +243,7 @@ describe('State Interaction Stats Service', () => {
         statsCaptured.push(stats);
       };
 
-      stateInteractionStatsService.computeStats(expId, mockState)
+      stateInteractionStatsService.computeStatsAsync(expId, mockState)
         .then(captureStats);
       const holaReq = httpTestingController.expectOne(
         '/createhandler/state_interaction_stats/expid/Hola');
@@ -226,7 +260,7 @@ describe('State Interaction Stats Service', () => {
       flushMicrotasks();
 
       mockState.name = 'Adios';
-      stateInteractionStatsService.computeStats(expId, mockState)
+      stateInteractionStatsService.computeStatsAsync(expId, mockState)
         .then(captureStats);
       const adiosReq = httpTestingController.expectOne(
         '/createhandler/state_interaction_stats/expid/Adios');
@@ -251,7 +285,7 @@ describe('State Interaction Stats Service', () => {
       const onSuccess = jasmine.createSpy('success');
       const onFailure = jasmine.createSpy('failure');
 
-      stateInteractionStatsService.computeStats(expId, mockState)
+      stateInteractionStatsService.computeStatsAsync(expId, mockState)
         .then(onSuccess, onFailure);
 
       const req = httpTestingController.expectOne(
@@ -286,7 +320,7 @@ describe('State Interaction Stats Service', () => {
         const onSuccess = jasmine.createSpy('success');
         const onFailure = jasmine.createSpy('failure');
 
-        stateInteractionStatsService.computeStats(expId, mockState).then(
+        stateInteractionStatsService.computeStatsAsync(expId, mockState).then(
           onSuccess, onFailure);
 
         const req = httpTestingController.expectOne(
@@ -326,7 +360,7 @@ describe('State Interaction Stats Service', () => {
           ]
         }
       };
-      stateInteractionStatsService.computeStats(expId, mockState).then(
+      stateInteractionStatsService.computeStatsAsync(expId, mockState).then(
         onSuccess, onFailure);
 
       const req = httpTestingController.expectOne(
@@ -366,7 +400,7 @@ describe('State Interaction Stats Service', () => {
           }
         };
 
-        stateInteractionStatsService.computeStats(expId, mockState).then(
+        stateInteractionStatsService.computeStatsAsync(expId, mockState).then(
           onSuccess, onFailure);
 
         const req = httpTestingController.expectOne(

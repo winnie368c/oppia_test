@@ -22,26 +22,37 @@ import { UrlInterpolationService } from
   'domain/utilities/url-interpolation.service';
 import { UrlService } from 'services/contextual/url.service';
 
+import resourceHashes from 'utility/hashes';
+const hashes = {
+  '/hash_test.html': 'ijklmopq',
+  '/path_test/hash_test.html': '123456789',
+  '/hash_test.min.js': 'zyx12345',
+  '/assets_test/hash_test.json': '987654321',
+  '/pages_test/hash_test.html': 'abcd12345',
+  '/images/hash_test.png': '98765fghij',
+  '/videos/hash_test.mp4': '12345cxz',
+  '/audio/hash_test.mp3': '12345abc',
+  '/interactions/interTest/static/interTest.png': '123654789'
+};
 describe('URL Interpolation Service', () => {
-  let hashes = require('hashes.json');
-  let uis: UrlInterpolationService = null;
-  let urlService: UrlService = null;
-  let mockLocation = null;
-  let alertsService = null;
-  let alertsObject = {
-    alertsService
-  };
+  let uis: UrlInterpolationService;
+  let urlService: UrlService;
+  let mockLocation: Pick<Location, 'origin'>;
+  let _alertsService: AlertsService;
+  let alertsObject: Record<'alertsService', AlertsService>;
   beforeEach(() => {
+    spyOnProperty(resourceHashes, 'hashes', 'get').and.returnValue(hashes);
     mockLocation = {
       origin: 'http://sample.com'
     };
 
-    uis = TestBed.get(UrlInterpolationService);
-    urlService = TestBed.get(UrlService);
-    alertsService = TestBed.get(AlertsService);
+    uis = TestBed.inject(UrlInterpolationService);
+    urlService = TestBed.inject(UrlService);
+    _alertsService = TestBed.inject(AlertsService);
     spyOnProperty(uis, 'DEV_MODE', 'get').and.returnValue(false);
-    spyOn(urlService, 'getCurrentLocation').and.returnValue(mockLocation);
-    alertsObject.alertsService = alertsService;
+    spyOn(urlService, 'getCurrentLocation').and.returnValue(
+      mockLocation as Location);
+    alertsObject = { alertsService: _alertsService };
   });
 
   it('should add hash to url if hash is set', () => {
@@ -74,34 +85,27 @@ describe('URL Interpolation Service', () => {
   });
 
   it('should throw an error for erroneous URLs', () => {
-    expect(uis.interpolateUrl.bind(uis, null, null))
-      .toThrowError('Invalid or empty URL template passed in: \'null\'');
-    expect(uis.interpolateUrl.bind(uis, null, {}))
-      .toThrowError('Invalid or empty URL template passed in: \'null\'');
-    expect(uis.interpolateUrl.bind(uis, undefined, {}))
-      .toThrowError(
-        'Invalid or empty URL template passed in: \'undefined\'');
     expect(uis.interpolateUrl.bind(uis, '', {}))
-      .toThrowError('Invalid or empty URL template passed in: \'\'');
-    expect(uis.interpolateUrl.bind(uis, '', null))
       .toThrowError('Invalid or empty URL template passed in: \'\'');
   });
 
   it('should throw an error for erroneous interpolation values', () => {
-    expect(uis.interpolateUrl.bind(alertsObject, 'url', null))
-      .toThrowError(
-        'Expected an object of interpolation values to be passed ' +
-        'into interpolateUrl.');
-    expect(uis.interpolateUrl.bind(alertsObject, 'url', undefined))
-      .toThrowError(
-        'Expected an object of interpolation values to be passed ' +
-        'into interpolateUrl.');
     expect(
+      // This throws "Type 'string' is not assignable to type
+      // 'InterpolationValuesType'." We need to suppress this error
+      // because of the need to test validations. This is done because
+      // we need to test the validations of the interpolateUrl function.
+      // @ts-ignore
       uis.interpolateUrl.bind(alertsObject, '/test_url/<param>', 'value')
     ).toThrowError(
       'Expected an object of interpolation values to be passed into ' +
       'interpolateUrl.');
     expect(
+      // This throws "Type 'string[]' is not assignable to type
+      // 'InterpolationValuesType'." We need to suppress this error
+      // because of the need to test validations. This is done because
+      // we need to test the validations of the interpolateUrl function.
+      // @ts-ignore
       uis.interpolateUrl.bind(alertsObject, '/test_url/<param>', ['value'])
     ).toThrowError(
       'Expected an object of interpolation values to be passed into ' +
@@ -238,21 +242,43 @@ describe('URL Interpolation Service', () => {
   });
 
   it('should throw an error for non-string parameters', () => {
+    // This throws "Type 'number' is not assignable to type 'string'
+    // ." We need to suppress this error because of the need to test
+    // validations on invalid parameters. The test is still valid because
+    // the error is thrown by the function.
+    // @ts-ignore
     expect(uis.interpolateUrl.bind(uis, '/test_url/<page>', {
       page: 0
     })).toThrowError(
       'Every parameter passed into interpolateUrl must have string values, ' +
       'but received: {page: 0}');
+    // This throws "Type '{}' is not assignable to type 'string'
+    // ." We need to suppress this error because of the need to test
+    // validations on invalid parameters. The test is still valid because
+    // the error is thrown by the function.
+    // @ts-ignore
     expect(uis.interpolateUrl.bind(uis, '/test_url/<page>', {
       page: {}
     })).toThrowError(
       'Every parameter passed into interpolateUrl must have string values, ' +
       'but received: {page: {}}');
+    // This throws "Type '[]' is not assignable to type 'string'
+    // ." We need to suppress this error because of the need to test
+    // validations on invalid parameters. The test is still valid because
+    // the error is thrown by the function.
+    // @ts-ignore
     expect(uis.interpolateUrl.bind(uis, '/test_url/<page>', {
       page: []
     })).toThrowError(
       'Every parameter passed into interpolateUrl must have string values, ' +
       'but received: {page: []}');
+    // This throws "Type 'RegExp' is not assignable to type 'string'
+    // ." We need to suppress this error because of the need to test
+    // validations on invalid parameters. The test is still valid because
+    // the error is thrown by the function. We need to suppress this error
+    // because of the need to test validations on invalid parameters. The
+    // test is still valid because the error is thrown by the function.
+    // @ts-ignore
     expect(uis.interpolateUrl.bind(uis, '/test_url/<page>', {
       page: /abc/
     })).toThrowError(
@@ -269,6 +295,14 @@ describe('URL Interpolation Service', () => {
       '/build/assets/images/hash_test.' + hashes['/images/hash_test.png'] +
         '.png');
 
+    expect(uis.getStaticAudioUrl('/test.mp3')).toBe(
+      '/build/assets/audio/test.mp3');
+    expect(uis.getStaticAudioUrl('/test_url/test.mp3')).toBe(
+      '/build/assets/audio/test_url/test.mp3');
+    expect(uis.getStaticAudioUrl('/hash_test.mp3')).toBe(
+      '/build/assets/audio/hash_test.' + hashes['/audio/hash_test.mp3'] +
+        '.mp3');
+
     expect(uis.getStaticVideoUrl('/test.mp4')).toBe(
       '/build/assets/videos/test.mp4');
     expect(uis.getStaticVideoUrl('/test_url/test.mp4')).toBe(
@@ -277,8 +311,6 @@ describe('URL Interpolation Service', () => {
       '/build/assets/videos/hash_test.' + hashes['/videos/hash_test.mp4'] +
         '.mp4');
 
-    expect(uis.getInteractionThumbnailImageUrl('LogicProof')).toBe(
-      '/build/extensions/interactions/LogicProof/static/LogicProof.png');
     expect(uis.getInteractionThumbnailImageUrl('interTest')).toBe(
       '/build/extensions/interactions/interTest/static/interTest.' +
         hashes['/interactions/interTest/static/interTest.png'] + '.png');
@@ -319,33 +351,24 @@ describe('URL Interpolation Service', () => {
   });
 
   it('should throw an error for empty path', () => {
-    expect(uis.getStaticImageUrl.bind(uis, null)).toThrowError(
-      'Empty path passed in method.');
     expect(uis.getStaticImageUrl.bind(uis, '')).toThrowError(
       'Empty path passed in method.');
 
-    expect(uis.getStaticVideoUrl.bind(uis, null)).toThrowError(
+    expect(uis.getStaticAudioUrl.bind(uis, '')).toThrowError(
       'Empty path passed in method.');
+
     expect(uis.getStaticVideoUrl.bind(uis, '')).toThrowError(
       'Empty path passed in method.');
 
-    expect(uis.getInteractionThumbnailImageUrl.bind(uis, null)).toThrowError(
-      'Empty interactionId passed in getInteractionThumbnailImageUrl.');
     expect(uis.getInteractionThumbnailImageUrl.bind(uis, '')).toThrowError(
       'Empty interactionId passed in getInteractionThumbnailImageUrl.');
 
-    expect(uis.getDirectiveTemplateUrl.bind(uis, null)).toThrowError(
-      'Empty path passed in method.');
     expect(uis.getDirectiveTemplateUrl.bind(uis, '')).toThrowError(
       'Empty path passed in method.');
 
-    expect(uis.getStaticAssetUrl.bind(uis, null))
-      .toThrowError('Empty path passed in method.');
     expect(uis.getStaticAssetUrl.bind(uis, ''))
       .toThrowError('Empty path passed in method.');
 
-    expect(uis.getExtensionResourceUrl.bind(uis, null))
-      .toThrowError('Empty path passed in method.');
     expect(uis.getExtensionResourceUrl.bind(uis, ''))
       .toThrowError('Empty path passed in method.');
   });
@@ -356,6 +379,12 @@ describe('URL Interpolation Service', () => {
         'Path must start with \'\/\': \'' + 'test_fail.png' + '\'.');
       expect(uis.getStaticImageUrl.bind(uis, 'test_url/fail.png')).toThrowError(
         'Path must start with \'\/\': \'' + 'test_url/fail.png' + '\'.');
+
+      expect(uis.getStaticAudioUrl.bind(uis, 'test_fail.mp3')).toThrowError(
+        'Path must start with \'\/\': \'' + 'test_fail.mp3' + '\'.');
+      expect(uis.getStaticAudioUrl.bind(uis, 'test_url/fail.mp3'))
+        .toThrowError(
+          'Path must start with \'\/\': \'' + 'test_url/fail.mp3' + '\'.');
 
       expect(uis.getStaticVideoUrl.bind(uis, 'test_fail.png'))
         .toThrowError(

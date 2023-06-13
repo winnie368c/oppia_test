@@ -17,123 +17,149 @@
  * component.
  */
 
-import { DeviceInfoService } from 'services/contextual/device-info.service.ts';
-import { GuppyConfigurationService } from
-  'services/guppy-configuration.service.ts';
-import { GuppyInitializationService } from
-  'services/guppy-initialization.service.ts';
-import { MathInteractionsService } from 'services/math-interactions.service.ts';
-import { WindowRef } from 'services/contextual/window-ref.service.ts';
+import { DeviceInfoService } from 'services/contextual/device-info.service';
+import { AlgebraicExpressionInputInteractionComponent } from './oppia-interactive-algebraic-expression-input.component';
+import { ComponentFixture, waitForAsync, TestBed } from '@angular/core/testing';
+import { CurrentInteractionService } from 'pages/exploration-player-page/services/current-interaction.service';
+import { GuppyInitializationService, GuppyObject } from 'services/guppy-initialization.service';
+import { WindowRef } from 'services/contextual/window-ref.service';
+import { TranslateService } from '@ngx-translate/core';
+import { AlgebraicExpressionAnswer } from 'interactions/answer-defs';
 
-require(
-  'interactions/AlgebraicExpressionInput/directives/' +
-  'algebraic-expression-input-rules.service.ts');
-require(
-  'pages/exploration-player-page/services/current-interaction.service.ts');
-require(
-  'interactions/AlgebraicExpressionInput/directives/' +
-  'oppia-interactive-algebraic-expression-input.component.ts');
+class MockTranslateService {
+  instant(key: string): string {
+    return key;
+  }
+}
 
-describe('AlgebraicExpressionInputInteractive', function() {
-  let ctrl = null, $window = null;
-  let mockCurrentInteractionService = {
-    onSubmit: function(answer, rulesService) {},
-    registerCurrentInteraction: function(submitAnswerFn, validateExpressionFn) {
-      submitAnswerFn();
-    }
-  };
-  let mockAlgebraicExpressionInputRulesService = {};
+describe('AlgebraicExpressionInputInteractive', () => {
+  let component: AlgebraicExpressionInputInteractionComponent;
+  let fixture: ComponentFixture<AlgebraicExpressionInputInteractionComponent>;
+  let windowRef: WindowRef;
+  let guppyInitializationService: GuppyInitializationService;
+  let deviceInfoService: DeviceInfoService;
   let mockGuppyObject = {
+    divId: '1',
     guppyInstance: {
       asciimath: function() {
         return 'Dummy value';
       }
     }
   };
-  let guppyConfigurationService = null;
-  let mathInteractionsService = null;
-  let guppyInitializationService = null;
-  let deviceInfoService = null;
-
   class MockGuppy {
+    static focused = true;
     constructor(id: string, config: Object) {}
 
     asciimath() {
       return 'Dummy value';
     }
+
     configure(name: string, val: Object): void {}
     static event(name: string, handler: Function): void {
-      handler({focused: true});
+      handler({focused: MockGuppy.focused});
     }
+
     static configure(name: string, val: Object): void {}
     static 'remove_global_symbol'(symbol: string): void {}
     static 'add_global_symbol'(name: string, symbol: Object): void {}
   }
 
-  beforeEach(angular.mock.module('oppia'));
-  beforeEach(angular.mock.module('oppia', function($provide) {
-    guppyConfigurationService = new GuppyConfigurationService(
-      new DeviceInfoService(new WindowRef()));
-    mathInteractionsService = new MathInteractionsService();
-    guppyInitializationService = new GuppyInitializationService();
-    deviceInfoService = new DeviceInfoService(new WindowRef());
+  let mockCurrentInteractionService = {
+    onSubmit: (
+        answer: AlgebraicExpressionAnswer,
+        rulesService: CurrentInteractionService
+    ) => {},
+    registerCurrentInteraction: (
+        submitAnswerFn: Function, validateExpressionFn: Function) => {
+      submitAnswerFn();
+      validateExpressionFn();
+    }
+  };
 
-    $provide.value(
-      'CurrentInteractionService', mockCurrentInteractionService);
-    $provide.value(
-      'AlgebraicExpressionInputRulesService',
-      mockAlgebraicExpressionInputRulesService);
-    $provide.value('GuppyConfigurationService', guppyConfigurationService);
-    $provide.value('MathInteractionsService', mathInteractionsService);
-    $provide.value('GuppyInitializationService', guppyInitializationService);
-    $provide.value('$attrs', {
-      customOskLettersWithValue: '[&quot;a&quot;, &quot;b&quot;]'
-    });
-  }));
-  beforeEach(angular.mock.inject(function($injector, $componentController) {
-    $window = $injector.get('$window');
-    ctrl = $componentController('oppiaInteractiveAlgebraicExpressionInput');
-    $window.Guppy = MockGuppy;
+  beforeEach(waitForAsync(() => {
+    TestBed.configureTestingModule(
+      {
+        declarations: [AlgebraicExpressionInputInteractionComponent],
+        providers: [
+          {
+            provide: CurrentInteractionService,
+            useValue: mockCurrentInteractionService
+          },
+          {
+            provide: TranslateService,
+            useClass: MockTranslateService
+          }
+        ]
+      }).compileComponents();
   }));
 
-  it('should add the change handler to guppy', function() {
+  beforeEach(() => {
+    windowRef = TestBed.inject(WindowRef);
+    windowRef.nativeWindow.Guppy = MockGuppy as unknown as Guppy;
+    guppyInitializationService = TestBed.inject(GuppyInitializationService);
+    deviceInfoService = TestBed.inject(DeviceInfoService);
+    fixture = TestBed.createComponent(
+      AlgebraicExpressionInputInteractionComponent);
+    component = fixture.componentInstance;
+    component.allowedVariablesWithValue = '[&quot;a&quot;, &quot;b&quot;]';
+    fixture.detectChanges();
+  });
+
+  it('should add the change handler to guppy', () => {
     spyOn(guppyInitializationService, 'findActiveGuppyObject').and.returnValue(
-      mockGuppyObject);
-    ctrl.$onInit();
+      mockGuppyObject as GuppyObject);
+    component.ngOnInit();
     expect(guppyInitializationService.findActiveGuppyObject).toHaveBeenCalled();
   });
 
-  it('should not submit the answer if invalid', function() {
-    ctrl.hasBeenTouched = true;
+  it('should determine when the component is destroyed', () => {
+    component.ngOnInit();
+    expect(component.viewIsDestroyed).toBe(false);
+
+    component.ngOnDestroy();
+    expect(component.viewIsDestroyed).toBe(true);
+  });
+
+  it('should not submit the answer if invalid', () => {
+    component.hasBeenTouched = true;
     // Invalid answer.
-    ctrl.value = 'x/';
+    component.value = 'x/';
 
     spyOn(mockCurrentInteractionService, 'onSubmit');
-    ctrl.submitAnswer();
+    component.submitAnswer();
     expect(mockCurrentInteractionService.onSubmit).not.toHaveBeenCalled();
-    expect(ctrl.warningText).toBe(
+    expect(component.warningText).toBe(
       'Your answer seems to be missing a variable/number after the "/".');
   });
 
-  it('should correctly validate current answer', function() {
+  it('should correctly validate current answer', () => {
     // This should be validated as true if the editor hasn't been touched.
-    ctrl.value = '';
-    expect(ctrl.isCurrentAnswerValid()).toBeTrue();
-    expect(ctrl.warningText).toBe('');
+    component.value = '';
+    expect(component.isCurrentAnswerValid()).toBeTrue();
+    expect(component.warningText).toBe('');
 
-    ctrl.hasBeenTouched = true;
+    component.hasBeenTouched = true;
     // This should be validated as false if the editor has been touched.
-    ctrl.value = '';
-    expect(ctrl.isCurrentAnswerValid()).toBeFalse();
-    expect(ctrl.warningText).toBe('Please enter an answer before submitting.');
+    component.value = '';
+    expect(component.isCurrentAnswerValid()).toBeFalse();
+    expect(
+      component.warningText).toBe('Please enter an answer before submitting.');
   });
 
-  it('should set the value of showOSK to true', function() {
+  it('should set the value of showOSK to true', () => {
     spyOn(deviceInfoService, 'isMobileUserAgent').and.returnValue(true);
     spyOn(deviceInfoService, 'hasTouchEvents').and.returnValue(true);
 
     expect(guppyInitializationService.getShowOSK()).toBeFalse();
-    ctrl.showOSK();
+    component.showOsk();
     expect(guppyInitializationService.getShowOSK()).toBeTrue();
+  });
+
+  it('should initialize component.value with an empty string', () => {
+    spyOn(guppyInitializationService, 'findActiveGuppyObject').and.returnValue(
+      mockGuppyObject as GuppyObject);
+    MockGuppy.focused = false;
+    component.ngOnInit();
+    expect(component.value).not.toBeNull();
   });
 });

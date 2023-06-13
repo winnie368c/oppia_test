@@ -16,16 +16,19 @@
 
 """Domain objects for Takeout."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
-import python_utils
+from typing import Dict, List
 
 
-class TakeoutData(python_utils.OBJECT):
+class TakeoutData:
     """Domain object for all information exported as part of Takeout."""
 
-    def __init__(self, user_data, user_images):
+    def __init__(
+        self,
+        user_data: Dict[str, Dict[str, str]],
+        user_images: List[TakeoutImage]
+    ) -> None:
         """Constructs a TakeoutData domain object.
 
         Args:
@@ -39,12 +42,14 @@ class TakeoutData(python_utils.OBJECT):
         self.user_images = user_images
 
 
-class TakeoutImage(python_utils.OBJECT):
+class TakeoutImage:
     """Domain object for storing Base64 image data and the Takeout export path
     for a single image.
     """
 
-    def __init__(self, b64_image_data, image_export_path):
+    def __init__(
+        self, b64_image_data: str, image_export_path: str
+    ) -> None:
         """Constructs a TakeoutImage domain object.
 
         Args:
@@ -54,24 +59,3 @@ class TakeoutImage(python_utils.OBJECT):
         """
         self.b64_image_data = b64_image_data
         self.image_export_path = image_export_path
-
-
-class TakeoutImageReplacementInstruction(python_utils.OBJECT):
-    """Domain object for storing the instructions for replacing a user image
-    with a path corresponding to a file in the final zip.
-    """
-
-    def __init__(self, dictionary_path, export_filename, new_key):
-        """Constructs a TakeoutImageReplacementInstruction object.
-
-        Args:
-            dictionary_path: tuple(str). A sequence of keys indicating the
-                position of the user image data within the user data dictionary.
-            export_filename: str. The filename of the new file created.
-            new_key: str. The new key name in the user data dictionary after the
-                image data is replaced with the filename within the final
-                Takeout zip.
-        """
-        self.dictionary_path = dictionary_path
-        self.export_filename = export_filename
-        self.new_key = new_key

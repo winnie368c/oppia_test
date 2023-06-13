@@ -20,17 +20,18 @@ import {
   HttpClientTestingModule,
   HttpTestingController
 } from '@angular/common/http/testing';
-import {HTTP_INTERCEPTORS, HttpClient} from '@angular/common/http';
+// eslint-disable-next-line oppia/disallow-httpclient
+import { HTTP_INTERCEPTORS, HttpClient, HttpHandler, HttpRequest, HttpParams } from '@angular/common/http';
 
-import {
-  MockCsrfTokenService,
-  RequestInterceptor
-} from 'services/request-interceptor.service';
+import { RequestInterceptor } from 'services/request-interceptor.service';
+import { CsrfTokenService } from './csrf-token.service';
+
 
 describe('Request Interceptor Service', () => {
-  let mcts: MockCsrfTokenService = null;
-  let httpClient: HttpClient = null;
-  let httpTestingController: HttpTestingController = null;
+  let csrfTokenService: CsrfTokenService;
+  let httpClient: HttpClient;
+  let httpTestingController: HttpTestingController;
+  let requestInterceptor: RequestInterceptor;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -42,14 +43,10 @@ describe('Request Interceptor Service', () => {
       }]
     });
 
-    mcts = TestBed.get(MockCsrfTokenService);
+    requestInterceptor = TestBed.get(RequestInterceptor);
+    csrfTokenService = TestBed.get(CsrfTokenService);
     httpClient = TestBed.get(HttpClient);
     httpTestingController = TestBed.get(HttpTestingController);
-    // This throws "Argument of type 'string[]' is not assignable to parameter
-    // of type 'PromiseLike<string>'.". We need to suppress this error because
-    // we need to mock the `getTokenAsync` function for testing purposes.
-    // @ts-expect-error
-    spyOn(mcts, 'getTokenAsync').and.returnValue(['sample-csrf-token']);
   });
 
   afterEach(() => {
@@ -57,12 +54,248 @@ describe('Request Interceptor Service', () => {
   });
 
   it('should expect request body to be a FormData constructor', () => {
+    spyOn(csrfTokenService, 'getTokenAsync').and.returnValue(
+      // This throws "Argument of type 'string[]' is not assignable to parameter
+      // of type 'PromiseLike<string>'.". We need to suppress this error because
+      // we need to mock the `getTokenAsync` function for testing purposes.
+      // @ts-expect-error
+      ['sample-csrf-token']
+    );
+
     httpClient.post('/api', {data: 'test'}).subscribe(
-      response => expect(response).toBeTruthy());
+      async(response) => expect(response).toBeTruthy());
 
     let req = httpTestingController.expectOne('/api');
+    let reqCSFR = httpTestingController.expectOne('/csrfhandler');
     expect(req.request.method).toEqual('POST');
     expect(req.request.body.constructor.name).toEqual('FormData');
+    expect(reqCSFR.request.method).toEqual('GET');
     req.flush({data: 'test'});
+    reqCSFR.flush('12345{"token": "sample-csrf-token"}');
+  });
+
+  it('should modify http requests body when they are intercepted', () => {
+    spyOn(csrfTokenService, 'getTokenAsync').and.returnValue(
+      // This throws "Argument of type 'string[]' is not assignable to parameter
+      // of type 'PromiseLike<string>'.". We need to suppress this error because
+      // we need to mock the `getTokenAsync` function for testing purposes.
+      // @ts-expect-error
+      ['sample-csrf-token']
+    );
+
+    httpClient.patch('/api', {data: 'test'}).subscribe(
+      async(response) => expect(response).toBeTruthy());
+
+    let req = httpTestingController.expectOne('/api');
+    let reqCSRF = httpTestingController.expectOne('/csrfhandler');
+    expect(req.request.method).toEqual('PATCH');
+    expect(reqCSRF.request.method).toEqual('GET');
+    req.flush({data: 'test'});
+    reqCSRF.flush('12345{"token": "sample-csrf-token"}');
+
+    expect(req.request.body).toEqual({
+      csrf_token: 'sample-csrf-token',
+      source: document.URL,
+      payload: JSON.stringify({data: 'test'})
+    });
+  });
+
+  it('should not handle http requests when the body is null', () => {
+    spyOn(csrfTokenService, 'getTokenAsync').and.returnValue(
+      // This throws "Argument of type 'string[]' is not assignable to parameter
+      // of type 'PromiseLike<string>'.". We need to suppress this error because
+      // we need to mock the `getTokenAsync` function for testing purposes.
+      // @ts-expect-error
+      ['sample-csrf-token']
+    );
+
+    httpClient.get('/api').subscribe(
+      async(response) => expect(response).toBeTruthy());
+    httpClient.patch('/api2', {data: 'test'}).subscribe(
+      async(response) => expect(response).toBeTruthy());
+
+    let req = httpTestingController.expectOne('/api');
+    let req2 = httpTestingController.expectOne('/api2');
+    let reqCSRF = httpTestingController.expectOne('/csrfhandler');
+    expect(req.request.method).toEqual('GET');
+    expect(req2.request.method).toEqual('PATCH');
+    expect(reqCSRF.request.method).toEqual('GET');
+    req.flush({data: 'test'});
+    req2.flush({data: 'test'});
+    reqCSRF.flush('12345{"token": "sample-csrf-token"}');
+
+    expect(csrfTokenService.getTokenAsync).toHaveBeenCalledTimes(1);
+    expect(req.request.body).toBeNull();
+    expect(req2.request.body).toEqual({
+      csrf_token: 'sample-csrf-token',
+      source: document.URL,
+      payload: JSON.stringify({data: 'test'})
+    });
+  });
+
+  it('should throw error if csrf Token is not initialised', () => {
+    spyOn(csrfTokenService, 'initializeToken').and.callFake(() => {
+      throw new Error('Error');
+    });
+
+    expect(() => {
+      requestInterceptor.intercept(
+        new HttpRequest('GET', 'url'), {} as HttpHandler);
+    }).toThrowError('Error');
+  });
+
+  it('should correctly set the csrf token', (done) => {
+    csrfTokenService.initializeToken();
+
+    csrfTokenService.getTokenAsync().then(function(token) {
+      expect(token).toEqual('sample-csrf-token');
+    }).then(done, done.fail);
+
+    let reqCSFR = httpTestingController.expectOne('/csrfhandler');
+    reqCSFR.flush('12345{"token": "sample-csrf-token"}');
+  });
+
+  it('should error if initialize is called more than once', () => {
+    csrfTokenService.initializeToken();
+
+    let reqCSFR = httpTestingController.expectOne('/csrfhandler');
+    reqCSFR.flush('12345{"token": "sample-csrf-token"}');
+
+    expect(() => csrfTokenService.initializeToken())
+      .toThrowError('Token request has already been made');
+  });
+
+  it('should error if getTokenAsync is called before initialize', () => {
+    try {
+      csrfTokenService.getTokenAsync();
+    } catch (e) {
+      expect(e).toEqual(new Error('Token needs to be initialized'));
+    }
+  });
+
+  it('should not throw error if params are valid', () => {
+    expect(() => {
+      requestInterceptor.intercept(
+        new HttpRequest(
+          'GET',
+          'url',
+          {params: new HttpParams({fromString: 'key=valid'})}),
+          {} as HttpHandler);
+    }).toBeTruthy();
+  });
+
+  it('should not throw error if no params are specified', () => {
+    expect(() => {
+      requestInterceptor.intercept(
+        new HttpRequest(
+          'GET',
+          'url'),
+          {} as HttpHandler);
+    }).toBeTruthy();
+  });
+
+  it('should throw error if param with null value is supplied', () => {
+    expect(() => {
+      requestInterceptor.intercept(
+        new HttpRequest(
+          'GET',
+          'url',
+          {params: new HttpParams({fromString: 'key=null'})}),
+          {} as HttpHandler);
+    }).toThrowError('Cannot supply params with value "None" or "null".');
+
+    let reqCSFR = httpTestingController.expectOne('/csrfhandler');
+    reqCSFR.flush('12345{"token": "sample-csrf-token"}');
+  });
+
+  it('should throw error if param with None value is supplied', () => {
+    expect(() => {
+      requestInterceptor.intercept(
+        new HttpRequest(
+          'GET',
+          'url',
+          {params: new HttpParams({fromString: 'key=None'})}),
+          {} as HttpHandler);
+    }).toThrowError('Cannot supply params with value "None" or "null".');
+
+    let reqCSFR = httpTestingController.expectOne('/csrfhandler');
+    reqCSFR.flush('12345{"token": "sample-csrf-token"}');
+  });
+
+  it('should throw error if null param in DELETE request', () => {
+    expect(() => {
+      requestInterceptor.intercept(
+        new HttpRequest(
+          'DELETE',
+          'url',
+          {params: new HttpParams({fromString: 'key=null'})}),
+          {} as HttpHandler);
+    }).toThrowError('Cannot supply params with value "None" or "null".');
+
+    let reqCSFR = httpTestingController.expectOne('/csrfhandler');
+    reqCSFR.flush('12345{"token": "sample-csrf-token"}');
+  });
+
+  it('should not throw error if null param in POST request', () => {
+    spyOn(csrfTokenService, 'getTokenAsync').and.returnValue(
+      // This throws "Argument of type 'string[]' is not assignable to parameter
+      // of type 'PromiseLike<string>'.". We need to suppress this error because
+      // we need to mock the `getTokenAsync` function for testing purposes.
+      // @ts-expect-error
+      ['sample-csrf-token']
+    );
+
+    httpClient.post(
+      '/api',
+      {data: 'test'},
+      {params: new HttpParams({fromString: 'key=null'})}).subscribe(
+      async(response) => expect(response).toBeTruthy());
+
+    const req = httpTestingController.expectOne('/api?key=null');
+    req.flush({data: 'test'});
+    let reqCSFR = httpTestingController.expectOne('/csrfhandler');
+    reqCSFR.flush('12345{"token": "sample-csrf-token"}');
+  });
+
+  it('should not throw error if null param in PUT request', () => {
+    spyOn(csrfTokenService, 'getTokenAsync').and.returnValue(
+      // This throws "Argument of type 'string[]' is not assignable to parameter
+      // of type 'PromiseLike<string>'.". We need to suppress this error because
+      // we need to mock the `getTokenAsync` function for testing purposes.
+      // @ts-expect-error
+      ['sample-csrf-token']
+    );
+
+    httpClient.put(
+      '/api',
+      {data: 'test'},
+      {params: new HttpParams({fromString: 'key=null'})}).subscribe(
+      async(response) => expect(response).toBeTruthy());
+
+    const req = httpTestingController.expectOne('/api?key=null');
+    req.flush({data: 'test'});
+    let reqCSFR = httpTestingController.expectOne('/csrfhandler');
+    reqCSFR.flush('12345{"token": "sample-csrf-token"}');
+  });
+
+  it('should not throw error if null param in PATCH request', () => {
+    spyOn(csrfTokenService, 'getTokenAsync').and.returnValue(
+      // This throws "Argument of type 'string[]' is not assignable to parameter
+      // of type 'PromiseLike<string>'.". We need to suppress this error because
+      // we need to mock the `getTokenAsync` function for testing purposes.
+      // @ts-expect-error
+      ['sample-csrf-token']
+    );
+
+    httpClient.patch(
+      '/api',
+      {data: 'test'},
+      {params: new HttpParams({fromString: 'key=null'})}).subscribe(
+      async(response) => expect(response).toBeTruthy());
+
+    const req = httpTestingController.expectOne('/api?key=null');
+    req.flush({data: 'test'});
+    let reqCSFR = httpTestingController.expectOne('/csrfhandler');
+    reqCSFR.flush('12345{"token": "sample-csrf-token"}');
   });
 });

@@ -19,10 +19,10 @@
 import { fakeAsync, flushMicrotasks, TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule, HttpTestingController } from
   '@angular/common/http/testing';
-import { importAllAngularServices } from 'tests/unit-test-utils';
+import { importAllAngularServices } from 'tests/unit-test-utils.ajs';
 import { QuestionObjectFactory } from 'domain/question/QuestionObjectFactory';
-import { EditableQuestionBackendApiService} from 'domain/question/editable-question-backend-api.service';
-import { CsrfTokenService } from 'services/csrf-token.service.ts';
+import { EditableQuestionBackendApiService, SkillLinkageModificationsArray} from 'domain/question/editable-question-backend-api.service';
+import { CsrfTokenService } from 'services/csrf-token.service';
 
 describe('Editable question backend API service', function() {
   let editableQuestionBackendApiService: EditableQuestionBackendApiService;
@@ -45,7 +45,7 @@ describe('Editable question backend API service', function() {
     questionObjectFactory = TestBed.get(QuestionObjectFactory);
     httpTestingController = TestBed.get(HttpTestingController);
     csrfService = TestBed.get(CsrfTokenService);
-    spyOn(csrfService, 'getTokenAsync').and.callFake(() => {
+    spyOn(csrfService, 'getTokenAsync').and.callFake(async() => {
       return Promise.resolve('sample-csrf-token');
     });
     // Sample question object returnable from the backend.
@@ -69,10 +69,14 @@ describe('Editable question backend API service', function() {
                   unicode_str: ''
                 }
               },
-              rows: { value: 1 }
+              rows: { value: 1 },
+              catchMisspellings: {
+                value: false
+              }
             },
             default_outcome: {
               dest: null,
+              dest_if_really_stuck: null,
               feedback: {
                 html: 'Correct Answer'
               },
@@ -97,9 +101,6 @@ describe('Editable question backend API service', function() {
           },
           param_changes: [],
           solicit_answer_details: false,
-          written_translations: {
-            translations_mapping: {}
-          },
         },
         language_code: 'en',
         version: 1
@@ -133,13 +134,13 @@ describe('Editable question backend API service', function() {
     let skillDifficulties = [1, 1, 2];
     let questionObject = sampleDataResultsObjects.questionObject;
 
-    editableQuestionBackendApiService.createQuestion(
+    editableQuestionBackendApiService.createQuestionAsync(
       skillsId, skillDifficulties, questionObject, [imageData]).then(
       successHandler, failHandler);
     var req = httpTestingController.expectOne(
       '/question_editor_handler/create_new');
     expect(req.request.method).toEqual('POST');
-    req.flush({ questionId: '0' });
+    req.flush({ question_id: '0' });
     flushMicrotasks();
 
     expect(successHandler).toHaveBeenCalledWith({questionId: '0'});
@@ -161,7 +162,7 @@ describe('Editable question backend API service', function() {
         imageBlob: imageBlob
       };
 
-      editableQuestionBackendApiService.createQuestion(
+      editableQuestionBackendApiService.createQuestionAsync(
         skillsId, skillDifficulties, questionObject, [imageData]).then(
         successHandler, failHandler);
       var req = httpTestingController.expectOne(
@@ -182,16 +183,21 @@ describe('Editable question backend API service', function() {
     fakeAsync(()=> {
       let successHandler = jasmine.createSpy('success');
       let failHandler = jasmine.createSpy('fail');
-      editableQuestionBackendApiService.fetchQuestion('0').then(
+      editableQuestionBackendApiService.fetchQuestionAsync('0').then(
         successHandler, failHandler);
       var req = httpTestingController.expectOne(
         '/question_editor_handler/data/0');
       expect(req.request.method).toEqual('GET');
-      req.flush(sampleDataResults);
+      req.flush({
+        question_dict: sampleDataResults.questionDict,
+        associated_skill_dicts: sampleDataResults.associated_skill_dicts
+      });
       flushMicrotasks();
 
-      expect(successHandler).toHaveBeenCalledWith(
-        sampleDataResultsObjects.questionObject);
+      expect(successHandler).toHaveBeenCalledWith({
+        questionObject: sampleDataResultsObjects.questionObject,
+        associated_skill_dicts: sampleDataResults.associated_skill_dicts
+      });
       expect(failHandler).not.toHaveBeenCalled();
     }
     ));
@@ -200,7 +206,7 @@ describe('Editable question backend API service', function() {
     fakeAsync(()=> {
       let successHandler = jasmine.createSpy('success');
       let failHandler = jasmine.createSpy('fail');
-      editableQuestionBackendApiService.fetchQuestion('1').then(
+      editableQuestionBackendApiService.fetchQuestionAsync('1').then(
         successHandler, failHandler);
       var req = httpTestingController.expectOne(
         '/question_editor_handler/data/1');
@@ -222,14 +228,17 @@ describe('Editable question backend API service', function() {
       let question = null;
 
       // Loading a question the first time should fetch it from the backend.
-      editableQuestionBackendApiService.fetchQuestion('0').then(
+      editableQuestionBackendApiService.fetchQuestionAsync('0').then(
         data => {
-          question = data.toBackendDict(false);
+          question = data.questionObject.toBackendDict(false);
         });
       var req = httpTestingController.expectOne(
         '/question_editor_handler/data/0');
       expect(req.request.method).toEqual('GET');
-      req.flush(sampleDataResults);
+      req.flush({
+        question_dict: sampleDataResults.questionDict,
+        associated_skill_dicts: sampleDataResults.associated_skill_dicts
+      });
       flushMicrotasks();
 
       question.question_state_data.content.html = 'New Question Content';
@@ -239,7 +248,7 @@ describe('Editable question backend API service', function() {
       };
 
       // Send a request to update question.
-      editableQuestionBackendApiService.updateQuestion(
+      editableQuestionBackendApiService.updateQuestionAsync(
         question.id, question.version, 'Question Data is updated', []
       ).then(successHandler, failHandler);
       req = httpTestingController.expectOne(
@@ -256,7 +265,7 @@ describe('Editable question backend API service', function() {
      'doesn\'t exist', fakeAsync(()=> {
     let successHandler = jasmine.createSpy('success');
     let failHandler = jasmine.createSpy('fail');
-    editableQuestionBackendApiService.updateQuestion(
+    editableQuestionBackendApiService.updateQuestionAsync(
       '1', '1', 'Update an invalid question.', []
     ).then(successHandler, failHandler);
 
@@ -277,11 +286,13 @@ describe('Editable question backend API service', function() {
     let failHandler = jasmine.createSpy('fail');
 
     let questionId = '0';
-    let skillIdsTaskArray = ['1', '2', 1];
-    let difficulty = 1;
+    let skillIdsTaskArray = [{
+      id: 'skillId',
+      task: 'remove'
+    } as SkillLinkageModificationsArray];
 
-    editableQuestionBackendApiService.editQuestionSkillLinks(
-      questionId, skillIdsTaskArray, difficulty).then(
+    editableQuestionBackendApiService.editQuestionSkillLinksAsync(
+      questionId, skillIdsTaskArray).then(
       successHandler, failHandler);
     let req = httpTestingController.expectOne(
       '/manage_question_skill_link/' + questionId);
@@ -299,11 +310,13 @@ describe('Editable question backend API service', function() {
     let failHandler = jasmine.createSpy('fail');
 
     let questionId = '0';
-    let skillIdsTaskArray = ['1', '2', 1];
-    let difficulty = 1;
+    let skillIdsTaskArray = [{
+      id: 'skillId',
+      task: 'remove'
+    } as SkillLinkageModificationsArray];
 
-    editableQuestionBackendApiService.editQuestionSkillLinks(
-      questionId, skillIdsTaskArray, difficulty).then(
+    editableQuestionBackendApiService.editQuestionSkillLinksAsync(
+      questionId, skillIdsTaskArray).then(
       successHandler, failHandler);
     let req = httpTestingController.expectOne(
       '/manage_question_skill_link/' + questionId);
@@ -315,49 +328,5 @@ describe('Editable question backend API service', function() {
 
     expect(successHandler).not.toHaveBeenCalled();
     expect(failHandler).toHaveBeenCalledWith('Error loading question 0.');
-  }));
-
-  it('should change difficulty from an existing question', fakeAsync(()=> {
-    let successHandler = jasmine.createSpy('success');
-    let failHandler = jasmine.createSpy('fail');
-
-    let questionId = '0';
-    let skillId = '1';
-    let difficulty = 1;
-
-    editableQuestionBackendApiService.changeDifficulty(
-      questionId, skillId, difficulty).then(
-      successHandler, failHandler);
-    let req = httpTestingController.expectOne(
-      '/manage_question_skill_link/' + questionId);
-    expect(req.request.method).toEqual('PUT');
-    req.flush({status: 200});
-    flushMicrotasks();
-
-    expect(successHandler).toHaveBeenCalled();
-    expect(failHandler).not.toHaveBeenCalled();
-  }));
-
-  it('should use the rejection handler when changing the difficulty of ' +
-    'an existing question fails', fakeAsync(()=> {
-    let successHandler = jasmine.createSpy('success');
-    let failHandler = jasmine.createSpy('fail');
-
-    let questionId = '0';
-    let skillId = '1';
-    let difficulty = 1;
-    editableQuestionBackendApiService.changeDifficulty(
-      questionId, skillId, difficulty).then(
-      successHandler, failHandler);
-    let req = httpTestingController.expectOne(
-      '/manage_question_skill_link/' + questionId);
-    expect(req.request.method).toEqual('PUT');
-    req.flush({
-      error: 'Error changing difficulty.'},
-    {status: 500, statusText: 'Internal Server Error'});
-    flushMicrotasks();
-
-    expect(successHandler).not.toHaveBeenCalled();
-    expect(failHandler).toHaveBeenCalledWith('Error changing difficulty.');
   }));
 });

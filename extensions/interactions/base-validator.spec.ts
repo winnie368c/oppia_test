@@ -32,9 +32,6 @@ import { baseInteractionValidationService } from
   'interactions/base-interaction-validation.service';
 import { OutcomeObjectFactory } from
   'domain/exploration/OutcomeObjectFactory';
-import { RuleObjectFactory } from 'domain/exploration/RuleObjectFactory';
-import { SubtitledHtmlObjectFactory } from
-  'domain/exploration/SubtitledHtmlObjectFactory';
 import { UpgradedServices } from 'services/UpgradedServices';
 // ^^^ This block is to be removed.
 
@@ -57,17 +54,12 @@ describe('Interaction validator', function() {
   beforeEach(angular.mock.module('oppia', function($provide) {
     $provide.value(
       'AnswerGroupObjectFactory', new AnswerGroupObjectFactory(
-        new OutcomeObjectFactory(new SubtitledHtmlObjectFactory()),
-        new RuleObjectFactory()));
+        new OutcomeObjectFactory()));
     $provide.value(
       'baseInteractionValidationService',
       new baseInteractionValidationService());
     $provide.value(
-      'OutcomeObjectFactory', new OutcomeObjectFactory(
-        new SubtitledHtmlObjectFactory()));
-    $provide.value('RuleObjectFactory', new RuleObjectFactory());
-    $provide.value(
-      'SubtitledHtmlObjectFactory', new SubtitledHtmlObjectFactory());
+      'OutcomeObjectFactory', new OutcomeObjectFactory());
   }));
 
   beforeEach(angular.mock.inject(function($injector, $rootScope) {
@@ -80,6 +72,7 @@ describe('Interaction validator', function() {
     otherState = 'Second State';
     goodOutcomeDest = oof.createFromBackendDict({
       dest: otherState,
+      dest_if_really_stuck: null,
       feedback: {
         html: '',
         audio_translations: {}
@@ -91,6 +84,7 @@ describe('Interaction validator', function() {
     });
     goodOutcomeFeedback = oof.createFromBackendDict({
       dest: currentState,
+      dest_if_really_stuck: null,
       feedback: {
         html: 'Feedback',
         audio_translations: {}
@@ -102,6 +96,7 @@ describe('Interaction validator', function() {
     });
     badOutcome = oof.createFromBackendDict({
       dest: currentState,
+      dest_if_really_stuck: null,
       feedback: {
         html: '',
         audio_translations: {}
@@ -136,10 +131,24 @@ describe('Interaction validator', function() {
         var warnings = bivs.getAnswerGroupWarnings(answerGroups, currentState);
         expect(warnings).toEqual([{
           type: WARNING_TYPES.ERROR,
-          message: 'Please specify what Oppia should do in answer group 2.'
+          message: 'Please specify what Oppia should do in Oppia response 2.'
         }]);
       }
     );
+
+    it('should have a warning for an answer group with a self-loop labelled' +
+    ' as correct', function() {
+      goodOutcomeFeedback.labelledAsCorrect = true;
+      var answerGroups = [
+        agof.createNew([], goodOutcomeFeedback, false, null)
+      ];
+      var warnings = bivs.getAnswerGroupWarnings(answerGroups, currentState);
+      expect(warnings).toEqual([{
+        type: WARNING_TYPES.ERROR,
+        message:
+            'In answer group 1, self-loops should not be labelled as correct.'
+      }]);
+    });
 
     it('should not have any warnings for a non-confusing default outcome',
       function() {
@@ -162,6 +171,19 @@ describe('Interaction validator', function() {
       }]);
     });
 
+    it('should have a warning for a default outcome with a self-loop' +
+    ' labelled as correct', function() {
+      goodOutcomeFeedback.labelledAsCorrect = true;
+      var warnings = bivs.getDefaultOutcomeWarnings(
+        goodOutcomeFeedback, currentState);
+      expect(warnings).toEqual([{
+        type: WARNING_TYPES.ERROR,
+        message: (
+          'In the [All other answers] group, self-loops should not be ' +
+          'labelled as correct.')
+      }]);
+    });
+
     it('should not have any warnings for no answer groups and a null default ' +
         'outcome.', function() {
       var warnings = bivs.getAllOutcomeWarnings([], null, currentState);
@@ -179,10 +201,10 @@ describe('Interaction validator', function() {
         badAnswerGroups, badOutcome, currentState);
       expect(warnings).toEqual([{
         type: WARNING_TYPES.ERROR,
-        message: 'Please specify what Oppia should do in answer group 2.'
+        message: 'Please specify what Oppia should do in Oppia response 2.'
       }, {
         type: WARNING_TYPES.ERROR,
-        message: 'Please specify what Oppia should do in answer group 3.'
+        message: 'Please specify what Oppia should do in Oppia response 3.'
       }, {
         type: WARNING_TYPES.ERROR,
         message: (
@@ -215,5 +237,39 @@ describe('Interaction validator', function() {
         );
       }
     );
+  });
+
+  describe('HTMLValidator', function() {
+    it('should categorize completely empty string as empty', function() {
+      const html = '   ';
+
+      expect(bivs.isHTMLEmpty(html)).toBeTrue();
+    });
+
+    it('should categorize balanced HTML tags as empty if the remaining ' +
+        'string is empty', function() {
+      const html = '  <strong>   <em>  </em></strong>';
+
+      expect(bivs.isHTMLEmpty(html)).toBeTrue();
+    });
+
+    it('should categorize balanced HTML tags as not empty if the remaining ' +
+        'string is not empty', function() {
+      const html = '  <strong>  info <em>  </em></strong>';
+
+      expect(bivs.isHTMLEmpty(html)).toBeFalse();
+    });
+
+    it('should categorize imbalanced HTML tags as not empty', function() {
+      const html = '<strong>';
+
+      expect(bivs.isHTMLEmpty(html)).toBeFalse();
+    });
+
+    it('should categorize unfilled list as empty', function() {
+      const html = '<ul><li>&nbsp;</li><li>    <strong>  </strong></li></ul>';
+
+      expect(bivs.isHTMLEmpty(html)).toBeTrue();
+    });
   });
 });

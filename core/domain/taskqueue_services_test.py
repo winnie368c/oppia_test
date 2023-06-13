@@ -16,42 +16,56 @@
 
 """Tests for the domain taskqueue services."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
+import datetime
+
+from core import feconf
+from core import utils
 from core.domain import taskqueue_services
+from core.platform import models
 from core.tests import test_utils
-import feconf
-import python_utils
+
+from typing import Dict, Optional, Set
+
+MYPY = False
+if MYPY: # pragma: no cover
+    from mypy_imports import platform_taskqueue_services
+
+platform_taskqueue_services = models.Registry.import_taskqueue_services()
 
 
 class TaskqueueDomainServicesUnitTests(test_utils.TestBase):
     """Tests for domain taskqueue services."""
 
-    def test_exception_raised_when_deferred_payload_is_not_serializable(self):
-        class NonSerializableArgs(python_utils.OBJECT):
+    def test_exception_raised_when_deferred_payload_is_not_serializable(
+        self
+    ) -> None:
+        class NonSerializableArgs:
             """Object that is not JSON serializable."""
 
-            def __init__(self):
+            def __init__(self) -> None:
                 self.x = 1
                 self.y = 2
 
         arg1 = NonSerializableArgs()
-        serialization_exception = self.assertRaisesRegexp(
+        serialization_exception = self.assertRaisesRegex(
             ValueError,
             'The args or kwargs passed to the deferred call with '
             'function_identifier, %s, are not json serializable.' %
-            taskqueue_services.FUNCTION_ID_DISPATCH_EVENT)
+            taskqueue_services.FUNCTION_ID_UPDATE_STATS)
         with serialization_exception:
             taskqueue_services.defer(
-                taskqueue_services.FUNCTION_ID_DISPATCH_EVENT,
-                taskqueue_services.QUEUE_NAME_EVENTS, arg1)
+                taskqueue_services.FUNCTION_ID_UPDATE_STATS,
+                taskqueue_services.QUEUE_NAME_DEFAULT, arg1)
 
-    def test_exception_raised_when_email_task_params_is_not_serializable(self):
-        params = {
+    def test_exception_raised_when_email_task_params_is_not_serializable(
+        self
+    ) -> None:
+        params: Dict[str, Set[str]] = {
             'param1': set()
         }
-        serialization_exception = self.assertRaisesRegexp(
+        serialization_exception = self.assertRaisesRegex(
             ValueError,
             'The params added to the email task call cannot be json serialized')
         with serialization_exception:
@@ -60,47 +74,51 @@ class TaskqueueDomainServicesUnitTests(test_utils.TestBase):
                 params,
                 0)
 
-    def test_defer_makes_the_correct_request(self):
-        correct_queue_name = taskqueue_services.QUEUE_NAME_DEFAULT
-        args = (1, 2, 3, 4)
-        kwargs = {
-            'kwarg1': 'arg1',
-            'kwarg2': 'arg2'
-        }
-        correct_payload = {
-            'fn_identifier': taskqueue_services.QUEUE_NAME_CONTINUOUS_JOBS,
-            'args': args,
-            'kwargs': kwargs
-        }
-        def mock_create_http_task(
-                queue_name, url, payload=None, scheduled_for=None,
-                task_name=None):
-            self.assertEqual(queue_name, correct_queue_name)
-            self.assertEqual(url, feconf.TASK_URL_DEFERRED)
-            self.assertEqual(payload, correct_payload)
-            self.assertIsNone(task_name)
-            self.assertIsNone(scheduled_for)
+    def test_defer_makes_the_correct_request(self) -> None:
+        correct_fn_identifier = '/task/deferredtaskshandler'
+        correct_args = (1, 2, 3)
+        correct_kwargs = {'a': 'b', 'c': 'd'}
 
-        swap_create_http_task = self.swap(
-            taskqueue_services.platform_taskqueue_services, 'create_http_task',
-            mock_create_http_task)
+        expected_queue_name = taskqueue_services.QUEUE_NAME_EMAILS
+        expected_url = feconf.TASK_URL_DEFERRED
+        expected_payload = {
+            'fn_identifier': correct_fn_identifier,
+            'args': correct_args,
+            'kwargs': correct_kwargs
+        }
 
-        with swap_create_http_task:
+        create_http_task_swap = self.swap_with_checks(
+            platform_taskqueue_services,
+            'create_http_task',
+            lambda queue_name, url, payload=None, scheduled_for=None: None,
+            expected_kwargs=[{
+                'queue_name': expected_queue_name,
+                'url': expected_url,
+                'payload': expected_payload
+            }]
+        )
+
+        with create_http_task_swap:
             taskqueue_services.defer(
-                taskqueue_services.QUEUE_NAME_CONTINUOUS_JOBS,
-                correct_queue_name,
-                *args,
-                **kwargs)
+                correct_fn_identifier,
+                taskqueue_services.QUEUE_NAME_EMAILS,
+                *correct_args, **correct_kwargs
+            )
 
-    def test_enqueue_task_makes_the_correct_request(self):
+    def test_enqueue_task_makes_the_correct_request(self) -> None:
         correct_payload = {
             'user_id': '1'
         }
-        correct_url = feconf.TASK_URL_FEEDBACK_MESSAGE_EMAILS,
+        correct_url = feconf.TASK_URL_FEEDBACK_MESSAGE_EMAILS
         correct_queue_name = taskqueue_services.QUEUE_NAME_EMAILS
+
         def mock_create_http_task(
-                queue_name, url, payload=None, scheduled_for=None,
-                task_name=None):
+            queue_name: str,
+            url: str,
+            payload: Optional[Dict[str, str]] = None,
+            scheduled_for: Optional[datetime.datetime] = None,
+            task_name: Optional[str] = None
+        ) -> None:
             self.assertEqual(queue_name, correct_queue_name)
             self.assertEqual(url, correct_url)
             self.assertEqual(payload, correct_payload)
@@ -108,35 +126,34 @@ class TaskqueueDomainServicesUnitTests(test_utils.TestBase):
             self.assertIsNone(task_name)
 
         swap_create_http_task = self.swap(
-            taskqueue_services.platform_taskqueue_services, 'create_http_task',
+            platform_taskqueue_services, 'create_http_task',
             mock_create_http_task)
 
         with swap_create_http_task:
             taskqueue_services.enqueue_task(
                 correct_url, correct_payload, 0)
 
-    def test_that_queue_names_are_in_sync_with_queue_yaml_file(self):
+    def test_that_queue_names_are_in_sync_with_queue_yaml_file(self) -> None:
         """Checks that all of the queues that are instantiated in the queue.yaml
         file has a corresponding QUEUE_NAME_* constant instantiated in
         taskqueue_services.
         """
         queue_name_dict = {}
         # Parse the queue.yaml file for the correct queue names.
-        with python_utils.open_file('queue.yaml', 'r') as f:
+        with utils.open_file('queue.yaml', 'r') as f:
             lines = f.readlines()
             for line in lines:
                 if 'name' in line:
                     queue_name = line.split(':')[1]
-                    queue_name_dict[queue_name.encode('utf-8').strip()] = False
+                    queue_name_dict[queue_name.strip()] = False
 
         # Get all attributes of taskqueue_services using the dir function.
         attributes = dir(taskqueue_services)
-        # Check if the queue names in the queue.yaml file exist in as a queue
+        # Check if the queue names in the queue.yaml file exist as a queue
         # name in taskqueue_services.
         for attribute in attributes:
-            value = getattr(taskqueue_services, attribute)
-            if python_utils.convert_to_bytes(value) in queue_name_dict:
-                queue_name_dict[value] = True
+            if attribute.startswith('QUEUE_NAME_'):
+                queue_name_dict[getattr(taskqueue_services, attribute)] = True
 
         for queue_name, in_taskqueue_services in queue_name_dict.items():
             self.assertTrue(in_taskqueue_services)

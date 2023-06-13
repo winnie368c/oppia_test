@@ -19,27 +19,35 @@
 import { downgradeInjectable } from '@angular/upgrade/static';
 import { Injectable } from '@angular/core';
 
-import { AnswerGroup } from
-  'domain/exploration/AnswerGroupObjectFactory';
-import { baseInteractionValidationService, Warning } from
-  'interactions/base-interaction-validation.service';
-import { PencilCodeEditorCustomizationArgs } from
-  'extensions/interactions/customization-args-defs';
-import { Outcome } from
-  'domain/exploration/OutcomeObjectFactory';
+import { AnswerGroup } from 'domain/exploration/AnswerGroupObjectFactory';
+import { baseInteractionValidationService, Warning } from 'interactions/base-interaction-validation.service';
+import { PencilCodeEditorCustomizationArgs } from 'extensions/interactions/customization-args-defs';
+import { Outcome } from 'domain/exploration/OutcomeObjectFactory';
+
+import { AppConstants } from 'app.constants';
 
 @Injectable({
   providedIn: 'root'
 })
 export class PencilCodeEditorValidationService {
   constructor(
-      private baseInteractionValidationServiceInstance:
-        baseInteractionValidationService) {}
+    private baseInteractionValidationServiceInstance:
+      baseInteractionValidationService) {}
 
   getCustomizationArgsWarnings(
       customizationArgs: PencilCodeEditorCustomizationArgs): Warning[] {
-    // TODO(juansaba): Implement customization args validations.
-    return [];
+    var warningsList = [];
+    this.baseInteractionValidationServiceInstance
+      .requireCustomizationArguments(customizationArgs, ['initialCode']);
+
+    var initialCode = customizationArgs.initialCode.value;
+    if (!(typeof initialCode === 'string')) {
+      warningsList.push({
+        type: AppConstants.WARNING_TYPES.ERROR,
+        message: 'The initialCode must be a string.'
+      });
+    }
+    return warningsList;
   }
 
   getAllWarnings(

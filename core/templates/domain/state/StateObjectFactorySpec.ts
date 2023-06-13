@@ -15,83 +15,85 @@
 /**
  * @fileoverview Unit tests for StateObjectFactory.
  */
-import { CamelCaseToHyphensPipe } from
-  'filters/string-utility-filters/camel-case-to-hyphens.pipe';
+
+import { CamelCaseToHyphensPipe } from 'filters/string-utility-filters/camel-case-to-hyphens.pipe';
 import { StateBackendDict, StateObjectFactory } from 'domain/state/StateObjectFactory';
 import { TestBed } from '@angular/core/testing';
 
 describe('State Object Factory', () => {
   let sof: StateObjectFactory;
   let stateObject: StateBackendDict;
+  let TextInputInteraction = {
+    classifier_model_id: null,
+    content: {
+      html: '',
+      content_id: 'content'
+    },
+    interaction: {
+      id: 'TextInput',
+      customization_args: {
+        rows: {
+          value: 1
+        },
+        placeholder: {
+          value: {
+            unicode_str: 'Type your answer here.',
+            content_id: ''
+          }
+        },
+        catchMisspellings: {
+          value: false
+        }
+      },
+      answer_groups: [],
+      default_outcome: {
+        dest: 'Introduction',
+        dest_if_really_stuck: null,
+        feedback: {
+          content_id: 'default_outcome',
+          html: ''
+        },
+        labelled_as_correct: false,
+        param_changes: [],
+        refresher_exploration_id: null,
+        missing_prerequisite_skill_id: null
+      },
+      confirmed_unclassified_answers: [],
+      hints: [],
+      solution: null
+    },
+    linked_skill_id: null,
+    next_content_id_index: 0,
+    param_changes: [],
+    recorded_voiceovers: {
+      voiceovers_mapping: {}
+    },
+    solicit_answer_details: false,
+    card_is_checkpoint: false
+  };
+
+  type DefaultOutcome = (
+    typeof TextInputInteraction.interaction['default_outcome']);
 
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [CamelCaseToHyphensPipe]
     });
-    sof = TestBed.get(StateObjectFactory);
+    sof = TestBed.inject(StateObjectFactory);
 
-    spyOnProperty(sof, 'NEW_STATE_TEMPLATE', 'get').and.returnValue({
-      classifier_model_id: null,
-      content: {
-        html: '',
-        content_id: 'content'
-      },
-      interaction: {
-        id: 'TextInput',
-        customization_args: {
-          rows: {
-            value: 1
-          },
-          placeholder: {
-            value: {
-              unicode_str: 'Type your answer here.',
-              content_id: ''
-            }
-          }
-        },
-        answer_groups: [],
-        default_outcome: {
-          dest: 'Introduction',
-          feedback: {
-            content_id: 'default_outcome',
-            html: ''
-          },
-          labelled_as_correct: false,
-          param_changes: [],
-          refresher_exploration_id: null,
-          missing_prerequisite_skill_id: null
-        },
-        confirmed_unclassified_answers: [],
-        hints: [],
-        solution: null
-      },
-      next_content_id_index: 0,
-      param_changes: [],
-      recorded_voiceovers: {
-        voiceovers_mapping: {
-          content: {},
-          default_outcome: {}
-        }
-      },
-      solicit_answer_details: false,
-      written_translations: {
-        translations_mapping: {
-          content: {},
-          default_outcome: {}
-        }
-      }
-    });
+    spyOnProperty(sof, 'NEW_STATE_TEMPLATE', 'get')
+      .and.returnValue(TextInputInteraction);
 
     stateObject = {
       classifier_model_id: null,
       content: {
-        content_id: 'content',
+        content_id: 'content_0',
         html: ''
       },
       recorded_voiceovers: {
         voiceovers_mapping: {
-          content: {},
-          default_outcome: {}
+          content_0: {},
+          default_outcome_1: {}
         }
       },
       interaction: {
@@ -106,12 +108,16 @@ describe('State Object Factory', () => {
               unicode_str: 'Type your answer here.',
               content_id: ''
             }
+          },
+          catchMisspellings: {
+            value: false
           }
         },
         default_outcome: {
           dest: '(untitled state)',
+          dest_if_really_stuck: null,
           feedback: {
-            content_id: 'default_outcome',
+            content_id: 'default_outcome_1',
             html: ''
           },
           param_changes: [],
@@ -123,15 +129,10 @@ describe('State Object Factory', () => {
         solution: null,
         id: 'TextInput'
       },
-      next_content_id_index: 0,
+      linked_skill_id: null,
       param_changes: [],
       solicit_answer_details: false,
-      written_translations: {
-        translations_mapping: {
-          content: {},
-          default_outcome: {}
-        }
-      }
+      card_is_checkpoint: false
     };
   });
 
@@ -164,8 +165,12 @@ describe('State Object Factory', () => {
 
   it('should create a default state object', () => {
     const stateName = 'Default state';
-    const stateObjectDefault = sof.createDefaultState(stateName);
-    stateObject.interaction.default_outcome.dest = stateName;
+    const stateObjectDefault = sof.createDefaultState(
+      stateName, 'content_0', 'default_outcome_1');
+
+    const outcome = (
+      stateObject.interaction.default_outcome as DefaultOutcome);
+    outcome.dest = stateName;
 
     expect(stateObjectDefault.toBackendDict()).toEqual(stateObject);
   });

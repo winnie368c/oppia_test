@@ -14,57 +14,71 @@
 
 """Controllers for simple, mostly-static pages (like About, Splash, etc.)."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
+from core import feconf
 from core.controllers import acl_decorators
 from core.controllers import base
-import feconf
-import python_utils
+
+from typing import Dict
 
 
-class ForumRedirectPage(base.BaseHandler):
+class ForumRedirectPage(base.BaseHandler[Dict[str, str], Dict[str, str]]):
     """A handler to redirect to Oppia's Google group."""
 
+    URL_PATH_ARGS_SCHEMAS: Dict[str, str] = {}
+    HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
+
     @acl_decorators.open_access
-    def get(self):
+    def get(self) -> None:
         """Handles GET requests."""
-        self.redirect(python_utils.convert_to_bytes(feconf.GOOGLE_GROUP_URL))
+        self.redirect(feconf.GOOGLE_GROUP_URL)
 
 
-class AboutRedirectPage(base.BaseHandler):
+class AboutRedirectPage(base.BaseHandler[Dict[str, str], Dict[str, str]]):
     """A page that redirects to the main About page."""
 
+    URL_PATH_ARGS_SCHEMAS: Dict[str, str] = {}
+    HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
+
     @acl_decorators.open_access
-    def get(self):
+    def get(self) -> None:
         """Handles GET requests."""
-        self.redirect(python_utils.convert_to_bytes('/about'))
+        self.redirect('/about')
 
 
-class FoundationRedirectPage(base.BaseHandler):
+class FoundationRedirectPage(base.BaseHandler[Dict[str, str], Dict[str, str]]):
     """A page that redirects to the separate Oppia Foundation site."""
 
+    URL_PATH_ARGS_SCHEMAS: Dict[str, str] = {}
+    HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
+
     @acl_decorators.open_access
-    def get(self):
+    def get(self) -> None:
         """Handles GET requests."""
-        self.redirect(python_utils.convert_to_bytes(feconf.FOUNDATION_SITE_URL))
-        return
+        self.redirect(feconf.ABOUT_FOUNDATION_PAGE_URL)
 
 
-class TeachRedirectPage(base.BaseHandler):
+class TeachRedirectPage(base.BaseHandler[Dict[str, str], Dict[str, str]]):
     """A page that redirects to the main Teach page."""
 
+    URL_PATH_ARGS_SCHEMAS: Dict[str, str] = {}
+    HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
+
     @acl_decorators.open_access
-    def get(self):
+    def get(self) -> None:
         """Handles GET requests."""
-        self.redirect(python_utils.convert_to_bytes('/teach'))
+        self.redirect('/teach')
 
 
-class ConsoleErrorPage(base.BaseHandler):
+class ConsoleErrorPage(base.BaseHandler[Dict[str, str], Dict[str, str]]):
     """Page with missing resources to test cache slugs."""
 
+    URL_PATH_ARGS_SCHEMAS: Dict[str, str] = {}
+    HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
+
     @acl_decorators.open_access
-    def get(self):
+    def get(self) -> None:
         """Handles GET requests."""
         # Note that this line is not meant to be covered by backend tests
         # because this handler is only meant to be used in e2e tests. In the

@@ -16,17 +16,30 @@
  * @fileoverview Directives required in collection editor.
  */
 
+import 'core-js/es7/reflect';
+import 'zone.js';
+
+import uiValidate from 'angular-ui-validate';
+
+angular.module('oppia', [
+  require('angular-cookies'), 'ngAnimate',
+  'ngMaterial', 'ngSanitize', 'ngTouch', 'pascalprecht.translate',
+  'ui.bootstrap', uiValidate
+]);
+
+require('Polyfills.ts');
+
 // The module needs to be loaded directly after jquery since it defines the
 // main module the elements are attached to.
 require('pages/collection-editor-page/collection-editor-page.module.ts');
 require('App.ts');
 require('base-components/oppia-root.directive.ts');
 
-require('base-components/base-content.directive.ts');
-require('pages/collection-editor-page/collection-editor-page.directive.ts');
+require('base-components/base-content.component.ts');
+require('pages/collection-editor-page/collection-editor-page.component.ts');
 require(
   'pages/collection-editor-page/navbar/' +
-  'collection-editor-navbar-breadcrumb.directive.ts');
+  'collection-editor-navbar-breadcrumb.component.ts');
 require(
   'pages/collection-editor-page/navbar/' +
-  'collection-editor-navbar.directive.ts');
+  'collection-editor-navbar.component.ts');

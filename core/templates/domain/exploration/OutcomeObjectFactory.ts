@@ -22,38 +22,49 @@ import { downgradeInjectable } from '@angular/upgrade/static';
 
 import {
   SubtitledHtmlBackendDict,
-  SubtitledHtml,
-  SubtitledHtmlObjectFactory
-} from 'domain/exploration/SubtitledHtmlObjectFactory';
+  SubtitledHtml
+} from 'domain/exploration/subtitled-html.model';
 import { ParamChangeBackendDict } from
   'domain/exploration/ParamChangeObjectFactory';
+import { BaseTranslatableObject } from 'domain/objects/BaseTranslatableObject.model';
 
 export interface OutcomeBackendDict {
   'dest': string;
+  'dest_if_really_stuck': string | null;
   'feedback': SubtitledHtmlBackendDict;
   'labelled_as_correct': boolean;
   'param_changes': readonly ParamChangeBackendDict[];
-  'refresher_exploration_id': string;
-  'missing_prerequisite_skill_id': string;
+  'refresher_exploration_id': string | null;
+  'missing_prerequisite_skill_id': string | null;
 }
 
-export class Outcome {
+export class Outcome extends BaseTranslatableObject {
   dest: string;
+  destIfReallyStuck: string | null;
   feedback: SubtitledHtml;
   labelledAsCorrect: boolean;
   paramChanges: readonly ParamChangeBackendDict[];
-  refresherExplorationId: string;
-  missingPrerequisiteSkillId: string;
+  refresherExplorationId: string | null;
+  missingPrerequisiteSkillId: string | null;
   constructor(
-      dest: string, feedback: SubtitledHtml, labelledAsCorrect: boolean,
+      dest: string, destIfReallyStuck: string | null, feedback: SubtitledHtml,
+      labelledAsCorrect: boolean,
       paramChanges: readonly ParamChangeBackendDict[],
-      refresherExplorationId: string, missingPrerequisiteSkillId: string) {
+      refresherExplorationId: string | null,
+      missingPrerequisiteSkillId: string | null) {
+    super();
+
     this.dest = dest;
+    this.destIfReallyStuck = destIfReallyStuck;
     this.feedback = feedback;
     this.labelledAsCorrect = labelledAsCorrect;
     this.paramChanges = paramChanges;
     this.refresherExplorationId = refresherExplorationId;
     this.missingPrerequisiteSkillId = missingPrerequisiteSkillId;
+  }
+
+  getTranslatableFields(): SubtitledHtml[] {
+    return [this.feedback];
   }
 
   setDestination(newValue: string): void {
@@ -63,6 +74,7 @@ export class Outcome {
   toBackendDict(): OutcomeBackendDict {
     return {
       dest: this.dest,
+      dest_if_really_stuck: this.destIfReallyStuck,
       feedback: this.feedback.toBackendDict(),
       labelled_as_correct: this.labelledAsCorrect,
       param_changes: this.paramChanges,
@@ -72,7 +84,7 @@ export class Outcome {
   }
 
   hasNonemptyFeedback(): boolean {
-    return this.feedback.getHtml().trim() !== '';
+    return this.feedback.html.trim() !== '';
   }
 
   /**
@@ -92,14 +104,16 @@ export class Outcome {
   providedIn: 'root'
 })
 export class OutcomeObjectFactory {
-  constructor(private subtitledHtmlObjectFactory: SubtitledHtmlObjectFactory) {}
+  constructor() {}
 
   createNew(
       dest: string, feedbackTextId: string, feedbackText: string,
-      paramChanges: readonly ParamChangeBackendDict[]): Outcome {
+      paramChanges: readonly ParamChangeBackendDict[]
+  ): Outcome {
     return new Outcome(
       dest,
-      this.subtitledHtmlObjectFactory.createDefault(
+      null,
+      SubtitledHtml.createDefault(
         feedbackText, feedbackTextId),
       false,
       paramChanges,
@@ -110,7 +124,8 @@ export class OutcomeObjectFactory {
   createFromBackendDict(outcomeDict: OutcomeBackendDict): Outcome {
     return new Outcome(
       outcomeDict.dest,
-      this.subtitledHtmlObjectFactory.createFromBackendDict(
+      outcomeDict.dest_if_really_stuck,
+      SubtitledHtml.createFromBackendDict(
         outcomeDict.feedback),
       outcomeDict.labelled_as_correct,
       outcomeDict.param_changes,

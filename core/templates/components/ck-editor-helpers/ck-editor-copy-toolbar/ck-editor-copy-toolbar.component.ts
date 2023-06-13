@@ -21,7 +21,7 @@ import { DOCUMENT } from '@angular/common';
 import { downgradeComponent } from '@angular/upgrade/static';
 
 import { CkEditorCopyContentService } from
-  'components/ck-editor-helpers/ck-editor-copy-content-service';
+  'components/ck-editor-helpers/ck-editor-copy-content.service';
 
 
 @Component({
@@ -30,7 +30,7 @@ import { CkEditorCopyContentService } from
 })
 export class CkEditorCopyToolbarComponent {
   constructor(
-      private ckEditorCopyContentService: CkEditorCopyContentService,
+      public ckEditorCopyContentService: CkEditorCopyContentService,
       @Inject(DOCUMENT) private document: Document
   ) {
     ckEditorCopyContentService.copyModeActive = false;
@@ -38,20 +38,25 @@ export class CkEditorCopyToolbarComponent {
 
   toggleToolActive(): void {
     this.ckEditorCopyContentService.toggleCopyMode();
+    let element = this.document.querySelectorAll(
+      '.oppia-rte-editor'
+    ) as NodeListOf<HTMLElement>;
 
     if (this.ckEditorCopyContentService.copyModeActive) {
       this.document.body.style.cursor = 'copy';
-      this.document.querySelectorAll('.oppia-rte-editor')
-        .forEach((editor: HTMLElement) => {
-          editor.focus();
-        });
+      element.forEach((editor) => {
+        editor.focus();
+      });
     } else {
       this.document.body.style.cursor = '';
-      this.document.querySelectorAll('.oppia-rte-editor')
-        .forEach((editor: HTMLElement) => {
-          editor.blur();
-        });
+      element.forEach((editor) => {
+        editor.blur();
+      });
     }
+  }
+
+  ngOnDestroy(): void {
+    this.document.body.style.cursor = '';
   }
 }
 

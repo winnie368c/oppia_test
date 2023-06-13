@@ -15,47 +15,147 @@
 /**
  * @fileoverview Component for the item view of an opportunity.
  */
-require(
-  'components/common-layout-directives/common-elements/' +
-  'lazy-loading.component.ts');
 
-require(
-  'filters/string-utility-filters/wrap-text-with-ellipsis.filter.ts');
+import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { downgradeComponent } from '@angular/upgrade/static';
 
-angular.module('oppia').component('opportunitiesListItem', {
-  bindings: {
-    opportunity: '<',
-    onClickActionButton: '<',
-    labelRequired: '<',
-    progressBarRequired: '<',
-    opportunityHeadingTruncationLength: '<'
-  },
-  template: require('./opportunities-list-item.component.html'),
-  controller: [
-    function() {
-      var ctrl = this;
-      ctrl.$onInit = function() {
-        ctrl.opportunityDataIsLoading = false;
-        if (ctrl.opportunity && ctrl.labelRequired) {
-          ctrl.labelText = ctrl.opportunity.labelText;
-          ctrl.labelStyle = {
-            'background-color': ctrl.opportunity.labelColor
-          };
-        }
+import { AppConstants } from 'app.constants';
+import { ContributorDashboardConstants } from 'pages/contributor-dashboard-page/contributor-dashboard-page.constants';
+import { Subscription } from 'rxjs';
+import { WindowDimensionsService } from 'services/contextual/window-dimensions.service';
 
-        if (!ctrl.opportunityHeadingTruncationLength) {
-          ctrl.opportunityHeadingTruncationLength = 35;
-        }
-        if (ctrl.opportunity) {
-          if (ctrl.opportunity.progressPercentage) {
-            ctrl.progressPercentage = (
-              ctrl.opportunity.progressPercentage + '%');
-            ctrl.progressBarStyle = {width: ctrl.progressPercentage};
-          }
-        } else {
-          ctrl.opportunityDataIsLoading = true;
-        }
+export interface ExplorationOpportunity {
+  id: string;
+  labelText: string;
+  labelColor: string;
+  progressPercentage: number;
+  subheading?: string;
+  inReviewCount: number;
+  totalCount: number;
+  translationsCount: number;
+  heading?: string;
+  actionButtonTitle?: string;
+}
+
+@Component({
+  selector: 'oppia-opportunities-list-item',
+  templateUrl: './opportunities-list-item.component.html',
+  styleUrls: []
+})
+export class OpportunitiesListItemComponent {
+  constructor(
+    private windowDimensionsService: WindowDimensionsService
+  ) {}
+
+  // These properties are initialized using Angular lifecycle hooks
+  // and we need to do non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  @Input() opportunity!: ExplorationOpportunity;
+  @Input() opportunityHeadingTruncationLength!: number;
+  @Input() opportunityType!: string;
+  @Input() labelRequired: boolean = false;
+  @Input() progressBarRequired: boolean = false;
+  @Input() showOpportunityButton: boolean = true;
+
+  labelText!: string;
+  labelStyle!: { 'background-color': string };
+  progressPercentage!: string;
+  progressBarStyle!: { width: string };
+  translatedProgressStyle!: { width: string };
+  inReviewProgressStyle!: { width: string };
+  untranslatedProgressStyle!: { width: string };
+  targetNumQuestionsPerSkill: number = AppConstants.MAX_QUESTIONS_PER_SKILL;
+  cardsAvailable: number = 0;
+  onMobile!: boolean;
+  resizeSubscription!: Subscription;
+  mobileBreakpoint: number = (
+    AppConstants.OPPORTUNITIES_LIST_ITEM_MOBILE_BREAKPOINT);
+
+  @Output() clickActionButton: EventEmitter<string> = (
+    new EventEmitter());
+
+  opportunityDataIsLoading: boolean = true;
+  correspondingOpportunityDeleted: boolean = false;
+  translationProgressBar: boolean = false;
+  opportunityButtonDisabled: boolean = false;
+
+  ngOnInit(): void {
+    this.onMobile = (
+      this.windowDimensionsService.getWidth() <= this.mobileBreakpoint);
+    this.resizeSubscription = this.windowDimensionsService.getResizeEvent()
+      .subscribe(event => {
+        this.onMobile = (
+          this.windowDimensionsService.getWidth() <= this.mobileBreakpoint);
+      });
+
+    if (this.opportunity && this.labelRequired) {
+      this.labelText = this.opportunity.labelText;
+      this.labelStyle = {
+        'background-color': this.opportunity.labelColor
       };
     }
-  ]
-});
+
+    if (!this.opportunityHeadingTruncationLength) {
+      this.opportunityHeadingTruncationLength = 40;
+    }
+    if (this.opportunity) {
+      if (this.opportunity.progressPercentage) {
+        this.progressPercentage =
+          `${Math.floor(this.opportunity.progressPercentage)}%`;
+        if (
+          this.opportunityType ===
+          AppConstants.OPPORTUNITY_TYPE_TRANSLATION
+        ) {
+          this.translationProgressBar = true;
+          const translatedPercentage = (
+            this.opportunity.translationsCount / this.opportunity.totalCount
+          ) * 100;
+          const inReviewTranslationsPercentage = (
+            this.opportunity.inReviewCount / this.opportunity.totalCount
+          ) * 100;
+          const untranslatedPercentage = (
+            100 - (translatedPercentage + inReviewTranslationsPercentage));
+
+          this.cardsAvailable = (
+            this.opportunity.totalCount -
+              (
+                this.opportunity.translationsCount +
+                this.opportunity.inReviewCount
+              )
+          );
+
+          this.translatedProgressStyle = { width: translatedPercentage + '%' };
+          this.untranslatedProgressStyle = {
+            width: untranslatedPercentage + '%'
+          };
+          this.inReviewProgressStyle = {
+            width: inReviewTranslationsPercentage + '%'
+          };
+          this.opportunityButtonDisabled = (
+            this.opportunity.translationsCount +
+            this.opportunity.inReviewCount === this.opportunity.totalCount);
+        } else {
+          this.progressBarStyle = { width: this.progressPercentage };
+        }
+      }
+      this.opportunityDataIsLoading = false;
+      if (this.opportunity.subheading ===
+          ContributorDashboardConstants
+            .CORRESPONDING_DELETED_OPPORTUNITY_TEXT) {
+        this.correspondingOpportunityDeleted = true;
+      }
+    } else {
+      this.opportunityDataIsLoading = true;
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this.resizeSubscription) {
+      this.resizeSubscription.unsubscribe();
+    }
+  }
+}
+
+angular.module('oppia').directive(
+  'oppiaOpportunitiesListItem', downgradeComponent(
+    { component: OpportunitiesListItemComponent }));

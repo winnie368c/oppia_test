@@ -23,8 +23,8 @@ import { HttpClient } from '@angular/common/http';
 
 import cloneDeep from 'lodash/cloneDeep';
 
-import { ConceptCard, ConceptCardBackendDict, ConceptCardObjectFactory} from
-  'domain/skill/ConceptCardObjectFactory';
+import { ConceptCard, ConceptCardBackendDict } from
+  'domain/skill/concept-card.model';
 import { SkillDomainConstants } from
   'domain/skill/skill-domain.constants';
 import { UrlInterpolationService } from
@@ -39,12 +39,11 @@ interface ConceptCardBackendDicts {
 })
 export class ConceptCardBackendApiService {
   constructor(
-    private conceptCardObjectFactory: ConceptCardObjectFactory,
     private http: HttpClient,
     private urlInterpolation: UrlInterpolationService) {}
 
   // Maps previously loaded concept cards to their IDs.
-  private _conceptCardCache = [];
+  private _conceptCardCache: Record<string, ConceptCard> = {};
 
   private _fetchConceptCards(
       skillIds: string[],
@@ -52,10 +51,10 @@ export class ConceptCardBackendApiService {
       errorCallback: (reason: string) => void): void {
     var conceptCardDataUrl = this.urlInterpolation.interpolateUrl(
       SkillDomainConstants.CONCEPT_CARD_DATA_URL_TEMPLATE, {
-        comma_separated_skill_ids: skillIds.join(',')
+        selected_skill_ids: JSON.stringify(skillIds)
       });
 
-    var conceptCardObjects = [];
+    const conceptCardObjects: ConceptCard[] = [];
 
     this.http.get<ConceptCardBackendDicts>(conceptCardDataUrl).toPromise()
       .then(response => {
@@ -63,7 +62,7 @@ export class ConceptCardBackendApiService {
           var conceptCardDicts = response.concept_card_dicts;
           conceptCardDicts.forEach(conceptCardDict => {
             conceptCardObjects.push(
-              this.conceptCardObjectFactory.createFromBackendDict(
+              ConceptCard.createFromBackendDict(
                 conceptCardDict));
           });
           successCallback(conceptCardObjects);
@@ -80,7 +79,7 @@ export class ConceptCardBackendApiService {
   }
 
   private _getUncachedSkillIds(skillIds: string[]): string[] {
-    var uncachedSkillIds = [];
+    const uncachedSkillIds: string[] = [];
     skillIds.forEach(skillId => {
       if (!this._isCached(skillId)) {
         uncachedSkillIds.push(skillId);
@@ -92,7 +91,7 @@ export class ConceptCardBackendApiService {
   async loadConceptCardsAsync(skillIds: string[]): Promise<ConceptCard[]> {
     return new Promise((resolve, reject) => {
       var uncachedSkillIds = this._getUncachedSkillIds(skillIds);
-      var conceptCards = [];
+      const conceptCards: ConceptCard[] = [];
 
       if (uncachedSkillIds.length !== 0) {
         // Case where only part (or none) of the concept cards are cached

@@ -14,14 +14,12 @@
 
 """Deletes temporary and installed files."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import argparse
 import os
 import shutil
-
-import python_utils
+from typing import Optional, Sequence
 
 CURR_DIR = os.path.abspath(os.getcwd())
 OPPIA_TOOLS_DIR = os.path.join(CURR_DIR, '..', 'oppia_tools')
@@ -32,7 +30,7 @@ Deletes temporary and installed files.
 """)
 
 
-def delete_directory_tree(directory_path):
+def delete_directory_tree(directory_path: str) -> None:
     """Recursively delete an existing directory tree. Does not do anything if
     directory does not exists.
 
@@ -44,7 +42,7 @@ def delete_directory_tree(directory_path):
     shutil.rmtree(directory_path)
 
 
-def delete_file(filepath):
+def delete_file(filepath: str) -> None:
     """Delete an existing file. Does not do anything if file does not exists.
 
     Args:
@@ -55,7 +53,7 @@ def delete_file(filepath):
     os.remove(filepath)
 
 
-def main(args=None):
+def main(args: Optional[Sequence[str]] = None) -> None:
     """Runs the script to clean temporary and installed files."""
     unused_parsed_args = _PARSER.parse_args(args=args)
 
@@ -76,7 +74,7 @@ def main(args=None):
         if filename.startswith('tmpcompiledjs'):
             delete_directory_tree(filename)
 
-    python_utils.PRINT('Temporary and installed files deleted')
+    print('Temporary and installed files deleted')
 
 
 # The 'no coverage' pragma is used as this line is un-testable. This is because

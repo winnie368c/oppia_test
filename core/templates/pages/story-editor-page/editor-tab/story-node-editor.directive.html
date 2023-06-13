@@ -25,17 +25,17 @@
             </div>
             <input id="storyNodeTitle" type="text" class="form-control"
                    ng-model="editableTitle" ng-blur="updateTitle(editableTitle)"
-                   placeholder="Enter a title for the chapter." maxlength="<[MAX_CHARS_IN_CHAPTER_TITLE]>" ng-trim="false">
+                   placeholder="Enter a title for the chapter." maxlength="<[MAX_CHARS_IN_EXPLORATION_TITLE]>" ng-trim="false">
             <span class="oppia-input-box-subtitle">
               <i>
-                Chapter title should be at most <[MAX_CHARS_IN_CHAPTER_TITLE]> characters.
+                Chapter title should be at most <[MAX_CHARS_IN_EXPLORATION_TITLE]> characters.
               </i>
             </span>
           </div>
           <div class="story-node-description">
-            <label for="storyNodeDescription" class="form-heading">Goal*</label>
-            <textarea id="storyNodeDescription" type="text" class="form-control protractor-test-add-chapter-description"
-                      ng-model="editableDescription" ng-blur="updateDescription(editableDescription)"
+            <label for="storyNodeDescription" class="form-heading">Chapter description*</label>
+            <textarea id="storyNodeDescription" type="text" class="form-control e2e-test-add-chapter-description"
+                      ng-model="editableDescription" ng-blur="updateDescription(editableDescription)" focus-on="storyNodeDesc"
                       placeholder="Enter the description for the chapter." maxlength="<[MAX_CHARS_IN_CHAPTER_DESCRIPTION]>" ng-trim="false">
             </textarea>
             <span class="oppia-input-box-subtitle">
@@ -47,13 +47,13 @@
           <div class="story-node-exploration">
             <label class="form-heading"> Exploration ID*</label>
             <form class="form-horizontal">
-              <input class="form-control protractor-test-exploration-id-input" type="text" ng-model="explorationId" ng-change="checkCanSaveExpId()"
+              <input class="form-control e2e-test-exploration-id-input" type="text" ng-model="explorationId" ng-change="checkCanSaveExpId()"
                      ng-focus="toggleExplorationInputButtons()">
               <div class="save-button-container" ng-if="explorationInputButtonsAreShown">
                 <span ng-if="!isStoryPublished()" ng-click="updateExplorationId(null)" class="fas fa-trash-alt list-summary"></span>
                 <button class="btn btn-default" ng-click="toggleExplorationInputButtons()">Cancel</button>
                 <button type="submit"
-                        class="protractor-test-exploration-id-save-button btn btn-success btn-sm"
+                        class="e2e-test-exploration-id-save-button btn btn-success btn-sm"
                         ng-click="updateExplorationId(explorationId)"
                         ng-disabled="!expIdCanBeSaved || (explorationId === currentExplorationId)">
                   Save
@@ -64,19 +64,18 @@
               </span>
             </form>
           </div>
-          <div class="story-node-thumbnail">
+          <div class="e2e-test-story-node-thumbnail">
             <label class="form-heading">Thumbnail Image*</label>
-            <thumbnail-uploader filename="getThumbnailFilename()"
-                                update-filename="updateThumbnailFilename"
-                                bg-color="getThumbnailBgColor()"
-                                update-bg-color="updateThumbnailBgColor"
-                                allowed-bg-colors="allowedBgColors"
-                                aspect-ratio="'16:9'"
-                                preview-title="editableTitle"
-                                preview-description="editableDescription"
-                                preview-description-bg-color=""
-                                preview-footer="">
-            </thumbnail-uploader>
+            <oppia-thumbnail-uploader [filename]="getThumbnailFilename()"
+                                      [use-local-storage]="false"
+                                      (update-filename)="updateThumbnailFilename($event)"
+                                      [bg-color]="getThumbnailBgColor()"
+                                      (update-bg-color)="updateThumbnailBgColor($event)"
+                                      [allowed-bg-colors]="allowedBgColors"
+                                      [aspect-ratio]="'16:9'"
+                                      [preview-title]="editableTitle"
+                                      [preview-description]="editableDescription">
+            </oppia-thumbnail-uploader>
           </div>
         </div>
         <div ng-if="mainChapterCardIsShown">
@@ -93,18 +92,18 @@
             </button>
           </div>
           <div ng-if="chapterPreviewCardIsShown">
-            <preview-thumbnail name="editableTitle"
-                               aspect-ratio="'16:9'"
-                               filename = "getThumbnailFilename()"
-                               description="editableDescription"
-                               thumbnail-bg-color="getThumbnailBgColor()"
-                               bg-color="getThumbnailBgColor()">
-            </preview-thumbnail>
+            <oppia-preview-thumbnail [name]="editableTitle"
+                                     [aspect-ratio]="'16:9'"
+                                     [filename]="getThumbnailFilename()"
+                                     [description]="editableDescription"
+                                     [thumbnail-bg-color]="getThumbnailBgColor()"
+                                     [bg-color]="getThumbnailBgColor()">
+            </oppia-preview-thumbnail>
           </div>
         </div>
       </md-card>
       <md-card class="oppia-page-card oppia-long-text story-node-card story-node-input-card oppia-mobile-collapsible-card">
-        <div class="protractor-test-add-chapter-outline">
+        <div class="e2e-test-add-chapter-outline">
           <div class="story-node-header oppia-mobile-collapsible-card-header" ng-click="toggleChapterOutline()">
             <span>Chapter Outline</span>
             <i class="fa fa-caret-down"
@@ -118,17 +117,18 @@
           </div>
           <div class="chapter-card-inputs oppia-mobile-collapsible-card-content" ng-if="chapterOutlineIsShown">
             Outline Finalized
-            <i ng-if="!isOutlineFinalized()" ng-click="finalizeOutline()" class="material-icons md-18 protractor-test-finalize-outline" aria-label="Finalize outline">check_box_outline_blank</i>
-            <i ng-if="isOutlineFinalized()" ng-click="unfinalizeOutline()" class="material-icons md-18" aria-label="Unfinalize outline">check_box</i>
+            <i ng-if="!isOutlineFinalized()" ng-click="finalizeOutline()" class="far fa-square md-18 e2e-test-finalize-outline" aria-label="Finalize outline"></i>
+            <i ng-if="isOutlineFinalized()" ng-click="unfinalizeOutline()" class="fas fa-check-square md-18" aria-label="Unfinalize outline"></i>
             <div tabindex="-1" ng-blur="toggleChapterOutlineButtons()" ng-click="toggleChapterOutlineButtons()">
               <schema-based-editor id="storyNodeOutline"
-                                   schema="OUTLINE_SCHEMA"
-                                   local-value="editableOutline">
+                                   [schema]="OUTLINE_SCHEMA"
+                                   ng-model="editableOutline"
+                                   ng-model-change="$applyAsync()">
               </schema-based-editor>
               <div class="save-button-container" ng-if="chapterOutlineButtonsAreShown">
                 <button class="btn btn-default">Cancel</button>
                 <button type="button"
-                        class="btn btn-success save-button protractor-test-node-outline-save-button"
+                        class="btn btn-success save-button e2e-test-node-outline-save-button"
                         ng-disabled="!isOutlineModified(editableOutline)"
                         ng-click="updateOutline(editableOutline)">
                   Save
@@ -156,14 +156,14 @@
             </div>
             <div>
               <div class="skills-card-item" ng-repeat="skillId in getPrerequisiteSkillIds()">
-                <div class="skill-description-card protractor-test-prerequisite-skill-description-card">
+                <div class="skill-description-card e2e-test-prerequisite-skill-description-card">
                   <a ng-href="<[getSkillEditorUrl(skillId)]>" target="_blank" rel="noopener"><[skillIdToSummaryMap[skillId]]></a>
-                  <span class="protractor-test-remove-prerequisite-skill" ng-click="removePrerequisiteSkillId(skillId)" aria-hidden="true">
-                    <i class="material-icons md-18">&#xE14C;</i>
+                  <span class="e2e-test-remove-prerequisite-skill" ng-click="removePrerequisiteSkillId(skillId)" aria-hidden="true">
+                    <i class="fas fa-times md-18"></i>
                   </span>
                 </div>
               </div>
-              <button class="btn add-skill-btn protractor-test-add-prerequisite-skill" ng-click="addPrerequisiteSkillId()">+ ADD PREREQUISITE SKILL</button>
+              <button class="btn add-skill-btn e2e-test-add-prerequisite-skill" ng-click="addPrerequisiteSkillId()" ng-disabled="!skillInfoHasLoaded">+ ADD PREREQUISITE SKILL</button>
             </div>
           </div>
           <div class="acquired-skills">
@@ -172,14 +172,14 @@
             </div>
             <div>
               <div class="skills-card-item" ng-repeat="skillId in getAcquiredSkillIds()">
-                <div class="skill-description-card protractor-test-acquired-skill-description-card">
+                <div class="skill-description-card e2e-test-acquired-skill-description-card">
                   <a ng-href="<[getSkillEditorUrl(skillId)]>" target="_blank" rel="noopener"><[skillIdToSummaryMap[skillId]]></a>
-                  <span class="protractor-test-remove-acquired-skill" ng-click="removeAcquiredSkillId(skillId)" aria-hidden="true">
-                    <i class="material-icons md-18">&#xE14C;</i>
+                  <span class="e2e-test-remove-acquired-skill" ng-click="removeAcquiredSkillId(skillId)" aria-hidden="true">
+                    <i class="fas fa-times md-18"></i>
                   </span>
                 </div>
               </div>
-              <button class="btn add-skill-btn protractor-test-add-acquired-skill" ng-click="addAcquiredSkillId()">+ ADD ACQUIRED SKILL</button>
+              <button class="btn add-skill-btn e2e-test-add-acquired-skill" ng-click="addAcquiredSkillId()" ng-disabled="!skillInfoHasLoaded">+ ADD ACQUIRED SKILL</button>
             </div>
           </div>
         </div>
@@ -211,12 +211,12 @@
                 <div class="skills-card-item" ng-repeat="skillId in getPrerequisiteSkillIds()">
                   <div class="skill-description-card">
                     <a ng-href="<[getSkillEditorUrl(skillId)]>" target="_blank" rel="noopener"><[skillIdToSummaryMap[skillId]]></a>
-                    <span class="protractor-test-remove-prerequisite-skill" ng-click="removePrerequisiteSkillId(skillId)" aria-hidden="true">
-                      <i class="material-icons md-18">&#xE14C;</i>
+                    <span class="e2e-test-remove-prerequisite-skill" ng-click="removePrerequisiteSkillId(skillId)" aria-hidden="true">
+                      <i class="fas fa-times md-18"></i>
                     </span>
                   </div>
                 </div>
-                <button class="btn add-skill-btn protractor-test-add-prerequisite-skill" ng-click="addPrerequisiteSkillId()">+ ADD PREREQUISITE SKILL</button>
+                <button class="btn add-skill-btn e2e-test-add-prerequisite-skill" ng-click="addPrerequisiteSkillId()" ng-disabled="!skillInfoHasLoaded">+ ADD PREREQUISITE SKILL</button>
               </div>
             </div>
           </div>
@@ -247,12 +247,12 @@
                 <div class="skills-card-item" ng-repeat="skillId in getAcquiredSkillIds()">
                   <div class="skill-description-card">
                     <a ng-href="<[getSkillEditorUrl(skillId)]>" target="_blank" rel="noopener"><[skillIdToSummaryMap[skillId]]></a>
-                    <span class="protractor-test-remove-acquired-skill" ng-click="removeAcquiredSkillId(skillId)" aria-hidden="true">
-                      <i class="material-icons md-18">&#xE14C;</i>
+                    <span class="e2e-test-remove-acquired-skill" ng-click="removeAcquiredSkillId(skillId)" aria-hidden="true">
+                      <i class="fas fa-times md-18"></i>
                     </span>
                   </div>
                 </div>
-                <button class="btn add-skill-btn protractor-test-add-acquired-skill" ng-click="addAcquiredSkillId()">+ ADD ACQUIRED SKILL</button>
+                <button class="btn add-skill-btn e2e-test-add-acquired-skill" ng-click="addAcquiredSkillId()" ng-disabled="!skillInfoHasLoaded">+ ADD ACQUIRED SKILL</button>
               </div>
             </div>
           </div>
@@ -284,9 +284,9 @@
             <span>Link Exploration ID</span>
           </div>
           <div class="todo-item-container">
-            <i class="fa fa-minus" ng-if="!editableDescription"></i>
-            <i class="fa fa-check todo-completed" ng-if="editableDescription"></i>
-            <span>Create a Goal</span>
+            <i class="fa fa-minus" ng-if="!currentDescription"></i>
+            <i class="fa fa-check todo-completed" ng-if="currentDescription"></i>
+            <span>Create a chapter description</span>
           </div>
         </div>
       </md-card>
@@ -361,7 +361,7 @@
   }
   story-node-editor .add-skill-btn {
     background-color: #008098;
-    color: #FFF;
+    color: #fff;
     font-weight: bold;
     margin-top: 12px;
     text-align: left;
@@ -384,7 +384,7 @@
     font-weight: bold;
   }
   story-node-editor .todo-completed {
-    color: #00FF7F;
+    color: #00ff7f;
   }
   story-node-editor .story-node-title,
   story-node-editor .story-node-description,

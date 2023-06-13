@@ -24,8 +24,7 @@ import { StateObjectFactory } from 'domain/state/StateObjectFactory';
 import { StatesObjectFactory } from 'domain/exploration/StatesObjectFactory';
 import { SubtitledUnicode } from
   'domain/exploration/SubtitledUnicodeObjectFactory';
-import { VoiceoverObjectFactory } from
-  'domain/exploration/VoiceoverObjectFactory';
+import { Voiceover } from './voiceover.model';
 
 describe('States Object Factory', () => {
   let sof: StateObjectFactory = null;
@@ -35,8 +34,7 @@ describe('States Object Factory', () => {
   let newState2 = null;
   let secondState = null;
   let statesWithCyclicOutcomeDict = null;
-  let statesWithAudioDict = null;
-  let vof = null;
+  let statesWithVoiceoverDict = null;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -44,7 +42,6 @@ describe('States Object Factory', () => {
     });
     ssof = TestBed.get(StatesObjectFactory);
     sof = TestBed.get(StateObjectFactory);
-    vof = TestBed.get(VoiceoverObjectFactory);
     spyOnProperty(sof, 'NEW_STATE_TEMPLATE', 'get').and.returnValue({
       classifier_model_id: null,
       content: {
@@ -66,10 +63,14 @@ describe('States Object Factory', () => {
           },
           placeholder: {
             value: new SubtitledUnicode('Type your answer here.', '')
+          },
+          catchMisspellings: {
+            value: false
           }
         },
         default_outcome: {
           dest: '(untitled state)',
+          dest_if_really_stuck: null,
           feedback: {
             content_id: 'default_outcome',
             html: ''
@@ -83,28 +84,21 @@ describe('States Object Factory', () => {
         solution: null,
         id: 'TextInput'
       },
-      next_content_id_index: 0,
+      linked_skill_id: null,
       param_changes: [],
-      solicit_answer_details: false,
-      written_translations: {
-        translations_mapping: {
-          content: {},
-          default_outcome: {}
-        }
-      }
-    }
-    );
+      solicit_answer_details: false
+    });
 
     newState = {
       classifier_model_id: null,
       content: {
-        content_id: 'content',
+        content_id: 'content_7',
         html: ''
       },
       recorded_voiceovers: {
         voiceovers_mapping: {
-          content: {},
-          default_outcome: {}
+          content_7: {},
+          default_outcome_8: {}
         }
       },
       interaction: {
@@ -116,8 +110,9 @@ describe('States Object Factory', () => {
         },
         default_outcome: {
           dest: 'new state',
+          dest_if_really_stuck: null,
           feedback: {
-            content_id: 'default_outcome',
+            content_id: 'default_outcome_8',
             html: ''
           },
           param_changes: [],
@@ -127,27 +122,21 @@ describe('States Object Factory', () => {
         },
         hints: [],
       },
-      next_content_id_index: 0,
+      linked_skill_id: null,
       param_changes: [],
-      solicit_answer_details: false,
-      written_translations: {
-        translations_mapping: {
-          content: {},
-          default_outcome: {}
-        }
-      },
+      solicit_answer_details: false
     };
 
     newState2 = {
       classifier_model_id: null,
       content: {
-        content_id: 'content',
+        content_id: 'content_5',
         html: ''
       },
       recorded_voiceovers: {
         voiceovers_mapping: {
-          content: {},
-          default_outcome: {}
+          content_5: {},
+          default_outcome_6: {}
         }
       },
       interaction: {
@@ -159,12 +148,16 @@ describe('States Object Factory', () => {
           },
           placeholder: {
             value: new SubtitledUnicode('Type your answer here.', '')
+          },
+          catchMisspellings: {
+            value: false
           }
         },
         default_outcome: {
           dest: 'new state',
+          dest_if_really_stuck: null,
           feedback: {
-            content_id: 'default_outcome',
+            content_id: 'default_outcome_6',
             html: ''
           },
           param_changes: [],
@@ -175,15 +168,9 @@ describe('States Object Factory', () => {
         hints: [],
         id: 'TextInput'
       },
-      next_content_id_index: 0,
+      linked_skill_id: null,
       param_changes: [],
       solicit_answer_details: false,
-      written_translations: {
-        translations_mapping: {
-          content: {},
-          default_outcome: {}
-        }
-      },
     };
 
     secondState = {
@@ -222,10 +209,14 @@ describe('States Object Factory', () => {
               unicode_str: ''
             }
           },
-          rows: { value: 1 }
+          rows: { value: 1 },
+          catchMisspellings: {
+            value: false
+          }
         },
         default_outcome: {
           dest: 'new state',
+          dest_if_really_stuck: null,
           feedback: {
             content_id: 'default_outcome',
             html: ''
@@ -244,16 +235,9 @@ describe('States Object Factory', () => {
         },
         id: 'TextInput'
       },
-      next_content_id_index: 1,
+      linked_skill_id: null,
       param_changes: [],
-      solicit_answer_details: false,
-      written_translations: {
-        translations_mapping: {
-          content: {},
-          ca_placeholder_0: {},
-          default_outcome: {}
-        }
-      }
+      solicit_answer_details: false
     };
 
     statesDict = {
@@ -274,10 +258,15 @@ describe('States Object Factory', () => {
           }
         },
         interaction: {
-          id: null,
+          id: 'MultipleChoiceInput',
+          customization_args: {
+            choices: {value: []},
+            showChoicesInShuffledOrder: {value: false}
+          },
           answer_groups: [{
             outcome: {
               dest: 'second state',
+              dest_if_really_stuck: 'second state',
               feedback: {
                 content_id: 'feedback_1',
                 html: ''
@@ -293,6 +282,7 @@ describe('States Object Factory', () => {
           }],
           default_outcome: {
             dest: 'second state',
+            dest_if_really_stuck: 'second state',
             feedback: {
               content_id: 'default_outcome',
               html: ''
@@ -304,14 +294,7 @@ describe('States Object Factory', () => {
           solution: null
         },
         param_changes: [],
-        solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {},
-            default_outcome: {},
-            feedback_1: {}
-          }
-        },
+        solicit_answer_details: false
       },
       'second state': {
         content: {
@@ -326,10 +309,15 @@ describe('States Object Factory', () => {
           }
         },
         interaction: {
-          id: null,
+          id: 'MultipleChoiceInput',
+          customization_args: {
+            choices: {value: []},
+            showChoicesInShuffledOrder: {value: false}
+          },
           answer_groups: [{
             outcome: {
               dest: 'first state',
+              dest_if_really_stuck: 'first state',
               feedback: {
                 content_id: 'feedback_1',
                 html: ''
@@ -345,6 +333,7 @@ describe('States Object Factory', () => {
           }],
           default_outcome: {
             dest: 'first state',
+            dest_if_really_stuck: 'first state',
             feedback: {
               content_id: 'default_outcome',
               html: ''
@@ -356,18 +345,11 @@ describe('States Object Factory', () => {
           solution: null
         },
         param_changes: [],
-        solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {},
-            default_outcome: {},
-            feedback_1: {}
-          }
-        },
+        solicit_answer_details: false
       },
     };
 
-    statesWithAudioDict = {
+    statesWithVoiceoverDict = {
       'first state': {
         content: {
           content_id: 'content',
@@ -439,6 +421,7 @@ describe('States Object Factory', () => {
           answer_groups: [{
             outcome: {
               dest: 'second state',
+              dest_if_really_stuck: null,
               feedback: {
                 content_id: 'feedback_1',
                 html: '<p>Good.</p>'
@@ -460,10 +443,14 @@ describe('States Object Factory', () => {
                 unicode_str: ''
               }
             },
-            rows: { value: 1 }
+            rows: { value: 1 },
+            catchMisspellings: {
+              value: false
+            }
           },
           default_outcome: {
             dest: 'new state',
+            dest_if_really_stuck: null,
             feedback: {
               content_id: 'default_outcome',
               html: '<p>Feedback</p>'
@@ -484,19 +471,9 @@ describe('States Object Factory', () => {
           }],
           id: 'TextInput'
         },
-        next_content_id_index: 4,
+        linked_skill_id: null,
         param_changes: [],
-        solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {},
-            ca_placeholder_3: {},
-            default_outcome: {},
-            feedback_1: {},
-            hint_1: {},
-            hint_2: {}
-          }
-        }
+        solicit_answer_details: false
       },
       'second state': secondState
     };
@@ -506,11 +483,7 @@ describe('States Object Factory', () => {
   it('should create a new state given a state name and set ' +
     'that state to a terminal state', () => {
     let newStates = ssof.createFromBackendDict(statesDict);
-    newStates.addState('new state');
-
-    expect(newStates.getState('new state')).toEqual(
-      sof.createFromBackendDict('new state', newState2));
-
+    newStates.addState('new state', 'content_5', 'default_outcome_6');
     expect(newStates.hasState('new state')).toBe(true);
     expect(newStates.getStateNames()).toEqual(['first state', 'new state']);
     expect((Object.keys(newStates.getStateObjects())).length).toBe(2);
@@ -530,11 +503,12 @@ describe('States Object Factory', () => {
   });
 
   it('should correctly delete a state', () => {
-    let statesWithAudio = ssof.createFromBackendDict(statesWithAudioDict);
-    statesWithAudio.deleteState('first state');
-    expect(statesWithAudio).toEqual(ssof.createFromBackendDict({
-      'second state': secondState
-    }));
+    let states = ssof.createFromBackendDict(statesWithVoiceoverDict);
+    states.deleteState('first state');
+    expect(states).toEqual(
+      ssof.createFromBackendDict({
+        'second state': secondState
+      }));
   });
 
   it('should correctly set any states\' interaction.defaultOutcomes that ' +
@@ -556,10 +530,15 @@ describe('States Object Factory', () => {
           }
         },
         interaction: {
-          id: null,
+          id: 'MultipleChoiceInput',
+          customization_args: {
+            choices: {value: []},
+            showChoicesInShuffledOrder: {value: false}
+          },
           answer_groups: [{
             outcome: {
               dest: 'third state',
+              dest_if_really_stuck: 'third state',
               feedback: {
                 content_id: 'feedback_1',
                 html: ''
@@ -575,6 +554,7 @@ describe('States Object Factory', () => {
           }],
           default_outcome: {
             dest: 'third state',
+            dest_if_really_stuck: 'third state',
             feedback: {
               content_id: 'default_outcome',
               html: ''
@@ -586,40 +566,33 @@ describe('States Object Factory', () => {
           solution: null
         },
         param_changes: [],
-        solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {},
-            default_outcome: {},
-            feedback_1: {}
-          }
-        },
+        solicit_answer_details: false
       },
     }));
   });
 
   it('should correctly get all audio language codes in states', () => {
-    const statesWithAudio = ssof.createFromBackendDict(statesWithAudioDict);
-    expect(statesWithAudio.getAllVoiceoverLanguageCodes())
+    const states = ssof.createFromBackendDict(statesWithVoiceoverDict);
+    expect(states.getAllVoiceoverLanguageCodes())
       .toEqual(['en', 'hi-en', 'he', 'zh', 'es', 'cs', 'de']);
   });
 
   it('should correctly get all audio translations in states', () => {
-    const statesWithAudio = ssof.createFromBackendDict(statesWithAudioDict);
-    expect(statesWithAudio.getAllVoiceovers('hi-en'))
+    const states = ssof.createFromBackendDict(statesWithVoiceoverDict);
+    expect(states.getAllVoiceovers('hi-en'))
       .toEqual({
-        'first state': [vof.createFromBackendDict({
+        'first state': [Voiceover.createFromBackendDict({
           filename: 'myfile3.mp3',
           file_size_bytes: 0.8,
           needs_update: false,
           duration_secs: 0.8
-        }), vof.createFromBackendDict({
+        }), Voiceover.createFromBackendDict({
           filename: 'myfile8.mp3',
           file_size_bytes: 1.2,
           needs_update: false,
           duration_secs: 1.2
         })],
-        'second state': [vof.createFromBackendDict({
+        'second state': [Voiceover.createFromBackendDict({
           filename: 'myfile2.mp3',
           file_size_bytes: 0.8,
           needs_update: false,

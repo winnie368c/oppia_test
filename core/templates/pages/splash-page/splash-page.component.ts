@@ -15,70 +15,163 @@
 /**
  * @fileoverview Component for the Oppia splash page.
  */
+import { Component, OnInit } from '@angular/core';
 
-require('base-components/base-content.directive.ts');
+import { AppConstants } from 'app.constants';
+import { UrlInterpolationService } from 'domain/utilities/url-interpolation.service';
+import { SiteAnalyticsService } from 'services/site-analytics.service';
+import { WindowRef } from 'services/contextual/window-ref.service';
+import { WindowDimensionsService } from 'services/contextual/window-dimensions.service';
+import { LoaderService } from 'services/loader.service';
+import { UserService } from 'services/user.service';
+import { I18nLanguageCodeService } from 'services/i18n-language-code.service';
+import { PlatformFeatureService } from 'services/platform-feature.service';
+import './splash-page.component.css';
 
-require('domain/utilities/url-interpolation.service.ts');
-require('services/site-analytics.service.ts');
-require('services/user.service.ts');
+export interface Testimonial {
+  quote: string;
+  studentDetails: string;
+  imageUrl: string;
+  imageUrlWebp: string;
+  borderPresent: boolean;
+}
 
-// TODO(#9186): Change variable name to 'constants' once this file
-// is migrated to Angular.
-import splashConstants from 'assets/constants';
+@Component({
+  selector: 'oppia-splash-page',
+  templateUrl: './splash-page.component.html',
+  styleUrls: ['./splash-page.component.css']
+})
+export class SplashPageComponent implements OnInit {
+  // These properties are initialized using Angular lifecycle hooks
+  // and we need to do non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  classroomUrlFragment!: string;
+  classroomUrl!: string;
+  displayedTestimonialId!: number;
+  testimonialCount!: number;
+  isWindowNarrow: boolean = false;
+  testimonials: Testimonial[] = [];
+  userIsLoggedIn: boolean = false;
+  androidPageIsEnabled: boolean = (
+    this.platformFeatureService.status.AndroidBetaLandingPage.isEnabled
+  );
 
-angular.module('oppia').component('splashPage', {
-  template: require('./splash-page.component.html'),
-  controller: [
-    '$rootScope', '$timeout', 'LoaderService', 'SiteAnalyticsService',
-    'UrlInterpolationService', 'UserService', 'WindowRef',
-    function(
-        $rootScope, $timeout, LoaderService, SiteAnalyticsService,
-        UrlInterpolationService, UserService, WindowRef) {
-      var ctrl = this;
-      ctrl.getStaticImageUrl = function(imagePath) {
-        return UrlInterpolationService.getStaticImageUrl(imagePath);
-      };
-      ctrl.getStaticSubjectImageUrl = function(subjectName) {
-        return UrlInterpolationService.getStaticImageUrl(
-          '/subjects/' + subjectName + '.svg');
-      };
+  constructor(
+    private i18nLanguageCodeService: I18nLanguageCodeService,
+    private siteAnalyticsService: SiteAnalyticsService,
+    private urlInterpolationService: UrlInterpolationService,
+    private windowDimensionService: WindowDimensionsService,
+    private windowRef: WindowRef,
+    private userService: UserService,
+    private loaderService: LoaderService,
+    private platformFeatureService: PlatformFeatureService,
+  ) {}
 
-      ctrl.onRedirectToLogin = function(destinationUrl) {
-        SiteAnalyticsService.registerStartLoginEvent(
-          'splashPageCreateExplorationButton');
-        $timeout(function() {
-          WindowRef.nativeWindow.location = destinationUrl;
-        }, 150);
-        return false;
-      };
+  getStaticImageUrl(imagePath: string): string {
+    return this.urlInterpolationService.getStaticImageUrl(imagePath);
+  }
 
-      ctrl.onClickBrowseLessonsButton = function() {
-        SiteAnalyticsService.registerClickBrowseLessonsButtonEvent();
-        $timeout(function() {
-          WindowRef.nativeWindow.location = (
-            `/learn/${splashConstants.DEFAULT_CLASSROOM_URL_FRAGMENT}`);
-        }, 150);
-        return false;
-      };
+  getImageSet(imageName: string, imageExt: string): string {
+    return (
+      this.getStaticImageUrl(imageName + '1x.' + imageExt) + ' 1x, ' +
+      this.getStaticImageUrl(imageName + '15x.' + imageExt) + ' 1.5x, ' +
+      this.getStaticImageUrl(imageName + '2x.' + imageExt) + ' 2x'
+    );
+  }
 
-      ctrl.onClickCreateExplorationButton = function() {
-        SiteAnalyticsService.registerClickCreateExplorationButtonEvent();
-        $timeout(function() {
-          WindowRef.nativeWindow.location = '/creator-dashboard?mode=create';
-        }, 150);
-        return false;
-      };
-      ctrl.$onInit = function() {
-        ctrl.userIsLoggedIn = null;
-        LoaderService.showLoadingScreen('Loading');
-        UserService.getUserInfoAsync().then(function(userInfo) {
-          ctrl.userIsLoggedIn = userInfo.isLoggedIn();
-          LoaderService.hideLoadingScreen();
-          // TODO(#8521): Remove the use of $rootScope.$apply()
-          // once the controller is migrated to angular.
-          $rootScope.$applyAsync();
-        });
-      };
-    }
-  ]
-});
+  private _nagivateToClassroomPage(): void {
+    this.windowRef.nativeWindow.location.href = this.classroomUrl;
+  }
+
+  onClickStartLearningButton(): void {
+    this.siteAnalyticsService.registerClickHomePageStartLearningButtonEvent();
+    this._nagivateToClassroomPage();
+  }
+
+  onClickBrowseLessonsButton(): void {
+    this.siteAnalyticsService.registerClickBrowseLessonsButtonEvent();
+    this._nagivateToClassroomPage();
+  }
+
+  onClickAccessAndroidButton(): void {
+    this.windowRef.nativeWindow.location.href = '/android';
+  }
+
+  onClickStartContributingButton(): void {
+    this.siteAnalyticsService.registerClickStartContributingButtonEvent();
+    this.windowRef.nativeWindow.location.href = '/volunteer';
+  }
+
+  onClickStartTeachingButton(): void {
+    this.siteAnalyticsService.registerClickStartTeachingButtonEvent();
+    this.windowRef.nativeWindow.location.href = ('/creator-guidelines');
+  }
+
+  // TODO(#11657): Extract the testimonials code into a separate component.
+  // The 2 functions below are to cycle between values:
+  // 0 to (testimonialCount - 1) for displayedTestimonialId.
+  incrementDisplayedTestimonialId(): void {
+    // This makes sure that incrementing from (testimonialCount - 1)
+    // returns 0 instead of testimonialCount,since we want the testimonials
+    // to cycle through.
+    this.displayedTestimonialId = (
+      this.displayedTestimonialId + 1) % this.testimonialCount;
+  }
+
+  decrementDisplayedTestimonialId(): void {
+    // This makes sure that decrementing from 0, returns
+    // (testimonialCount - 1) instead of -1, since we want the testimonials
+    // to cycle through.
+    this.displayedTestimonialId = (
+      this.displayedTestimonialId + this.testimonialCount - 1) %
+      this.testimonialCount;
+  }
+
+  getTestimonials(): [Testimonial, Testimonial, Testimonial, Testimonial] {
+    return [{
+      quote: 'I18N_SPLASH_TESTIMONIAL_1',
+      studentDetails: 'I18N_SPLASH_STUDENT_DETAILS_1',
+      imageUrl: this.getImageSet('/splash/mira', 'png'),
+      imageUrlWebp: this.getImageSet('/splash/mira', 'webp'),
+      borderPresent: false
+    },
+    {
+      quote: 'I18N_SPLASH_TESTIMONIAL_2',
+      studentDetails: 'I18N_SPLASH_STUDENT_DETAILS_2',
+      imageUrl: this.getImageSet('/splash/Dheeraj', 'png'),
+      imageUrlWebp: this.getImageSet('/splash/Dheeraj', 'webp'),
+      borderPresent: true
+    }, {
+      quote: 'I18N_SPLASH_TESTIMONIAL_3',
+      studentDetails: 'I18N_SPLASH_STUDENT_DETAILS_3',
+      imageUrl: this.getImageSet('/splash/sama', 'png'),
+      imageUrlWebp: this.getImageSet('/splash/sama', 'webp'),
+      borderPresent: false
+    }, {
+      quote: 'I18N_SPLASH_TESTIMONIAL_4',
+      studentDetails: 'I18N_SPLASH_STUDENT_DETAILS_4',
+      imageUrl: this.getImageSet('/splash/Gaurav', 'png'),
+      imageUrlWebp: this.getImageSet('/splash/Gaurav', 'webp'),
+      borderPresent: true
+    }];
+  }
+
+  ngOnInit(): void {
+    this.displayedTestimonialId = 0;
+    this.testimonialCount = 4;
+    this.testimonials = this.getTestimonials();
+    this.classroomUrl = this.urlInterpolationService.interpolateUrl(
+      '/learn/<classroomUrlFragment>', {
+        classroomUrlFragment: AppConstants.DEFAULT_CLASSROOM_URL_FRAGMENT
+      });
+    this.loaderService.showLoadingScreen('Loading');
+    this.userService.getUserInfoAsync().then((userInfo) => {
+      this.userIsLoggedIn = userInfo.isLoggedIn();
+      this.loaderService.hideLoadingScreen();
+    });
+    this.isWindowNarrow = this.windowDimensionService.isWindowNarrow();
+    this.windowDimensionService.getResizeEvent().subscribe(() => {
+      this.isWindowNarrow = this.windowDimensionService.isWindowNarrow();
+    });
+  }
+}

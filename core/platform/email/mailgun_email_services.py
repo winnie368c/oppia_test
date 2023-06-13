@@ -16,19 +16,35 @@
 
 """Provides mailgun api to send emails."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import base64
+import urllib
 
-import feconf
-import python_utils
+from core import feconf
+from core import utils
+from core.platform import models
+
+from typing import Dict, List, Optional, Union
+
+MYPY = False
+if MYPY: # pragma: no cover
+    from mypy_imports import secrets_services
+
+secrets_services = models.Registry.import_secrets_services()
 
 
 def send_email_to_recipients(
-        sender_email, recipient_emails, subject,
-        plaintext_body, html_body, bcc=None, reply_to=None,
-        recipient_variables=None):
+    sender_email: str,
+    recipient_emails: List[str],
+    subject: str,
+    plaintext_body: str,
+    html_body: str,
+    bcc: Optional[List[str]] = None,
+    reply_to: Optional[str] = None,
+    recipient_variables: Optional[
+        Dict[str, Dict[str, Union[str, float]]]] = None
+) -> bool:
     """Send POST HTTP request to mailgun api. This method is adopted from
     the requests library's post method.
 
@@ -68,7 +84,9 @@ def send_email_to_recipients(
     Returns:
         bool. Whether the emails are sent successfully.
     """
-    if not feconf.MAILGUN_API_KEY:
+    mailgun_api_key: Optional[str] = secrets_services.get_secret(
+        'MAILGUN_API_KEY')
+    if mailgun_api_key is None:
         raise Exception('Mailgun API key is not available.')
 
     if not feconf.MAILGUN_DOMAIN_NAME:
@@ -80,16 +98,15 @@ def send_email_to_recipients(
     # https://documentation.mailgun.com/user_manual.html#batch-sending
     recipient_email_lists = [
         recipient_emails[i:i + 1000]
-        for i in python_utils.RANGE(0, len(recipient_emails), 1000)]
+        for i in range(0, len(recipient_emails), 1000)]
     for email_list in recipient_email_lists:
         data = {
             'from': sender_email,
-            'subject': subject,
-            'text': plaintext_body,
-            'html': html_body
+            'subject': subject.encode('utf-8'),
+            'text': plaintext_body.encode('utf-8'),
+            'html': html_body.encode('utf-8'),
+            'to': email_list[0] if len(email_list) == 1 else email_list
         }
-
-        data['to'] = email_list[0] if len(email_list) == 1 else email_list
 
         if bcc:
             data['bcc'] = bcc[0] if len(bcc) == 1 else bcc
@@ -102,15 +119,23 @@ def send_email_to_recipients(
         # sending individual emails).
         data['recipient_variables'] = recipient_variables or {}
 
-        encoded = base64.b64encode(b'api:%s' % feconf.MAILGUN_API_KEY).strip()
-        auth_str = 'Basic %s' % encoded
+        # The b64encode accepts and returns bytes, so we first need to encode
+        # the MAILGUN_API_KEY to bytes, then decode the returned bytes back
+        # to string.
+        base64_mailgun_api_key = base64.b64encode(
+            b'api:%b' % mailgun_api_key.encode('utf-8')
+        ).strip().decode('utf-8')
+        auth_str = 'Basic %s' % base64_mailgun_api_key
         header = {'Authorization': auth_str}
-        server = (
-            ('https://api.mailgun.net/v3/%s/messages')
-            % feconf.MAILGUN_DOMAIN_NAME)
-        encoded_url = python_utils.url_encode(data)
-        req = python_utils.url_request(server, encoded_url, header)
-        resp = python_utils.url_open(req)
+        server = 'https://api.mailgun.net/v3/%s/messages' % (
+            feconf.MAILGUN_DOMAIN_NAME
+        )
+        # The 'ascii' is used here, because only ASCII char are allowed in url,
+        # also the docs recommend this approach:
+        # https://docs.python.org/3.7/library/urllib.request.html#urllib-examples
+        encoded_url = urllib.parse.urlencode(data).encode('ascii')
+        req = urllib.request.Request(server, encoded_url, header)
+        resp = utils.url_open(req)
         # The function url_open returns a file_like object that can be queried
         # for the status code of the url query. If it is not 200, the mail query
         # failed so we return False (this function did not complete

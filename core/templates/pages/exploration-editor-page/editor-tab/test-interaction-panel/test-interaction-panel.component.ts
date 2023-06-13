@@ -13,43 +13,54 @@
 // limitations under the License.
 
 /**
- * @fileoverview Directive for the test interaction panel in the state editor.
+ * @fileoverview Component for the test interaction panel in the state editor.
  */
 
-require('domain/utilities/url-interpolation.service.ts');
-require('pages/exploration-editor-page/services/exploration-states.service.ts');
-require(
-  'pages/exploration-player-page/services/current-interaction.service.ts');
+import { Component, Input, OnInit } from '@angular/core';
+import { downgradeComponent } from '@angular/upgrade/static';
+import { ExplorationStatesService } from 'pages/exploration-editor-page/services/exploration-states.service';
+import { CurrentInteractionService } from 'pages/exploration-player-page/services/current-interaction.service';
+import INTERACTION_SPECS from 'interactions/interaction_specs.json';
+import { AppConstants } from 'app.constants';
+import { InteractionSpecsKey } from 'pages/interaction-specs.constants';
 
-require(
-  'pages/exploration-editor-page/exploration-editor-page.constants.ajs.ts');
+@Component({
+  selector: 'oppia-test-interaction-panel',
+  templateUrl: './test-interaction-panel.component.html'
+})
+export class TestInteractionPanel implements OnInit {
+  // These properties below are initialized using Angular lifecycle hooks
+  // where we need to do non-null assertion. For more information see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  @Input() inputTemplate!: string;
+  @Input() stateName!: string;
+  interactionIsInline!: boolean;
 
-angular.module('oppia').component('testInteractionPanel', {
-  bindings: {
-    getStateName: '&stateName',
-    getInputTemplate: '&inputTemplate',
-  },
-  template: require('./test-interaction-panel.component.html'),
-  controller: [
-    '$scope', 'CurrentInteractionService', 'ExplorationStatesService',
-    'INTERACTION_DISPLAY_MODE_INLINE', 'INTERACTION_SPECS',
-    function(
-        $scope, CurrentInteractionService, ExplorationStatesService,
-        INTERACTION_DISPLAY_MODE_INLINE, INTERACTION_SPECS) {
-      var ctrl = this;
-      $scope.onSubmitAnswerFromButton = function() {
-        CurrentInteractionService.submitAnswer();
-      };
+  constructor(
+    private currentInteractionService: CurrentInteractionService,
+    private explorationStatesService: ExplorationStatesService,
+  ) { }
 
-      $scope.isSubmitButtonDisabled = (
-        CurrentInteractionService.isSubmitButtonDisabled);
-      ctrl.$onInit = function() {
-        var _stateName = ctrl.getStateName();
-        var _state = ExplorationStatesService.getState(_stateName);
-        $scope.interactionIsInline = (
-          INTERACTION_SPECS[_state.interaction.id].display_mode ===
-          INTERACTION_DISPLAY_MODE_INLINE);
-      };
-    }
-  ]
-});
+  isSubmitButtonDisabled(): boolean {
+    return this.currentInteractionService.isSubmitButtonDisabled();
+  }
+
+  onSubmitAnswerFromButton(): void {
+    this.currentInteractionService.submitAnswer();
+  }
+
+  ngOnInit(): void {
+    let _stateName = this.stateName;
+    let _state = this.explorationStatesService.getState(_stateName);
+    this.interactionIsInline = (
+      INTERACTION_SPECS[
+        _state.interaction.id as InteractionSpecsKey
+      ].display_mode ===
+      AppConstants.INTERACTION_DISPLAY_MODE_INLINE);
+  }
+}
+
+angular.module('oppia').directive('oppiaTestInteractionPanel',
+  downgradeComponent({
+    component: TestInteractionPanel
+  }) as angular.IDirectiveFactory);

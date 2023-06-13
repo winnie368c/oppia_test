@@ -21,10 +21,9 @@ import { downgradeInjectable } from '@angular/upgrade/static';
 
 import { PlayerTranscriptService } from
   'pages/exploration-player-page/services/player-transcript.service';
-import { StateCard } from
-  'domain/state_card/StateCardObjectFactory';
+import { StateCard } from 'domain/state_card/state-card.model';
 
-interface HelpCardEventResponse {
+export interface HelpCardEventResponse {
   helpCardHtml: string;
   hasContinueButton: boolean;
 }
@@ -40,14 +39,19 @@ export class PlayerPositionService {
   private _newCardAvailableEventEmitter = new EventEmitter<void>();
   private _helpCardAvailableEventEmitter =
     new EventEmitter<HelpCardEventResponse>();
-  private _newCardOpenedEventEmitter = new EventEmitter<StateCard>();
 
-  displayedCardIndex = null;
-  onChangeCallback = null;
+  private _newCardOpenedEventEmitter = new EventEmitter<StateCard>();
+  private _loadedMostRecentCheckpointEmitter = new EventEmitter<void>();
+
+  // The following property is initialized using the class methods.
+  // and we need to do non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  displayedCardIndex!: number;
+  onChangeCallback!: Function;
   learnerJustSubmittedAnAnswer = false;
 
   init(callback: Function): void {
-    this.displayedCardIndex = null;
+    this.displayedCardIndex = -1;
     this.onChangeCallback = callback;
   }
 
@@ -70,6 +74,9 @@ export class PlayerPositionService {
     this.displayedCardIndex = index;
 
     if (oldIndex !== this.displayedCardIndex) {
+      if (!this.onChangeCallback) {
+        throw new Error('The callback function has not been initialized');
+      }
       this.onChangeCallback();
     }
   }
@@ -116,6 +123,10 @@ export class PlayerPositionService {
 
   get onNewCardOpened(): EventEmitter<StateCard> {
     return this._newCardOpenedEventEmitter;
+  }
+
+  get onLoadedMostRecentCheckpoint(): EventEmitter<void> {
+    return this._loadedMostRecentCheckpointEmitter;
   }
 
   changeCurrentQuestion(index: number): void {

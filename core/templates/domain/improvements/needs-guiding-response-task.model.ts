@@ -16,7 +16,7 @@
  * @fileoverview Frontend Model for needs guiding responses improvements task.
  */
 
-import { AnswerStats } from 'domain/exploration/AnswerStatsObjectFactory';
+import { AnswerStats } from 'domain/exploration/answer-stats.model';
 import { TaskEntryBackendDict, TaskEntry } from
   'domain/improvements/task-entry.model';
 import { ImprovementsConstants } from
@@ -59,7 +59,6 @@ export class NeedsGuidingResponsesTask extends TaskEntry<
       issue_description: null,
       status: ImprovementsConstants.TASK_STATUS_OBSOLETE,
       resolver_username: null,
-      resolver_profile_picture_data_url: null,
       resolved_on_msecs: null,
     });
   }

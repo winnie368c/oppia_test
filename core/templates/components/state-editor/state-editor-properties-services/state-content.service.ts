@@ -23,7 +23,7 @@ import { StatePropertyService } from
   // eslint-disable-next-line max-len
   'components/state-editor/state-editor-properties-services/state-property.service';
 import { UtilsService } from 'services/utils.service';
-import { SubtitledHtml } from 'domain/exploration/SubtitledHtmlObjectFactory';
+import { SubtitledHtml } from 'domain/exploration/subtitled-html.model';
 
 @Injectable({
   providedIn: 'root'
@@ -33,6 +33,13 @@ export class StateContentService extends StatePropertyService<SubtitledHtml> {
   constructor(alertsService: AlertsService, utilsService: UtilsService) {
     super(alertsService, utilsService);
     this.setterMethodKey = 'saveStateContent';
+  }
+
+  displayed: SubtitledHtml = SubtitledHtml.createDefault('', 'content');
+  savedMemento: SubtitledHtml = SubtitledHtml.createDefault('', 'content');
+
+  init(stateName: string, value: SubtitledHtml): void {
+    super.init(stateName, value);
   }
 }
 

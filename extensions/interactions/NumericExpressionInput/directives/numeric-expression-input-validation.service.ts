@@ -23,6 +23,7 @@ import { AnswerGroup } from
   'domain/exploration/AnswerGroupObjectFactory';
 import { Warning, baseInteractionValidationService } from
   'interactions/base-interaction-validation.service';
+import { MathInteractionsService } from 'services/math-interactions.service';
 import { NumericExpressionInputCustomizationArgs } from
   'extensions/interactions/customization-args-defs';
 import { NumericExpressionInputRulesService } from
@@ -35,6 +36,8 @@ import { AppConstants } from 'app.constants';
   providedIn: 'root'
 })
 export class NumericExpressionInputValidationService {
+  private supportedFunctionNames = AppConstants.SUPPORTED_FUNCTION_NAMES;
+
   constructor(
       private baseInteractionValidationServiceInstance:
         baseInteractionValidationService) {}
@@ -48,9 +51,10 @@ export class NumericExpressionInputValidationService {
       stateName: string,
       customizationArgs: NumericExpressionInputCustomizationArgs,
       answerGroups: AnswerGroup[], defaultOutcome: Outcome): Warning[] {
-    let warningsList = [];
+    let warningsList: Warning[] = [];
     let algebraicRulesService = (
       new NumericExpressionInputRulesService());
+    let mathInteractionsService = new MathInteractionsService();
 
     warningsList = warningsList.concat(
       this.getCustomizationArgsWarnings(customizationArgs));
@@ -71,12 +75,27 @@ export class NumericExpressionInputValidationService {
     for (let i = 0; i < answerGroups.length; i++) {
       let rules = answerGroups[i].rules;
       for (let j = 0; j < rules.length; j++) {
-        let currentInput = <string> rules[j].inputs.x;
-        let currentRuleType = <string> rules[j].type;
+        let currentInput = rules[j].inputs.x as string;
+        let currentRuleType = rules[j].type as string;
+
+        let unsupportedFunctions = (
+          mathInteractionsService.checkUnsupportedFunctions(currentInput));
+        if (unsupportedFunctions.length > 0) {
+          warningsList.push({
+            type: AppConstants.WARNING_TYPES.ERROR,
+            message: (
+              'Input for learner answer ' + (j + 1) + ' from Oppia ' +
+              'response ' + (i + 1) + ' uses these function(s) ' +
+              'that aren\'t supported: [' + unsupportedFunctions +
+              '] The supported functions are: ' +
+              '[' + this.supportedFunctionNames + ']'
+            )
+          });
+        }
 
         for (let seenRule of seenRules) {
-          let seenInput = <string> seenRule.inputs.x;
-          let seenRuleType = <string> seenRule.type;
+          let seenInput = seenRule.inputs.x as string;
+          let seenRuleType = seenRule.type as string;
 
           if (seenRuleType === 'IsEquivalentTo' && (
             algebraicRulesService.IsEquivalentTo(
@@ -86,9 +105,10 @@ export class NumericExpressionInputValidationService {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
               message: (
-                'Rule ' + (j + 1) + ' from answer group ' + (i + 1) +
-                ' will never be matched because it is preceded ' +
-                'by an \'IsEquivalentTo\' rule with a matching input.')
+                'Learner answer ' + (j + 1) + ' from Oppia ' +
+                'response ' + (i + 1) + ' will never be matched ' +
+                'because it is preceded by an \'IsEquivalentTo\' ' +
+                'answer with a matching input.')
             });
           } else if (currentRuleType === 'MatchesExactlyWith' && (
             algebraicRulesService.MatchesExactlyWith(
@@ -98,9 +118,10 @@ export class NumericExpressionInputValidationService {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
               message: (
-                'Rule ' + (j + 1) + ' from answer group ' + (i + 1) +
-                ' will never be matched because it is preceded ' +
-                'by a \'MatchesExactlyWith\' rule with a matching input.')
+                'Learner answer ' + (j + 1) + ' from Oppia ' +
+                'response ' + (i + 1) + ' will never be matched ' +
+                'because it is preceded by a \'MatchesExactlyWith\' ' +
+                'answer with a matching input.')
             });
           }
         }

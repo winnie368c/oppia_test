@@ -16,47 +16,74 @@
  * @fileoverview Module for the admin page.
  */
 
-import 'core-js/es7/reflect';
-import 'zone.js';
-
-import 'angular-ui-sortable';
-import uiValidate from 'angular-ui-validate';
-
-angular.module('oppia', [
-  require('angular-cookies'), 'headroom', 'ngAnimate',
-  'ngMaterial', 'ngSanitize', 'ngTouch', 'pascalprecht.translate',
-  'toastr', 'ui.bootstrap', 'ui.sortable', uiValidate
-]);
-
 import { APP_INITIALIZER, NgModule, StaticProvider } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { BrowserModule } from '@angular/platform-browser';
+import { BrowserModule, HAMMER_GESTURE_CONFIG } from '@angular/platform-browser';
 import { downgradeComponent } from '@angular/upgrade/static';
 import { HttpClientModule } from '@angular/common/http';
 import { HTTP_INTERCEPTORS } from '@angular/common/http';
+import { RouterModule } from '@angular/router';
+import { APP_BASE_HREF } from '@angular/common';
+
 import { RequestInterceptor } from 'services/request-interceptor.service';
 import { SharedComponentsModule } from 'components/shared-component.module';
 import { AdminFeaturesTabComponent } from
   'pages/admin-page/features-tab/admin-features-tab.component';
+import { AdminNavbarComponent } from './navbar/admin-navbar.component';
+import { AdminDevModeActivitiesTabComponent } from './activities-tab/admin-dev-mode-activities-tab.component';
 import { OppiaAngularRootComponent } from
   'components/oppia-angular-root.component';
+import { OppiaAdminProdModeActivitiesTabComponent } from
+  './activities-tab/admin-prod-mode-activities-tab.component';
 import { platformFeatureInitFactory, PlatformFeatureService } from
   'services/platform-feature.service';
+import { AdminMiscTabComponent } from './misc-tab/admin-misc-tab.component';
+import { AdminRolesTabComponent } from './roles-tab/admin-roles-tab.component';
+import { AdminConfigTabComponent } from './config-tab/admin-config-tab.component';
+import { AdminPageComponent } from './admin-page.component';
+import { TopicManagerRoleEditorModalComponent } from './roles-tab/topic-manager-role-editor-modal.component';
+import { SharedFormsModule } from 'components/forms/shared-forms.module';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { ToastrModule } from 'ngx-toastr';
+import { MyHammerConfig, toastrConfig } from 'pages/oppia-root/app.module';
+import { SmartRouterModule } from 'hybrid-router-module-provider';
 
 @NgModule({
   imports: [
     BrowserModule,
+    BrowserAnimationsModule,
     FormsModule,
     HttpClientModule,
-    SharedComponentsModule
+    // TODO(#13443): Remove smart router module provider once all pages are
+    // migrated to angular router.
+    SmartRouterModule,
+    RouterModule.forRoot([]),
+    SharedComponentsModule,
+    SharedFormsModule,
+    AdminBlogAdminCommonModule,
+    ToastrModule.forRoot(toastrConfig)
   ],
   declarations: [
-    OppiaAngularRootComponent,
-    AdminFeaturesTabComponent
+    OppiaAdminProdModeActivitiesTabComponent,
+    AdminConfigTabComponent,
+    AdminFeaturesTabComponent,
+    AdminMiscTabComponent,
+    AdminNavbarComponent,
+    AdminPageComponent,
+    AdminRolesTabComponent,
+    AdminDevModeActivitiesTabComponent,
+    TopicManagerRoleEditorModalComponent
   ],
   entryComponents: [
-    OppiaAngularRootComponent,
-    AdminFeaturesTabComponent
+    OppiaAdminProdModeActivitiesTabComponent,
+    AdminConfigTabComponent,
+    AdminFeaturesTabComponent,
+    AdminMiscTabComponent,
+    AdminNavbarComponent,
+    AdminPageComponent,
+    AdminRolesTabComponent,
+    AdminDevModeActivitiesTabComponent,
+    TopicManagerRoleEditorModalComponent
   ],
   providers: [
     {
@@ -69,6 +96,15 @@ import { platformFeatureInitFactory, PlatformFeatureService } from
       useFactory: platformFeatureInitFactory,
       deps: [PlatformFeatureService],
       multi: true
+    },
+    {
+      provide: HAMMER_GESTURE_CONFIG,
+      useClass: MyHammerConfig
+    },
+    AppErrorHandlerProvider,
+    {
+      provide: APP_BASE_HREF,
+      useValue: '/'
     }
   ]
 })
@@ -79,12 +115,14 @@ class AdminPageModule {
 
 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
 import { downgradeModule } from '@angular/upgrade/static';
+import { AdminBlogAdminCommonModule } from './admin-blog-admin-common.module';
+import { AppErrorHandlerProvider } from 'pages/oppia-root/app-error-handler';
 
-const bootstrapFn = (extraProviders: StaticProvider[]) => {
+const bootstrapFnAsync = async(extraProviders: StaticProvider[]) => {
   const platformRef = platformBrowserDynamic(extraProviders);
   return platformRef.bootstrapModule(AdminPageModule);
 };
-const downgradedModule = downgradeModule(bootstrapFn);
+const downgradedModule = downgradeModule(bootstrapFnAsync);
 
 declare var angular: ng.IAngularStatic;
 

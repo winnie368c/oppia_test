@@ -14,14 +14,16 @@
 
 """Unit tests for scripts/create_topological_sort_of_all_services.py."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
+import builtins
 import collections
 import os
 
 from core.tests import test_utils
-import python_utils
+
+from typing import List
+
 from . import create_topological_sort_of_all_services
 
 MOCK_DIRECTORY_NAMES = [os.path.join('core', 'tests', 'services_sources')]
@@ -32,9 +34,9 @@ class TopologicalSortTests(test_utils.GenericTestBase):
     on dependencies.
     """
 
-    def test_dfs_with_connected_graph(self):
-        topo_sort_stack = []
-        visit_stack = []
+    def test_dfs_with_connected_graph(self) -> None:
+        topo_sort_stack: List[str] = []
+        visit_stack: List[str] = []
         adj_list = collections.defaultdict(list)
         adj_list['A'] = ['B', 'C']
         adj_list['C'] = ['D']
@@ -43,11 +45,11 @@ class TopologicalSortTests(test_utils.GenericTestBase):
         self.assertEqual(topo_sort_stack, ['B', 'D', 'C', 'A'])
         self.assertEqual(visit_stack, ['A', 'B', 'C', 'D'])
 
-    def test_make_graph(self):
+    def test_make_graph(self) -> None:
         with self.swap(
             create_topological_sort_of_all_services, 'DIRECTORY_NAMES',
             MOCK_DIRECTORY_NAMES):
-            adj_list, node_set = (
+            adj_list, node_list = (
                 create_topological_sort_of_all_services.make_graph())
 
             expected_adj_list = {
@@ -58,26 +60,26 @@ class TopologicalSortTests(test_utils.GenericTestBase):
                 'ATestFactory.ts': ['CTest.service.ts'],
                 'CTest.service.ts': ['ETestFactory.ts']}
 
-            expected_node_set = set([
+            expected_node_set = {
                 'DTest.service.ts', 'ETestFactory.ts', 'BTestService.ts',
-                'CTest.service.ts', 'ATestFactory.ts'])
+                'CTest.service.ts', 'ATestFactory.ts'}
 
             self.assertEqual(
-                sorted(adj_list.keys()), sorted(expected_adj_list.keys())) # pylint: disable=dict-keys-not-iterating
+                sorted(adj_list.keys()), sorted(expected_adj_list.keys()))
 
             for key in adj_list:
                 self.assertEqual(
                     sorted(adj_list[key]), sorted(expected_adj_list[key]))
 
-            self.assertEqual(node_set, expected_node_set)
+            self.assertEqual(set(node_list), expected_node_set)
 
-    def test_complete_process(self):
+    def test_complete_process(self) -> None:
         actual_output = []
 
-        def mock_print(val):
+        def mock_print(val: str) -> None:
             actual_output.append(val)
 
-        print_swap = self.swap(python_utils, 'PRINT', mock_print)
+        print_swap = self.swap(builtins, 'print', mock_print)
         dir_names_swap = self.swap(
             create_topological_sort_of_all_services, 'DIRECTORY_NAMES',
             MOCK_DIRECTORY_NAMES)
@@ -90,6 +92,4 @@ class TopologicalSortTests(test_utils.GenericTestBase):
         expected_output_2 = [
             'DTest.service.ts', 'ATestFactory.ts', 'BTestService.ts',
             'CTest.service.ts', 'ETestFactory.ts']
-        self.assertTrue((
-            actual_output == expected_output_1) or (
-                actual_output == expected_output_2))
+        self.assertIn(actual_output, (expected_output_1, expected_output_2))

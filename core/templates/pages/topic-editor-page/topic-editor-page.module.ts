@@ -16,58 +16,90 @@
  * @fileoverview Module for the story viewer page.
  */
 
-import 'core-js/es7/reflect';
-import 'zone.js';
-
-import 'angular-ui-sortable';
-import uiValidate from 'angular-ui-validate';
-import 'third-party-imports/dnd-lists.import';
-import 'third-party-imports/ui-codemirror.import';
-import 'third-party-imports/ui-tree.import';
-
-angular.module('oppia', [
-  require('angular-cookies'), 'dndLists', 'headroom', 'ngAnimate',
-  'ngMaterial', 'ngSanitize', 'ngTouch', 'pascalprecht.translate',
-  'toastr', 'ui.bootstrap', 'ui.codemirror', 'ui.sortable', 'ui.tree',
-  uiValidate
-]);
-
 import { APP_INITIALIZER, NgModule, StaticProvider } from '@angular/core';
-import { BrowserModule } from '@angular/platform-browser';
+import { BrowserModule, HAMMER_GESTURE_CONFIG } from '@angular/platform-browser';
 import { downgradeComponent } from '@angular/upgrade/static';
 import { HttpClientModule } from '@angular/common/http';
 import { HTTP_INTERCEPTORS } from '@angular/common/http';
+import { InteractionExtensionsModule } from 'interactions/interactions.module';
 import { RequestInterceptor } from 'services/request-interceptor.service';
 import { SharedComponentsModule } from 'components/shared-component.module';
 import { OppiaAngularRootComponent } from
   'components/oppia-angular-root.component';
 import { platformFeatureInitFactory, PlatformFeatureService } from
   'services/platform-feature.service';
-
-import { PracticeTabComponent } from
-  'pages/topic-viewer-page/practice-tab/practice-tab.component';
-import { StoriesListComponent } from
-  'pages/topic-viewer-page/stories-list/topic-viewer-stories-list.component';
-import { SubtopicsListComponent } from
-  'pages/topic-viewer-page/subtopics-list/subtopics-list.component';
+import { RouterModule } from '@angular/router';
+import { APP_BASE_HREF } from '@angular/common';
+import { SubtopicPreviewTab } from './subtopic-editor/subtopic-preview-tab.component';
+import { ChangeSubtopicAssignmentModalComponent } from './modal-templates/change-subtopic-assignment-modal.component';
+import { TopicPreviewTabComponent } from './preview-tab/topic-preview-tab.component';
+import { TopicEditorNavbarBreadcrumbComponent } from './navbar/topic-editor-navbar-breadcrumb.component';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { MyHammerConfig, toastrConfig } from 'pages/oppia-root/app.module';
+import { CreateNewSubtopicModalComponent } from 'pages/topic-editor-page/modal-templates/create-new-subtopic-modal.component';
+import { DeleteStoryModalComponent } from './modal-templates/delete-story-modal.component';
+import { TopicEditorSendMailComponent } from './modal-templates/topic-editor-send-mail-modal.component';
+import { TopicEditorSaveModalComponent } from './modal-templates/topic-editor-save-modal.component';
+import { SmartRouterModule } from 'hybrid-router-module-provider';
+import { AppErrorHandlerProvider } from 'pages/oppia-root/app-error-handler';
+import { TopicEditorNavbarComponent } from './navbar/topic-editor-navbar.component';
+import { TopicQuestionsTabComponent } from './questions-tab/topic-questions-tab.component';
+import { RearrangeSkillsInSubtopicsModalComponent } from './modal-templates/rearrange-skills-in-subtopics-modal.component';
+import { CreateNewStoryModalComponent } from './modal-templates/create-new-story-modal.component';
+import { TopicEditorStoriesListComponent } from './editor-tab/topic-editor-stories-list.component';
+import { TopicEditorTabComponent } from './editor-tab/topic-editor-tab.directive';
+import { TopicEditorPageComponent } from './topic-editor-page.component';
+import { SubtopicEditorTabComponent } from './subtopic-editor/subtopic-editor-tab.component';
 
 @NgModule({
   imports: [
     BrowserModule,
+    BrowserAnimationsModule,
     HttpClientModule,
-    SharedComponentsModule
+    // TODO(#13443): Remove smart router module provider once all pages are
+    // migrated to angular router.
+    SmartRouterModule,
+    RouterModule.forRoot([]),
+    InteractionExtensionsModule,
+    SharedComponentsModule,
+    TopicPlayerViewerCommonModule,
+    ToastrModule.forRoot(toastrConfig)
   ],
   declarations: [
-    OppiaAngularRootComponent,
-    PracticeTabComponent,
-    StoriesListComponent,
-    SubtopicsListComponent
+    ChangeSubtopicAssignmentModalComponent,
+    RearrangeSkillsInSubtopicsModalComponent,
+    SubtopicPreviewTab,
+    TopicPreviewTabComponent,
+    TopicEditorNavbarBreadcrumbComponent,
+    CreateNewSubtopicModalComponent,
+    CreateNewStoryModalComponent,
+    DeleteStoryModalComponent,
+    TopicEditorSendMailComponent,
+    TopicEditorSaveModalComponent,
+    TopicEditorNavbarComponent,
+    TopicQuestionsTabComponent,
+    TopicEditorStoriesListComponent,
+    TopicEditorTabComponent,
+    TopicEditorPageComponent,
+    SubtopicEditorTabComponent
   ],
   entryComponents: [
-    OppiaAngularRootComponent,
-    PracticeTabComponent,
-    StoriesListComponent,
-    SubtopicsListComponent,
+    ChangeSubtopicAssignmentModalComponent,
+    RearrangeSkillsInSubtopicsModalComponent,
+    SubtopicPreviewTab,
+    TopicPreviewTabComponent,
+    TopicEditorNavbarBreadcrumbComponent,
+    CreateNewSubtopicModalComponent,
+    CreateNewStoryModalComponent,
+    DeleteStoryModalComponent,
+    TopicEditorSendMailComponent,
+    TopicEditorSaveModalComponent,
+    TopicEditorNavbarComponent,
+    TopicQuestionsTabComponent,
+    TopicEditorStoriesListComponent,
+    TopicEditorTabComponent,
+    TopicEditorPageComponent,
+    SubtopicEditorTabComponent
   ],
   providers: [
     {
@@ -80,6 +112,15 @@ import { SubtopicsListComponent } from
       useFactory: platformFeatureInitFactory,
       deps: [PlatformFeatureService],
       multi: true
+    },
+    {
+      provide: HAMMER_GESTURE_CONFIG,
+      useClass: MyHammerConfig
+    },
+    AppErrorHandlerProvider,
+    {
+      provide: APP_BASE_HREF,
+      useValue: '/'
     }
   ]
 })
@@ -90,12 +131,14 @@ class TopicEditorPageModule {
 
 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
 import { downgradeModule } from '@angular/upgrade/static';
+import { ToastrModule } from 'ngx-toastr';
+import { TopicPlayerViewerCommonModule } from 'pages/topic-viewer-page/topic-viewer-player-common.module';
 
-const bootstrapFn = (extraProviders: StaticProvider[]) => {
+const bootstrapFnAsync = async(extraProviders: StaticProvider[]) => {
   const platformRef = platformBrowserDynamic(extraProviders);
   return platformRef.bootstrapModule(TopicEditorPageModule);
 };
-const downgradedModule = downgradeModule(bootstrapFn);
+const downgradedModule = downgradeModule(bootstrapFnAsync);
 
 declare var angular: ng.IAngularStatic;
 

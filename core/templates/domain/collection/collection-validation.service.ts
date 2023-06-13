@@ -51,7 +51,7 @@ export class CollectionValidationService {
     // Check to ensure that all tags follow the format specified in
     // TAG_REGEX.
     var tagRegex = new RegExp(AppConstants.TAG_REGEX);
-    return tags.every(function(tag) {
+    return tags.every((tag) => {
       return tag.match(tagRegex);
     });
   }
@@ -63,6 +63,7 @@ export class CollectionValidationService {
       return tags.indexOf(tag, idx + 1) === -1;
     });
   }
+
   // Validates that the tags for the collection are normalized,
   // returns true if all tags were normalized.
   validateTagsNormalized(tags: string[]): boolean {

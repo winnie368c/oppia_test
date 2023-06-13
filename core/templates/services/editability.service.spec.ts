@@ -25,9 +25,23 @@ describe('EditabilityService', () => {
     editabilityService = new EditabilityService();
   });
 
+  it('should successfully lock an exploration', () => {
+    editabilityService.markEditable();
+    editabilityService.onEndTutorial();
+
+    editabilityService.lockExploration(false);
+    expect(editabilityService.isEditable()).toBe(true);
+    expect(editabilityService.isLockedByAdmin()).toBe(false);
+
+    editabilityService.lockExploration(true);
+    expect(editabilityService.isEditable()).toBe(false);
+    expect(editabilityService.isLockedByAdmin()).toBe(true);
+  });
+
   it('should allow to edit an exploration after the tutorial ends', () => {
     editabilityService.onEndTutorial();
     editabilityService.markEditable();
+    editabilityService.lockExploration(false);
     expect(editabilityService.isEditable()).toBe(true);
   });
 
@@ -53,5 +67,12 @@ describe('EditabilityService', () => {
   it('should not allow to edit an uneditable exploration', () => {
     editabilityService.markNotEditable();
     expect(editabilityService.isEditable()).toBe(false);
+  });
+
+  it('should return correctly when checking if in tutorial mode', () => {
+    editabilityService.onEndTutorial();
+    expect(editabilityService.inTutorialMode()).toBe(false);
+    editabilityService.onStartTutorial();
+    expect(editabilityService.inTutorialMode()).toBe(true);
   });
 });

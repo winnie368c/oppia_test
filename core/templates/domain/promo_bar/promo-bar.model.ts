@@ -33,15 +33,24 @@ export class PromoBar {
   static createFromBackendDict(data: PromoBarBackendDict): PromoBar {
     return new PromoBar(data.promo_bar_enabled, data.promo_bar_message);
   }
+
   static createEmpty(): PromoBar {
     return new PromoBar(false, '');
   }
 
-  isPromoBarEnabled(): boolean {
+  get promoBarEnabled(): boolean {
     return this._promoBarEnabled;
   }
 
-  getPromoBarMessage(): string {
+  set promoBarEnabled(status: boolean) {
+    this._promoBarEnabled = status;
+  }
+
+  get promoBarMessage(): string {
     return this._promoBarMessage;
+  }
+
+  set promoBarMessage(message: string) {
+    this._promoBarMessage = message;
   }
 }

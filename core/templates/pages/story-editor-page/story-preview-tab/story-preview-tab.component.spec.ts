@@ -18,136 +18,131 @@
 
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { EventEmitter } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
-
-import { EditableStoryBackendApiService } from
-  'domain/story/editable-story-backend-api.service';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { StoryEditorNavigationService } from
   'pages/story-editor-page/services/story-editor-navigation.service';
-import { StoryObjectFactory } from 'domain/story/StoryObjectFactory';
-import { importAllAngularServices } from 'tests/unit-test-utils';
+import { Story } from 'domain/story/story.model';
+import { StoryPreviewTabComponent } from './story-preview-tab.component';
+import { StoryEditorStateService } from '../services/story-editor-state.service';
+import { MockTranslatePipe } from 'tests/unit-test-utils';
 
-describe('Story Preview tab', function() {
-  var $scope = null;
-  var ctrl = null;
-  var story = null;
-  var MockStoryEditorNavigationService = null;
-  var storyInitializedEventEmitter = null;
-  var storyReinitializedEventEmitter = null;
-  importAllAngularServices();
+class MockStoryEditorNavigationService {
+  activeTab!: 'story_preview';
+  getActiveTab!: () => string;
+  getChapterId!: () => 'node_1';
+  getChapterIndex!: () => null;
+  navigateToStoryEditor!: () => {};
+}
+describe('Story Preview tab', () => {
+  let component: StoryPreviewTabComponent;
+  let fixture: ComponentFixture<StoryPreviewTabComponent>;
+  let story: Story;
+  let storyInitializedEventEmitter: EventEmitter<string>;
+  let storyReinitializedEventEmitter: EventEmitter<string>;
+  let storyEditorStateService: StoryEditorStateService;
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [HttpClientTestingModule],
-      providers: [StoryObjectFactory, StoryEditorNavigationService,
-        EditableStoryBackendApiService]
-    });
+      declarations: [StoryPreviewTabComponent, MockTranslatePipe],
+      providers: [{
+        StoryEditorNavigationService,
+        provide: [
+          {
+            provide: StoryEditorNavigationService,
+            UseClass: MockStoryEditorNavigationService
+          }
+        ]
+      }]
+    }).compileComponents();
   });
-  beforeEach(angular.mock.module('oppia', function($provide) {
-    $provide.value(
-      'EditableStoryBackendApiService',
-      TestBed.get(EditableStoryBackendApiService));
-    $provide.value('StoryObjectFactory', TestBed.get(StoryObjectFactory));
-    $provide.value(
-      'StoryEditorNavigationService',
-      TestBed.get(StoryEditorNavigationService));
-  }));
-
-  beforeEach(angular.mock.inject(function($injector, $componentController) {
-    var $rootScope = $injector.get('$rootScope');
-    var StoryObjectFactory = $injector.get('StoryObjectFactory');
-    var StoryEditorStateService = $injector.get('StoryEditorStateService');
-    $scope = $rootScope.$new();
-    MockStoryEditorNavigationService = {
-      activeTab: 'story_preview',
-      getActiveTab: () => this.activeTab,
-      getChapterId: () => 'node_1',
-      getChapterIndex: () => null,
-      navigateToStoryEditor: () => {
-        this.activeTab = 'story';
-      }
-    };
-
-    story = StoryObjectFactory.createFromBackendDict({
+  beforeEach(() => {
+    fixture = TestBed.createComponent(StoryPreviewTabComponent);
+    component = fixture.componentInstance;
+    storyEditorStateService = TestBed.get(StoryEditorStateService);
+    story = Story.createFromBackendDict({
       id: 'storyId_0',
       title: 'Story title',
       description: 'Story Description',
       notes: '<p>Notes/p>',
+      version: 1,
+      corresponding_topic_id: 'topic_id',
       story_contents: {
         initial_node_id: 'node_1',
-        next_node_id: 'node_3',
-        nodes: [{
-          id: 'node_1',
-          prerequisite_skill_ids: [],
-          acquired_skill_ids: [],
-          destination_node_ids: [],
-          outline: 'Outline',
-          exploration_id: 'exp_1',
-          outline_is_finalized: false,
-          thumbnail_filename: 'img.png',
-          thumbnail_bg_color: '#a33f40'
-        }, {
-          id: 'node_2',
-          prerequisite_skill_ids: [],
-          acquired_skill_ids: [],
-          destination_node_ids: [],
-          outline: 'Outline',
-          exploration_id: 'exp_2',
-          outline_is_finalized: false,
-          thumbnail_filename: 'img2.png',
-          thumbnail_bg_color: '#a33f40'
-        }],
+        nodes: [
+          {
+            id: 'node_1',
+            title: 'Title 1',
+            description: 'Description 1',
+            prerequisite_skill_ids: [],
+            acquired_skill_ids: [],
+            destination_node_ids: [],
+            outline: 'Outline',
+            exploration_id: 'exp_1',
+            outline_is_finalized: false,
+            thumbnail_filename: 'img.png',
+            thumbnail_bg_color: '#a33f40'
+          }, {
+            id: 'node_2',
+            title: 'Title 2',
+            description: 'Description 2',
+            prerequisite_skill_ids: [],
+            acquired_skill_ids: [],
+            destination_node_ids: [],
+            outline: 'Outline',
+            exploration_id: 'exp_2',
+            outline_is_finalized: false,
+            thumbnail_filename: 'img2.png',
+            thumbnail_bg_color: '#a33f40'
+          }],
+        next_node_id: 'node_3'
       },
       language_code: 'en',
-      story_contents_schema_version: '1',
-      version: '1',
-      corresponding_topic_id: 'topic_id'
+      thumbnail_filename: 'fileName',
+      thumbnail_bg_color: 'blue',
+      url_fragment: 'url',
+      meta_tag_content: 'meta'
     });
 
     storyInitializedEventEmitter = new EventEmitter();
     storyReinitializedEventEmitter = new EventEmitter();
 
-    spyOn(StoryEditorStateService, 'getStory').and.returnValue(story);
-    spyOnProperty(StoryEditorStateService, 'onStoryInitialized').and.callFake(
-      function() {
+    spyOn(storyEditorStateService, 'getStory').and.returnValue(story);
+    spyOnProperty(storyEditorStateService, 'onStoryInitialized').and.callFake(
+      () => {
         return storyInitializedEventEmitter;
       });
-    spyOnProperty(StoryEditorStateService, 'onStoryReinitialized').and.callFake(
-      function() {
+    spyOnProperty(storyEditorStateService, 'onStoryReinitialized').and.callFake(
+      () => {
         return storyReinitializedEventEmitter;
       });
-    ctrl = $componentController('storyPreviewTab', {
-      $scope: $scope,
-      StoryEditorStateService: StoryEditorStateService,
-      StoryEditorNavigationService: MockStoryEditorNavigationService,
-    });
-  }));
+  });
 
   afterEach(() => {
-    ctrl.$onDestroy();
+    component.ngOnDestroy();
   });
 
-  it('should set initialize the variables', function() {
-    ctrl.$onInit();
-    expect(ctrl.story).toEqual(story);
-    expect(ctrl.storyId).toEqual('storyId_0');
+  it('should set initialize the variables', () => {
+    component.ngOnInit();
+    expect(component.story).toEqual(story);
+    expect(component.storyId).toEqual('storyId_0');
   });
 
-  it('should return the exploration url for the story node', function() {
-    ctrl.$onInit();
+  it('should return the exploration url for the story node', () => {
+    component.ngOnInit();
     let node = story.getStoryContents().getNodes()[0];
-    expect(ctrl.getExplorationUrl(node)).toEqual(
+    expect(component.getExplorationUrl(node)).toEqual(
       '/explore/exp_1?story_id=storyId_0&node_id=node_1');
     node = story.getStoryContents().getNodes()[1];
-    expect(ctrl.getExplorationUrl(node)).toEqual(
+    expect(component.getExplorationUrl(node)).toEqual(
       '/explore/exp_2?story_id=storyId_0&node_id=node_2');
   });
 
   it('should called initEditor on calls from story being initialized',
-    function() {
-      spyOn(ctrl, 'initEditor').and.callThrough();
-      ctrl.$onInit();
+    () => {
+      spyOn(component, 'initEditor').and.callThrough();
+      component.ngOnInit();
       storyInitializedEventEmitter.emit();
       storyReinitializedEventEmitter.emit();
-      expect(ctrl.initEditor).toHaveBeenCalledTimes(3);
+      expect(component.initEditor).toHaveBeenCalledTimes(3);
     });
 });

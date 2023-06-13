@@ -34,18 +34,37 @@ import { Outcome } from
   'domain/exploration/OutcomeObjectFactory';
 import { SubtitledUnicode } from
   'domain/exploration/SubtitledUnicodeObjectFactory';
+import { TranslatableSetOfNormalizedString } from 'interactions/rule-input-defs';
 import { UtilsService } from 'services/utils.service';
 
+export interface MinMaxValue {
+  'max_value'?: number;
+  id: string;
+  'min_value'?: number;
+}
+
+export type RequireOnlyOne<T, Keys extends keyof T> =
+  Pick<T, Exclude<keyof T, Keys>>
+   & { [K in Keys]-?:
+       Required<Pick<T, K>>
+       & Partial<Record<Exclude<Keys, K>, undefined>>
+     }[Keys];
+
+export type Validator = RequireOnlyOne<MinMaxValue, 'min_value' | 'max_value'>;
+
 interface Warning {
-  type: string,
-  message: string
+  type: string;
+  message: string;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class TextInputValidationService {
-  constructor(private bivs: baseInteractionValidationService) {}
+  constructor(
+    private bivs: baseInteractionValidationService
+  ) {}
+
   getCustomizationArgsWarnings(
       customizationArgs: TextInputCustomizationArgs): Warning[] {
     let warningsList = [];
@@ -57,7 +76,7 @@ export class TextInputValidationService {
 
     if (
       !(placeholder instanceof SubtitledUnicode) ||
-      !angular.isString(placeholder.getUnicode())
+      !angular.isString(placeholder.unicode)
     ) {
       warningsList.push({
         type: AppConstants.WARNING_TYPES.ERROR,
@@ -66,8 +85,8 @@ export class TextInputValidationService {
       });
     }
 
-    let isInt = function(n) {
-      return angular.isNumber(n) && n % 1 === 0;
+    let isInt = (n: number) => {
+      return ((typeof n === 'number') && (n % 1 === 0));
     };
 
     let rows = customizationArgs.rows.value;
@@ -75,14 +94,15 @@ export class TextInputValidationService {
       let textSpecs = InteractionSpecsConstants.INTERACTION_SPECS.TextInput;
       let customizationArgSpecs = textSpecs.customization_arg_specs;
       let rowsSpecs = customizationArgSpecs[1];
-      let minRows = rowsSpecs.schema.validators[0].min_value;
-      let maxRows = rowsSpecs.schema.validators[1].max_value;
-      if (rows < minRows || rows > maxRows) {
+      let validators = rowsSpecs.schema.validators as Validator[];
+      let minRows = validators[0].min_value;
+      let maxRows = validators[1].max_value;
+      if ((maxRows && minRows) && (rows < minRows || rows > maxRows)) {
         warningsList.push({
           type: AppConstants.WARNING_TYPES.ERROR,
           message: (
             'Number of rows must be between ' + minRows + ' and ' +
-            maxRows + '.')
+              maxRows + '.')
         });
       }
     } else {
@@ -120,15 +140,17 @@ export class TextInputValidationService {
           warningsList.push({
             type: AppConstants.WARNING_TYPES.ERROR,
             message: (
-              `Answer group ${answerGroupIndex + 1} has multiple rules with ` +
-              `the same type \'${rule.type}\' within the same group.`
+              `Oppia response ${answerGroupIndex + 1} has multiple learner ` +
+              `answers with the same type \'${rule.type}\' within the same ` +
+              'response.'
             )
           });
         }
         seenRuleTypes.add(rule.type);
 
 
-        let currentStrings = <string[]> rule.inputs.x;
+        let currentStrings = (
+          rule.inputs.x as TranslatableSetOfNormalizedString).normalizedStrSet;
         if (rule.type === 'Contains') {
           // Check if any of the current strings contain any of the previously
           // seen strings as a substring.
@@ -141,9 +163,9 @@ export class TextInputValidationService {
           if (hasCollision || seenStringsStartsWith.includes('')) {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
-              message: `Rule ${ruleIndex + 1} from answer group ` +
-                `${answerGroupIndex + 1} will never be matched because it ` +
-                'is preceded by a \'Contains\' rule with a matching input.'
+              message: `Learner answer ${ruleIndex + 1} from Oppia response ` +
+              `${answerGroupIndex + 1} will never be matched because it ` +
+              'is preceded by a \'Contains\' answer with a matching input.'
             });
           }
 
@@ -161,42 +183,51 @@ export class TextInputValidationService {
           if (hasCollision) {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
-              message: `Rule ${ruleIndex + 1} from answer group ` +
-                `${answerGroupIndex + 1} will never be matched because it ` +
-                'is preceded by a \'StartsWith\' rule with a matching prefix.'
+              message: `Learner answer ${ruleIndex + 1} from Oppia response ` +
+              `${answerGroupIndex + 1} will never be matched because it ` +
+              'is preceded by a \'StartsWith\' answer with a matching prefix.'
             });
           }
           seenStringsStartsWith.push(...currentStrings);
         } else if (rule.type === 'Equals') {
           if (seenStringsEquals.some(
             (seenString) => textInputRulesService.Equals(
-              seenString, {x: currentStrings}))) {
+              seenString, {x: {
+                contentId: null, normalizedStrSet: currentStrings
+              },
+              contentId: null}))) {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
-              message: `Rule ${ruleIndex + 1} from answer group ` +
-                `${answerGroupIndex + 1} will never be matched because it ` +
-                'is preceded by a \'Equals\' rule with a matching input.'
+              message: `Learner answer ${ruleIndex + 1} from Oppia response ` +
+              `${answerGroupIndex + 1} will never be matched because it ` +
+              'is preceded by a \'Equals\' answer with a matching input.'
             });
           } else if (seenStringsFuzzyEquals.some(
             (seenString) => textInputRulesService.FuzzyEquals(
-              seenString, {x: currentStrings}))) {
+              seenString, {x: {
+                contentId: null, normalizedStrSet: currentStrings
+              },
+              contentId: null}))) {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
-              message: `Rule ${ruleIndex + 1} from answer group ` +
-                `${answerGroupIndex + 1} will never be matched because it ` +
-                'is preceded by a \'FuzzyEquals\' rule with a matching input.'
+              message: `Learner answer ${ruleIndex + 1} from Oppia response ` +
+              `${answerGroupIndex + 1} will never be matched because it ` +
+              'is preceded by a \'FuzzyEquals\' answer with a matching input.'
             });
           }
           seenStringsEquals.push(...currentStrings);
         } else if (rule.type === 'FuzzyEquals') {
           if (seenStringsFuzzyEquals.some(
             (seenString) => textInputRulesService.FuzzyEquals(
-              seenString, {x: currentStrings}))) {
+              seenString, {x: {
+                contentId: null, normalizedStrSet: currentStrings
+              },
+              contentId: null}))) {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
-              message: `Rule ${ruleIndex + 1} from answer group ` +
-                `${answerGroupIndex + 1} will never be matched because it ` +
-                'is preceded by a \'FuzzyEquals\' rule with a matching input.'
+              message: `Learner answer ${ruleIndex + 1} from Oppia response ` +
+              `${answerGroupIndex + 1} will never be matched because it ` +
+              'is preceded by a \'FuzzyEquals\' answer with a matching input.'
             });
           }
           seenStringsFuzzyEquals.push(...currentStrings);

@@ -16,40 +16,29 @@
 
 """Lint checks for Js and Ts files."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import collections
-import json
 import os
 import re
 import shutil
 import subprocess
-import sys
 
-import python_utils
+import esprima
 
-from .. import build
+from typing import Dict, Final, List, Tuple, Union
+
+from . import linter_utils
 from .. import common
 from .. import concurrent_task_utils
 
-CURR_DIR = os.path.abspath(os.getcwd())
-OPPIA_TOOLS_DIR = os.path.join(CURR_DIR, os.pardir, 'oppia_tools')
+MYPY = False
+if MYPY:  # pragma: no cover
+    from scripts.linters import pre_commit_linter
 
-ESPRIMA_PATH = os.path.join(
-    OPPIA_TOOLS_DIR, 'esprima-%s' % common.ESPRIMA_VERSION)
+ParsedExpressionsType = Dict[str, Dict[str, List[esprima.nodes.Node]]]
 
-sys.path.insert(1, ESPRIMA_PATH)
-
-import esprima  # isort:skip pylint: disable=wrong-import-order, wrong-import-position
-
-COMPILED_TYPESCRIPT_TMP_PATH = 'tmpcompiledjs/'
-
-TS_IGNORE_EXCEPTIONS_FILEPATH = os.path.join(
-    CURR_DIR, 'scripts', 'linters', 'ts_ignore_exceptions.json')
-
-TS_IGNORE_EXCEPTIONS = json.load(python_utils.open_file(
-    TS_IGNORE_EXCEPTIONS_FILEPATH, 'r'))
+COMPILED_TYPESCRIPT_TMP_PATH: Final = 'tmpcompiledjs/'
 
 # The INJECTABLES_TO_IGNORE contains a list of services that are not supposed
 # to be included in angular-services.index.ts. These services are not required
@@ -57,25 +46,58 @@ TS_IGNORE_EXCEPTIONS = json.load(python_utils.open_file(
 # class of legacy services that will soon be removed from the codebase.
 # NOTE TO DEVELOPERS: Don't add any more files to this list. If you have any
 # questions, please talk to @srijanreddy98.
-INJECTABLES_TO_IGNORE = [
-    'MockIgnoredService', # This file is required for the js-ts-linter-test.
-    'UpgradedServices' # We don't want this service to be present in the index.
+INJECTABLES_TO_IGNORE: Final = [
+    # This file is required for the js-ts-linter-test.
+    'MockIgnoredService',
+    # We don't want this service to be present in the index.
+    'UpgradedServices',
+    # Route guards cannot be made injectables until migration is complete.
+    'CanAccessSplashPageGuard',
 ]
 
 
+def _parse_js_or_ts_file(
+    filepath: str, file_content: str, comment: bool = False
+) -> Union[esprima.nodes.Module, esprima.nodes.Script]:
+    """Runs the correct function to parse the given file's source code.
+
+    With ES2015 and later, a JavaScript program can be either a script or a
+    module. It is a very important distinction, since a parser such as Esprima
+    needs to know the type of the source to be able to analyze its syntax
+    correctly. This is achieved by choosing the parseScript function to parse a
+    script and the parseModule function to parse a module.
+
+    https://esprima.readthedocs.io/en/latest/syntactic-analysis.html#distinguishing-a-script-and-a-module
+
+    Args:
+        filepath: str. Path of the source file.
+        file_content: str. Code to compile.
+        comment: bool. Whether to collect comments while parsing the js or ts
+            files.
+
+    Returns:
+        Union[Script, Module]. Parsed contents produced by esprima.
+    """
+    parse_function = (
+        esprima.parseScript if filepath.endswith('.js') else
+        esprima.parseModule)
+    return parse_function(file_content, comment=comment)
+
+
 def _get_expression_from_node_if_one_exists(
-        parsed_node, components_to_check):
+    parsed_node: esprima.nodes.Node, possible_component_names: List[str]
+) -> esprima.nodes.Node:
     """This function first checks whether the parsed node represents
     the required angular component that needs to be derived by checking if
-    its in the 'components_to_check' list. If yes, then it  will return the
-    expression part of the node from which the component can be derived.
+    it's in the 'possible_component_names' list. If yes, then it will return
+    the expression part of the node from which the component can be derived.
     If no, it will return None. It is done by filtering out
     'AssignmentExpression' (as it represents an assignment) and 'Identifier'
     (as it represents a static expression).
 
     Args:
-        parsed_node: dict. Parsed node of the body of a JS file.
-        components_to_check: list(str). List of angular components to check
+        parsed_node: Node. Parsed node of the body of a JS file.
+        possible_component_names: list(str). List of angular components to check
             in a JS file. These include directives, factories, controllers,
             etc.
 
@@ -106,12 +128,12 @@ def _get_expression_from_node_if_one_exists(
         return
     # Get the component in the JS file.
     component = expression.callee.property.name
-    if component not in components_to_check:
+    if component not in possible_component_names:
         return
     return expression
 
 
-def compile_all_ts_files():
+def compile_all_ts_files() -> None:
     """Compiles all project typescript files into
     COMPILED_TYPESCRIPT_TMP_PATH. Previously, we only compiled
     the TS files that were needed, but when a relative import was used, the
@@ -119,14 +141,26 @@ def compile_all_ts_files():
     run. For more details, please see issue #9458.
     """
     cmd = ('./node_modules/typescript/bin/tsc -p %s -outDir %s') % (
-        './tsconfig.json', COMPILED_TYPESCRIPT_TMP_PATH)
-    subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
+        './tsconfig-lint.json', COMPILED_TYPESCRIPT_TMP_PATH)
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+
+    _, encoded_stderr = proc.communicate()
+    stderr = encoded_stderr.decode('utf-8')
+
+    if stderr:
+        raise Exception(stderr)
 
 
-class JsTsLintChecksManager(python_utils.OBJECT):
+class JsTsLintChecksManager(linter_utils.BaseLinter):
     """Manages all the Js and Ts linting functions."""
 
-    def __init__(self, js_files, ts_files, file_cache):
+    def __init__(
+        self,
+        js_files: List[str],
+        ts_files: List[str],
+        file_cache: pre_commit_linter.FileCache
+    ) -> None:
         """Constructs a JsTsLintChecksManager object.
 
         Args:
@@ -140,44 +174,49 @@ class JsTsLintChecksManager(python_utils.OBJECT):
         self.js_files = js_files
         self.ts_files = ts_files
         self.file_cache = file_cache
-        self.parsed_js_and_ts_files = []
-        self.parsed_expressions_in_files = []
+        self.parsed_js_and_ts_files: Dict[str, esprima.nodes.Module] = {}
+        self.parsed_expressions_in_files: ParsedExpressionsType = {}
 
     @property
-    def js_filepaths(self):
+    def js_filepaths(self) -> List[str]:
         """Return all js filepaths."""
         return self.js_files
 
     @property
-    def ts_filepaths(self):
+    def ts_filepaths(self) -> List[str]:
         """Return all ts filepaths."""
         return self.ts_files
 
     @property
-    def all_filepaths(self):
+    def all_filepaths(self) -> List[str]:
         """Return all filepaths."""
         return self.js_filepaths + self.ts_filepaths
 
-    def _validate_and_parse_js_and_ts_files(self):
+    def _validate_and_parse_js_and_ts_files(
+        self
+    ) -> Dict[str, Union[esprima.nodes.Module, esprima.nodes.Script]]:
         """This function validates JavaScript and Typescript files and
         returns the parsed contents as a Python dictionary.
 
         Returns:
             dict. A dict which has key as filepath and value as contents of js
             and ts files after validating and parsing the files.
+
+        Raises:
+            Exception. The filepath ends with '.js'.
         """
 
         # Select JS files which need to be checked.
         files_to_check = self.all_filepaths
-        parsed_js_and_ts_files = dict()
+        parsed_js_and_ts_files = {}
         concurrent_task_utils.log('Validating and parsing JS and TS files ...')
         for filepath in files_to_check:
             file_content = self.file_cache.read(filepath)
 
             try:
                 # Use esprima to parse a JS or TS file.
-                parsed_js_and_ts_files[filepath] = esprima.parseScript(
-                    file_content, comment=True)
+                parsed_js_and_ts_files[filepath] = _parse_js_or_ts_file(
+                    filepath, file_content, comment=True)
             except Exception:
                 if filepath.endswith('.js'):
                     raise
@@ -185,12 +224,12 @@ class JsTsLintChecksManager(python_utils.OBJECT):
                 compiled_js_filepath = self._get_compiled_ts_filepath(filepath)
 
                 file_content = self.file_cache.read(compiled_js_filepath)
-                parsed_js_and_ts_files[filepath] = esprima.parseScript(
-                    file_content)
+                parsed_js_and_ts_files[filepath] = _parse_js_or_ts_file(
+                    filepath, file_content)
 
         return parsed_js_and_ts_files
 
-    def _get_expressions_from_parsed_script(self):
+    def _get_expressions_from_parsed_script(self) -> ParsedExpressionsType:
         """This function returns the expressions in the script parsed using
         js and ts files.
 
@@ -199,7 +238,9 @@ class JsTsLintChecksManager(python_utils.OBJECT):
             in the script parsed using js and ts files.
         """
 
-        parsed_expressions_in_files = collections.defaultdict(dict)
+        parsed_expressions_in_files: (
+            ParsedExpressionsType
+        ) = collections.defaultdict(dict)
         components_to_check = ['controller', 'directive', 'factory', 'filter']
 
         for filepath, parsed_script in self.parsed_js_and_ts_files.items():
@@ -215,7 +256,7 @@ class JsTsLintChecksManager(python_utils.OBJECT):
 
         return parsed_expressions_in_files
 
-    def _get_compiled_ts_filepath(self, filepath):
+    def _get_compiled_ts_filepath(self, filepath: str) -> str:
         """Returns the path for compiled ts file.
 
         Args:
@@ -230,451 +271,7 @@ class JsTsLintChecksManager(python_utils.OBJECT):
             os.path.relpath(filepath).replace('.ts', '.js'))
         return compiled_js_filepath
 
-    def _check_ts_ignore(self):
-        """Checks if ts ignore is used.
-
-        Returns:
-            TaskResult. A TaskResult object representing the result of the lint
-            check.
-        """
-        name = 'Ts ignore'
-        error_messages = []
-
-        ts_ignore_pattern = r'@ts-ignore'
-        comment_pattern = r'^ *// '
-        comment_with_ts_error_pattern = r'^ *// This throws'
-        failed = False
-
-        for file_path in self.all_filepaths:
-            file_content = self.file_cache.read(file_path)
-            previous_line_has_ts_ignore = False
-            previous_line_has_comment = False
-            previous_line_has_comment_with_ts_error = False
-
-            for line_number, line in enumerate(file_content.split('\n')):
-                if previous_line_has_ts_ignore:
-                    if file_path in TS_IGNORE_EXCEPTIONS:
-                        line_contents = TS_IGNORE_EXCEPTIONS[file_path]
-                        this_line_is_exception = False
-
-                        for line_content in line_contents:
-                            if line.find(line_content) != -1:
-                                this_line_is_exception = True
-                                break
-
-                        if this_line_is_exception:
-                            previous_line_has_ts_ignore = False
-                            continue
-
-                    failed = True
-                    previous_line_has_ts_ignore = False
-                    error_message = (
-                        '%s --> @ts-ignore found at line %s. '
-                        'Please add this exception in %s.' % (
-                            file_path, line_number,
-                            TS_IGNORE_EXCEPTIONS_FILEPATH))
-                    error_messages.append(error_message)
-
-                previous_line_has_ts_ignore = bool(
-                    re.findall(ts_ignore_pattern, line))
-
-                if (
-                        previous_line_has_ts_ignore and
-                        not previous_line_has_comment_with_ts_error):
-                    failed = True
-                    error_message = (
-                        '%s --> Please add a comment above the @ts-ignore '
-                        'explaining the @ts-ignore at line %s. The format '
-                        'of comment should be -> This throws "...". This '
-                        'needs to be suppressed because ...' % (
-                            file_path, line_number + 1))
-                    error_messages.append(error_message)
-
-                previous_line_has_comment = bool(
-                    re.findall(comment_pattern, line))
-
-                previous_line_has_comment_with_ts_error = (
-                    bool(
-                        re.findall(
-                            comment_with_ts_error_pattern, line))
-                    or (
-                        previous_line_has_comment_with_ts_error and
-                        previous_line_has_comment))
-        return concurrent_task_utils.TaskResult(
-            name, failed, error_messages, error_messages)
-
-    def _check_ts_expect_error(self):
-        """Checks if ts expect error is used in non spec file.
-
-        Returns:
-            TaskResult. A TaskResult object representing the result of the lint
-            check.
-        """
-        name = 'Ts expect error'
-        error_messages = []
-
-        ts_expect_error_pattern = r'@ts-expect-error'
-        comment_pattern = r'^ *// '
-        comment_with_ts_error_pattern = r'^ *// This throws'
-
-        failed = False
-        previous_line_has_comment = False
-        previous_line_has_comment_with_ts_error = False
-
-        for file_path in self.all_filepaths:
-            file_content = self.file_cache.read(file_path)
-            for line_number, line in enumerate(file_content.split('\n')):
-                if re.findall(ts_expect_error_pattern, line):
-                    if not (
-                            file_path.endswith('.spec.ts') or
-                            file_path.endswith('Spec.ts')):
-                        failed = True
-                        error_message = (
-                            '%s --> @ts-expect-error found at line %s. '
-                            'It can be used only in spec files.' % (
-                                file_path, line_number + 1))
-                        error_messages.append(error_message)
-
-                    if not previous_line_has_comment_with_ts_error:
-                        failed = True
-                        error_message = (
-                            '%s --> Please add a comment above the '
-                            '@ts-expect-error explaining the '
-                            '@ts-expect-error at line %s. The format '
-                            'of comment should be -> This throws "...". '
-                            'This needs to be suppressed because ...' % (
-                                file_path, line_number + 1))
-                        error_messages.append(error_message)
-
-                previous_line_has_comment = bool(
-                    re.findall(comment_pattern, line))
-
-                previous_line_has_comment_with_ts_error = (
-                    bool(
-                        re.findall(
-                            comment_with_ts_error_pattern, line))
-                    or (
-                        previous_line_has_comment_with_ts_error and
-                        previous_line_has_comment))
-        return concurrent_task_utils.TaskResult(
-            name, failed, error_messages, error_messages)
-
-    def _check_extra_js_files(self):
-        """Checks if the changes made include extra js files in core
-        or extensions folder which are not specified in
-        build.JS_FILEPATHS_NOT_TO_BUILD.
-
-        Returns:
-            TaskResult. A TaskResult object representing the result of the lint
-            check.
-        """
-        name = 'Extra JS files'
-        error_messages = []
-        failed = False
-        js_files_to_check = self.js_filepaths
-
-        for filepath in js_files_to_check:
-            if filepath.startswith(('core/templates', 'extensions')) and (
-                    filepath not in build.JS_FILEPATHS_NOT_TO_BUILD) and (
-                        not filepath.endswith('protractor.js')):
-                error_message = (
-                    '%s  --> Found extra .js file\n' % filepath)
-                error_messages.append(error_message)
-                failed = True
-
-        if failed:
-            err_msg = (
-                'If you want the above files to be present as js files, '
-                'add them to the list JS_FILEPATHS_NOT_TO_BUILD in '
-                'build.py. Otherwise, rename them to .ts\n')
-            error_messages.append(err_msg)
-        return concurrent_task_utils.TaskResult(
-            name, failed, error_messages, error_messages)
-
-    def _check_js_and_ts_component_name_and_count(self):
-        """This function ensures that all JS/TS files have exactly
-        one component and and that the name of the component
-        matches the filename.
-
-        Returns:
-            TaskResult. A TaskResult object representing the result of the lint
-            check.
-        """
-        # Select JS files which need to be checked.
-        name = 'JS and TS component name and count'
-        files_to_check = [
-            filepath for filepath in self.all_filepaths if not
-            filepath.endswith('App.ts')]
-        failed = False
-        error_messages = []
-        components_to_check = ['controller', 'directive', 'factory', 'filter']
-        for filepath in files_to_check:
-            component_num = 0
-            parsed_expressions = self.parsed_expressions_in_files[filepath]
-            for component in components_to_check:
-                if component_num > 1:
-                    break
-                for expression in parsed_expressions[component]:
-                    if not expression:
-                        continue
-                    component_num += 1
-                    # Check if the number of components in each file exceeds
-                    # one.
-                    if component_num > 1:
-                        error_message = (
-                            '%s -> Please ensure that there is exactly one '
-                            'component in the file.' % (filepath))
-                        failed = True
-                        error_messages.append(error_message)
-                        break
-        return concurrent_task_utils.TaskResult(
-            name, failed, error_messages, error_messages)
-
-    def _check_directive_scope(self):
-        """This function checks that all directives have an explicit
-        scope: {} and it should not be scope: true.
-
-        Returns:
-            TaskResult. A TaskResult object representing the result of the lint
-            check.
-        """
-        # Select JS and TS files which need to be checked.
-        name = 'Directive scope'
-        files_to_check = self.all_filepaths
-        failed = False
-        error_messages = []
-        components_to_check = ['directive']
-
-        for filepath in files_to_check:
-            parsed_expressions = self.parsed_expressions_in_files[filepath]
-            # Parse the body of the content as nodes.
-            for component in components_to_check:
-                for expression in parsed_expressions[component]:
-                    if not expression:
-                        continue
-                    # Separate the arguments of the expression.
-                    arguments = expression.arguments
-                    # The first argument of the expression is the
-                    # name of the directive.
-                    if arguments[0].type == 'Literal':
-                        directive_name = python_utils.UNICODE(
-                            arguments[0].value)
-                    arguments = arguments[1:]
-                    for argument in arguments:
-                        # Check the type of an argument.
-                        if argument.type != 'ArrayExpression':
-                            continue
-                        # Separate out the elements for the argument.
-                        elements = argument.elements
-                        for element in elements:
-                            # Check the type of an element.
-                            if element.type != 'FunctionExpression':
-                                continue
-                            # Separate out the body of the element.
-                            body = element.body
-                            # Further separate the body elements from the
-                            # body.
-                            body_elements = body.body
-                            for body_element in body_elements:
-                                # Check if the body element is a return
-                                # statement.
-                                body_element_type_is_not_return = (
-                                    body_element.type != 'ReturnStatement')
-                                if body_element_type_is_not_return:
-                                    continue
-                                arg_type = (
-                                    body_element.argument and
-                                    body_element.argument.type)
-                                body_element_arg_type_is_not_object = (
-                                    arg_type != 'ObjectExpression')
-                                if body_element_arg_type_is_not_object:
-                                    continue
-                                # Separate the properties of the return
-                                # node.
-                                return_node_properties = (
-                                    body_element.argument.properties)
-                                # Loop over all the properties of the return
-                                # node to find out the scope key.
-                                for return_node_property in (
-                                        return_node_properties):
-                                    # Check whether the property is scope.
-                                    property_key_is_an_identifier = (
-                                        return_node_property.key.type == (
-                                            'Identifier'))
-                                    property_key_name_is_scope = (
-                                        return_node_property.key.name == (
-                                            'scope'))
-                                    if (
-                                            property_key_is_an_identifier
-                                            and (
-                                                property_key_name_is_scope
-                                                )):
-                                        # Separate the scope value and
-                                        # check if it is an Object
-                                        # Expression. If it is not, then
-                                        # check for scope: true and report
-                                        # the error message.
-                                        scope_value = (
-                                            return_node_property.value)
-                                        if (
-                                                scope_value.type == (
-                                                    'Literal')
-                                                and (
-                                                    scope_value.value)):
-                                            failed = True
-                                            error_message = (
-                                                'Please ensure that %s '
-                                                'directive in %s file '
-                                                'does not have scope set '
-                                                'to true.' %
-                                                (directive_name, filepath))
-                                            error_messages.append(
-                                                error_message)
-                                        elif scope_value.type != (
-                                                'ObjectExpression'):
-                                            # Check whether the directive
-                                            # has scope: {} else report
-                                            # the error message.
-                                            failed = True
-                                            error_message = (
-                                                'Please ensure that %s '
-                                                'directive in %s file has '
-                                                'a scope: {}.' % (
-                                                    directive_name, filepath
-                                                    ))
-                                            error_messages.append(
-                                                error_message)
-        return concurrent_task_utils.TaskResult(
-            name, failed, error_messages, error_messages)
-
-    def _check_sorted_dependencies(self):
-        """This function checks that the dependencies which are
-        imported in the controllers/directives/factories in JS
-        files are in following pattern: dollar imports, regular
-        imports, and constant imports, all in sorted order.
-
-        Returns:
-            TaskResult. A TaskResult object representing the result of the lint
-            check.
-        """
-        name = 'Sorted dependencies'
-        files_to_check = self.all_filepaths
-        components_to_check = ['controller', 'directive', 'factory']
-        failed = False
-        error_messages = []
-
-        for filepath in files_to_check:
-            parsed_expressions = self.parsed_expressions_in_files[filepath]
-            for component in components_to_check:
-                for expression in parsed_expressions[component]:
-                    if not expression:
-                        continue
-                    # Separate the arguments of the expression.
-                    arguments = expression.arguments
-                    if arguments[0].type == 'Literal':
-                        property_value = python_utils.UNICODE(
-                            arguments[0].value)
-                    arguments = arguments[1:]
-                    for argument in arguments:
-                        if argument.type != 'ArrayExpression':
-                            continue
-                        literal_args = []
-                        function_args = []
-                        dollar_imports = []
-                        regular_imports = []
-                        constant_imports = []
-                        elements = argument.elements
-                        for element in elements:
-                            if element.type == 'Literal':
-                                literal_args.append(
-                                    python_utils.UNICODE(
-                                        element.value))
-                            elif element.type == 'FunctionExpression':
-                                func_args = element.params
-                                for func_arg in func_args:
-                                    function_args.append(
-                                        python_utils.UNICODE(func_arg.name))
-                        for arg in function_args:
-                            if arg.startswith('$'):
-                                dollar_imports.append(arg)
-                            elif re.search('[a-z]', arg):
-                                regular_imports.append(arg)
-                            else:
-                                constant_imports.append(arg)
-                        dollar_imports.sort()
-                        regular_imports.sort()
-                        constant_imports.sort()
-                        sorted_imports = (
-                            dollar_imports + regular_imports + (
-                                constant_imports))
-                        if sorted_imports != function_args:
-                            failed = True
-                            error_message = (
-                                'Please ensure that in %s in file %s, the '
-                                'injected dependencies should be in the '
-                                'following manner: dollar imports, regular '
-                                'imports and constant imports, all in '
-                                'sorted order.'
-                                % (property_value, filepath))
-                            error_messages.append(error_message)
-                        if sorted_imports != literal_args:
-                            failed = True
-                            error_message = (
-                                'Please ensure that in %s in file %s, the '
-                                'stringfied dependencies should be in the '
-                                'following manner: dollar imports, regular '
-                                'imports and constant imports, all in '
-                                'sorted order.'
-                                % (property_value, filepath))
-                            error_messages.append(error_message)
-        return concurrent_task_utils.TaskResult(
-            name, failed, error_messages, error_messages)
-
-    def _match_line_breaks_in_controller_dependencies(self):
-        """This function checks whether the line breaks between the dependencies
-        listed in the controller of a directive or service exactly match those
-        between the arguments of the controller function.
-
-        Returns:
-            TaskResult. A TaskResult object representing the result of the lint
-            check.
-        """
-        name = 'Controller dependency line break'
-        files_to_check = self.all_filepaths
-        failed = False
-        error_messages = []
-
-        # For RegExp explanation, please see https://regex101.com/r/T85GWZ/2/.
-        pattern_to_match = (
-            r'controller.* \[(?P<stringfied_dependencies>[\S\s]*?)' +
-            r'function\((?P<function_parameters>[\S\s]*?)\)')
-
-        for filepath in files_to_check:
-            file_content = self.file_cache.read(filepath)
-            matched_patterns = re.findall(pattern_to_match, file_content)
-            for matched_pattern in matched_patterns:
-                stringfied_dependencies, function_parameters = (
-                    matched_pattern)
-                stringfied_dependencies = (
-                    stringfied_dependencies.strip().replace(
-                        '\'', '').replace(' ', ''))[:-1]
-                function_parameters = (
-                    function_parameters.strip().replace(' ', ''))
-                if stringfied_dependencies != function_parameters:
-                    failed = True
-                    error_messages.append(
-                        'Please ensure that in file %s the line breaks '
-                        'pattern between the dependencies mentioned as '
-                        'strings:\n[%s]\nand the dependencies mentioned '
-                        'as function parameters: \n(%s)\nfor the '
-                        'corresponding controller should '
-                        'exactly match.' % (
-                            filepath, stringfied_dependencies,
-                            function_parameters))
-        return concurrent_task_utils.TaskResult(
-            name, failed, error_messages, error_messages)
-
-    def _check_constants_declaration(self):
+    def _check_constants_declaration(self) -> concurrent_task_utils.TaskResult:
         """Checks the declaration of constants in the TS files to ensure that
         the constants are not declared in files other than *.constants.ajs.ts
         and that the constants are declared only single time. This also checks
@@ -690,8 +287,7 @@ class JsTsLintChecksManager(python_utils.OBJECT):
         failed = False
 
         ts_files_to_check = self.ts_filepaths
-        constants_to_source_filepaths_dict = {}
-        angularjs_source_filepaths_to_constants_dict = {}
+        constants_to_source_filepaths_dict: Dict[str, str] = {}
         for filepath in ts_files_to_check:
             # The following block extracts the corresponding Angularjs
             # constants file for the Angular constants file. This is
@@ -709,10 +305,10 @@ class JsTsLintChecksManager(python_utils.OBJECT):
                 if is_corresponding_angularjs_filepath:
                     compiled_js_filepath = self._get_compiled_ts_filepath(
                         corresponding_angularjs_filepath)
-                    file_content = self.file_cache.read(
-                        compiled_js_filepath).decode('utf-8')
+                    file_content = self.file_cache.read(compiled_js_filepath)
 
-                    parsed_script = esprima.parseScript(file_content)
+                    parsed_script = (
+                        _parse_js_or_ts_file(filepath, file_content))
                     parsed_nodes = parsed_script.body
                     angularjs_constants_list = []
                     components_to_check = ['constant']
@@ -722,243 +318,76 @@ class JsTsLintChecksManager(python_utils.OBJECT):
                                 parsed_node, components_to_check))
                         if not expression:
                             continue
-                        else:
-                            # The following block populates a set to
-                            # store constants for the Angular-AngularJS
-                            # constants file consistency check.
-                            angularjs_constants_name = (
-                                expression.arguments[0].value)
-                            angularjs_constants_value = (
-                                expression.arguments[1])
-                            # Check if const is declared outside the
-                            # class.
-                            if angularjs_constants_value.property:
-                                angularjs_constants_value = (
-                                    angularjs_constants_value.property.name)
-                            else:
-                                angularjs_constants_value = (
-                                    angularjs_constants_value.name)
-                            if angularjs_constants_value != (
-                                    angularjs_constants_name):
-                                failed = True
-                                error_messages.append(
-                                    '%s --> Please ensure that the '
-                                    'constant %s is initialized '
-                                    'from the value from the '
-                                    'corresponding Angular constants'
-                                    ' file (the *.constants.ts '
-                                    'file). Please create one in the'
-                                    ' Angular constants file if it '
-                                    'does not exist there.' % (
-                                        filepath,
-                                        angularjs_constants_name))
-                            angularjs_constants_list.append(
-                                angularjs_constants_name)
-                    angularjs_constants_set = set(
-                        angularjs_constants_list)
-                    if len(angularjs_constants_set) != len(
-                            angularjs_constants_list):
-                        failed = True
-                        error_messages.append(
-                            '%s --> Duplicate constant declaration '
-                            'found.' % (
-                                corresponding_angularjs_filepath))
-                    angularjs_source_filepaths_to_constants_dict[
-                        corresponding_angularjs_filepath] = (
-                            angularjs_constants_set)
 
-            # Check that the constants are declared only in a
-            # *.constants.ajs.ts file.
-            if not filepath.endswith(
-                    ('.constants.ajs.ts', '.constants.ts')):
-                for line_num, line in enumerate(self.file_cache.readlines(
-                        filepath)):
-                    if 'angular.module(\'oppia\').constant(' in line:
-                        failed = True
-                        error_message = (
-                            '%s --> Constant declaration found at line '
-                            '%s. Please declare the constants in a '
-                            'separate constants file.' % (
-                                filepath, line_num))
-                        error_messages.append(error_message)
+                        # The following block populates a set to
+                        # store constants for the Angular-AngularJS
+                        # constants file consistency check.
+                        angularjs_constants_name = (
+                            expression.arguments[0].value)
+                        angularjs_constants_value = (
+                            expression.arguments[1])
+                        # Check if const is declared outside the
+                        # class.
+                        if angularjs_constants_value.property:
+                            angularjs_constants_value = (
+                                angularjs_constants_value.property.name)
+                        if angularjs_constants_value != (
+                                angularjs_constants_name):
+                            failed = True
+                            error_messages.append(
+                                '%s --> Please ensure that the '
+                                'constant %s is initialized '
+                                'from the value from the '
+                                'corresponding Angular constants'
+                                ' file (the *.constants.ts '
+                                'file). Please create one in the'
+                                ' Angular constants file if it '
+                                'does not exist there.' % (
+                                    filepath,
+                                    angularjs_constants_name))
+                        angularjs_constants_list.append(
+                            angularjs_constants_name)
 
             # Check if the constant has multiple declarations which is
             # prohibited.
             parsed_script = self.parsed_js_and_ts_files[filepath]
             parsed_nodes = parsed_script.body
             components_to_check = ['constant']
-            angular_constants_list = []
             for parsed_node in parsed_nodes:
                 expression = _get_expression_from_node_if_one_exists(
                     parsed_node, components_to_check)
                 if not expression:
                     continue
+
+                constant_name = expression.arguments[0].raw
+                if constant_name in constants_to_source_filepaths_dict:
+                    failed = True
+                    error_message = (
+                        '%s --> The constant %s is already declared '
+                        'in %s. Please import the file where the '
+                        'constant is declared or rename the constant'
+                        '.' % (
+                            filepath, constant_name,
+                            constants_to_source_filepaths_dict[
+                                constant_name]))
+                    error_messages.append(error_message)
                 else:
-                    constant_name = expression.arguments[0].raw
-                    if constant_name in constants_to_source_filepaths_dict:
-                        failed = True
-                        error_message = (
-                            '%s --> The constant %s is already declared '
-                            'in %s. Please import the file where the '
-                            'constant is declared or rename the constant'
-                            '.' % (
-                                filepath, constant_name,
-                                constants_to_source_filepaths_dict[
-                                    constant_name]))
-                        error_messages.append(error_message)
-                    else:
-                        constants_to_source_filepaths_dict[
-                            constant_name] = filepath
-
-            # Checks that the *.constants.ts and the corresponding
-            # *.constants.ajs.ts file are in sync.
-            if filepath.endswith('.constants.ts') and (
-                    is_corresponding_angularjs_filepath):
-                for node in parsed_nodes:
-                    try:
-                        # Here we are treating 'app.constants.ts' differently
-                        # because it has a different structure than rest of the
-                        # '*constants.ts' files because it inherits constants
-                        # from 'assets/constants.ts'.
-                        angular_constants_nodes = (
-                            node.expression.right.arguments[1].properties
-                            if filepath.endswith('app.constants.ts') else
-                            node.expression.right.properties)
-                    # We need a try-except block here beacuse we need a node
-                    # that has properties exactly as we have defined above.
-                    # And some nodes may not have those properties and may
-                    # raise the following errors. So, we need to ignore
-                    # those nodes.
-                    except (AttributeError, IndexError, TypeError):
-                        continue
-
-                for angular_constant_node in angular_constants_nodes:
-                    angular_constants_list.append(
-                        angular_constant_node.key.name)
-
-                angular_constants_set = set(angular_constants_list)
-                if len(angular_constants_set) != len(
-                        angular_constants_list):
-                    failed = True
-                    error_message = (
-                        '%s --> Duplicate constant declaration found.'
-                        % filepath)
-                    error_messages.append(error_message)
-
-            # Check that the *constants.ts files have a 'as const' at the end.
-            if filepath.endswith('.constants.ts'):
-                file_content = self.file_cache.read(filepath)
-                if not file_content.endswith('} as const;\n'):
-                    failed = True
-                    error_message = (
-                        '%s --> This constants file doesn\'t have \'as const\' '
-                        'at the end. A constants file should have the '
-                        'following structure.\nexport const SomeConstants = '
-                        '{ ... } as const;' % filepath)
-                    error_messages.append(error_message)
+                    constants_to_source_filepaths_dict[
+                        constant_name] = filepath
 
         return concurrent_task_utils.TaskResult(
             name, failed, error_messages, error_messages)
 
-    def _check_comments(self):
-        """This function ensures that comments follow correct style. Below are
-        some formats of correct comment style:
-        1. A comment can end with the following symbols: ('.', '?', ';', ',',
-        '{', '^', ')', '}', '>'). Example: // Is this is comment?
-        2. If a line contain any of the following words or phrases('@ts-ignore',
-        '--params', 'eslint-disable', 'eslint-enable', 'http://', 'https://')
-        in the comment.
-
-        Returns:
-            TaskResult. A TaskResult object representing the result of the lint
-            check.
-        """
-        name = 'Comments'
-        error_messages = []
-        files_to_check = self.all_filepaths
-        allowed_terminating_punctuations = [
-            '.', '?', ';', ',', '{', '^', ')', '}', '>']
-
-        # We allow comments to not have a terminating punctuation if any of the
-        # below phrases appears at the beginning of the comment.
-        # Example: // eslint-disable max-len
-        # This comment will be excluded from this check.
-        allowed_start_phrases = [
-            '@ts-expect-error', '@ts-ignore', '--params', 'eslint-disable',
-            'eslint-enable']
-
-        # We allow comments to not have a terminating punctuation if any of the
-        # below phrases appears in the last word of a comment.
-        # Example: // Ref: https://some.link.com
-        # This comment will be excluded from this check.
-        allowed_end_phrases = ['http://', 'https://']
-
-        failed = False
-        for filepath in files_to_check:
-            file_content = self.file_cache.readlines(filepath)
-            file_length = len(file_content)
-            for line_num in python_utils.RANGE(file_length):
-                line = file_content[line_num].strip()
-                next_line = ''
-                previous_line = ''
-                if line_num + 1 < file_length:
-                    next_line = file_content[line_num + 1].strip()
-
-                # Exclude comment line containing heading.
-                # Example: // ---- Heading ----
-                # These types of comments will be excluded from this check.
-                if (
-                        line.startswith('//') and line.endswith('-')
-                        and not (
-                            next_line.startswith('//') and
-                            previous_line.startswith('//'))):
-                    continue
-
-                if line.startswith('//') and not next_line.startswith('//'):
-                    # Check if any of the allowed starting phrase is present
-                    # in comment and exclude that line from check.
-                    allowed_start_phrase_present = any(
-                        line.split()[1].startswith(word) for word in
-                        allowed_start_phrases)
-
-                    if allowed_start_phrase_present:
-                        continue
-
-                    # Check if any of the allowed ending phrase is present
-                    # in comment and exclude that line from check. Used 'in'
-                    # instead of 'startswith' because we have some comments
-                    # with urls inside the quotes.
-                    # Example: 'https://oppia.org'
-                    allowed_end_phrase_present = any(
-                        word in line.split()[-1] for word in
-                        allowed_end_phrases)
-
-                    if allowed_end_phrase_present:
-                        continue
-
-                    # Check that the comment ends with the proper
-                    # punctuation.
-                    last_char_is_invalid = line[-1] not in (
-                        allowed_terminating_punctuations)
-                    if last_char_is_invalid:
-                        failed = True
-                        error_message = (
-                            '%s --> Line %s: Invalid punctuation used at '
-                            'the end of the comment.' % (
-                                filepath, line_num + 1))
-                        error_messages.append(error_message)
-        return concurrent_task_utils.TaskResult(
-            name, failed, error_messages, error_messages)
-
-    def _check_angular_services_index(self):
+    def _check_angular_services_index(self) -> concurrent_task_utils.TaskResult:
         """Finds all @Injectable classes and makes sure that they are added to
             Oppia root and Angular Services Index.
 
         Returns:
-            all_messages: str. All the messages returned by the lint checks.
+            TaskResult. TaskResult having all the messages returned by the
+            lint checks.
         """
         name = 'Angular Services Index file'
-        error_messages = []
+        error_messages: List[str] = []
         injectable_pattern = '%s%s' % (
             'Injectable\\({\\n*\\s*providedIn: \'root\'\\n*}\\)\\n',
             'export class ([A-Za-z0-9]*)')
@@ -1000,7 +429,7 @@ class JsTsLintChecksManager(python_utils.OBJECT):
         return concurrent_task_utils.TaskResult(
             name, failed, error_messages, error_messages)
 
-    def perform_all_lint_checks(self):
+    def perform_all_lint_checks(self) -> List[concurrent_task_utils.TaskResult]:
         """Perform all the lint checks and returns the messages returned by all
         the checks.
 
@@ -1026,16 +455,7 @@ class JsTsLintChecksManager(python_utils.OBJECT):
 
         linter_stdout = []
 
-        linter_stdout.append(self._check_extra_js_files())
-        linter_stdout.append(self._check_js_and_ts_component_name_and_count())
-        linter_stdout.append(self._check_directive_scope())
-        linter_stdout.append(self._check_sorted_dependencies())
-        linter_stdout.append(
-            self._match_line_breaks_in_controller_dependencies())
         linter_stdout.append(self._check_constants_declaration())
-        linter_stdout.append(self._check_comments())
-        linter_stdout.append(self._check_ts_ignore())
-        linter_stdout.append(self._check_ts_expect_error())
         linter_stdout.append(self._check_angular_services_index())
 
         # Clear temp compiled typescipt files.
@@ -1044,25 +464,25 @@ class JsTsLintChecksManager(python_utils.OBJECT):
         return linter_stdout
 
 
-class ThirdPartyJsTsLintChecksManager(python_utils.OBJECT):
+class ThirdPartyJsTsLintChecksManager(linter_utils.BaseLinter):
     """Manages all the third party Python linting functions."""
 
-    def __init__(self, files_to_lint):
+    def __init__(self, files_to_lint: List[str]) -> None:
         """Constructs a ThirdPartyJsTsLintChecksManager object.
 
         Args:
             files_to_lint: list(str). A list of filepaths to lint.
         """
-        super(ThirdPartyJsTsLintChecksManager, self).__init__()
+        super().__init__()
         self.files_to_lint = files_to_lint
 
     @property
-    def all_filepaths(self):
+    def all_filepaths(self) -> List[str]:
         """Return all filepaths."""
         return self.files_to_lint
 
     @staticmethod
-    def _get_trimmed_error_output(eslint_output):
+    def _get_trimmed_error_output(eslint_output: str) -> str:
         """Remove extra bits from eslint messages.
 
         Args:
@@ -1095,29 +515,35 @@ class ThirdPartyJsTsLintChecksManager(python_utils.OBJECT):
             # and if that is True then we are replacing "error" with empty
             # string('') which is at the index 1 and message-id from the end.
             if re.search(r'^\d+:\d+', line.lstrip()):
-                # Replacing message-id with an empty string('').
-                if not 'Parsing error:' in line:
-                    line = re.sub(r'(\w+-*)+$', '', line)
-                error_string = re.search(r'error', line).group(0)
+                searched_error_string = re.search(r'error', line)
+                # If the regex '^\d+:\d+' is matched then the output line of
+                # es-lint is an error message, and in the error message, 'error'
+                # keyword is always present. So, 'searched_error_string' is
+                # never going to be None here.
+                assert searched_error_string is not None
+                error_string = searched_error_string.group(0)
                 error_message = line.replace(error_string, '', 1)
             else:
                 error_message = line
             trimmed_error_messages.append(error_message)
         return '\n'.join(trimmed_error_messages) + '\n'
 
-    def _lint_js_and_ts_files(self):
+    def _lint_js_and_ts_files(self) -> concurrent_task_utils.TaskResult:
         """Prints a list of lint errors in the given list of JavaScript files.
 
         Returns:
             TaskResult. A TaskResult object representing the result of the lint
             check.
+
+        Raises:
+            Exception. The start.py file not executed.
         """
         node_path = os.path.join(common.NODE_PATH, 'bin', 'node')
         eslint_path = os.path.join(
             'node_modules', 'eslint', 'bin', 'eslint.js')
         if not os.path.exists(eslint_path):
             raise Exception(
-                'ERROR    Please run start.sh first to install node-eslint '
+                'ERROR    Please run start.py first to install node-eslint '
                 'and its dependencies.')
 
         files_to_lint = self.all_filepaths
@@ -1132,8 +558,10 @@ class ThirdPartyJsTsLintChecksManager(python_utils.OBJECT):
             proc_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         encoded_linter_stdout, encoded_linter_stderr = proc.communicate()
-        linter_stdout = encoded_linter_stdout.decode(encoding='utf-8')
-        linter_stderr = encoded_linter_stderr.decode(encoding='utf-8')
+        # Standard and error output is in bytes, we need to decode the line to
+        # print it.
+        linter_stdout = encoded_linter_stdout.decode('utf-8')
+        linter_stderr = encoded_linter_stderr.decode('utf-8')
         if linter_stderr:
             raise Exception(linter_stderr)
 
@@ -1145,7 +573,7 @@ class ThirdPartyJsTsLintChecksManager(python_utils.OBJECT):
         return concurrent_task_utils.TaskResult(
             name, failed, error_messages, full_error_messages)
 
-    def perform_all_lint_checks(self):
+    def perform_all_lint_checks(self) -> List[concurrent_task_utils.TaskResult]:
         """Perform all the lint checks and returns the messages returned by all
         the checks.
 
@@ -1162,7 +590,11 @@ class ThirdPartyJsTsLintChecksManager(python_utils.OBJECT):
         return [self._lint_js_and_ts_files()]
 
 
-def get_linters(js_filepaths, ts_filepaths, file_cache):
+def get_linters(
+    js_filepaths: List[str],
+    ts_filepaths: List[str],
+    file_cache: pre_commit_linter.FileCache
+) -> Tuple[JsTsLintChecksManager, ThirdPartyJsTsLintChecksManager]:
     """Creates JsTsLintChecksManager and ThirdPartyJsTsLintChecksManager
         objects and return them.
 

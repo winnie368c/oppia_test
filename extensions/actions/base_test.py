@@ -16,20 +16,23 @@
 
 """Tests for the base action specification."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 from core.domain import action_registry
 from core.platform import models
 from core.tests import test_utils
 
-(stats_models,) = models.Registry.import_models([models.NAMES.statistics])
+MYPY = False
+if MYPY: # pragma: no cover
+    from mypy_imports import stats_models
+
+(stats_models,) = models.Registry.import_models([models.Names.STATISTICS])
 
 
 class ActionUnitTests(test_utils.GenericTestBase):
     """Test that the default actions are valid."""
 
-    def test_action_properties_for_exp_start(self):
+    def test_action_properties_for_exp_start(self) -> None:
         """Test the standard properties of exploration start action."""
 
         action = action_registry.Registry.get_action_by_type(
@@ -48,7 +51,7 @@ class ActionUnitTests(test_utils.GenericTestBase):
                 'default_value': ''
             }])
 
-    def test_action_properties_for_answer_submit(self):
+    def test_action_properties_for_answer_submit(self) -> None:
         """Test the standard properties of answer submit action."""
 
         action = action_registry.Registry.get_action_by_type(
@@ -102,7 +105,7 @@ class ActionUnitTests(test_utils.GenericTestBase):
                 'default_value': 0
             }])
 
-    def test_action_properties_for_exp_quit(self):
+    def test_action_properties_for_exp_quit(self) -> None:
         """Test the standard properties of exploration quit action."""
 
         action = action_registry.Registry.get_action_by_type(

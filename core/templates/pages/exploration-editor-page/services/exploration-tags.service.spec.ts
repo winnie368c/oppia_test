@@ -16,35 +16,38 @@
  * @fileoverview Unit tests for the ExplorationTagsService.
  */
 
-// TODO(#7222): Remove the following block of unnnecessary imports once
-// the code corresponding to the spec is upgraded to Angular 8.
-import { importAllAngularServices } from 'tests/unit-test-utils';
-// ^^^ This block is to be removed.
+import { TestBed } from '@angular/core/testing';
+import { ExplorationPropertyService } from './exploration-property.service';
+import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { ExplorationTagsService } from './exploration-tags.service';
 
-require(
-  'pages/exploration-editor-page/services/exploration-tags.service.ts');
+describe('Exploration Tags Service', () => {
+  let explorationTagsService: ExplorationTagsService;
 
-describe('Exploration Tags Service', function() {
-  let ets = null;
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [
+        ExplorationPropertyService
+      ]
+    });
 
-  beforeEach(angular.mock.module('oppia'));
-  importAllAngularServices();
+    explorationTagsService = TestBed.inject(ExplorationTagsService);
+  });
 
-  beforeEach(angular.mock.inject(function($injector) {
-    ets = $injector.get('ExplorationTagsService');
-  }));
-
-  it('should test the child object properties', function() {
-    expect(ets.propertyName).toBe('tags');
+  it('should test the child object properties', () => {
+    expect(explorationTagsService.propertyName).toBe('tags');
     let NotNormalize = ['angularjs ', ' google  cloud  storage   ', ' python'];
     let Normalize = ['angularjs', 'google cloud storage', 'python'];
     let UpperCaseNotValid = ['Angularjs', 'google cloud storage', 'Python'];
     let NumberNotValid = ['angularjs', 'google cloud storage', 'Python123'];
     let SpecialNotValid = ['@ngularjs', 'google cloud storage', 'Python'];
-    expect(ets._normalize(NotNormalize)).toEqual(Normalize);
-    expect(ets._isValid(Normalize)).toBe(true);
-    expect(ets._isValid(UpperCaseNotValid)).toBe(false);
-    expect(ets._isValid(NumberNotValid)).toBe(false);
-    expect(ets._isValid(SpecialNotValid)).toBe(false);
+    expect(
+      explorationTagsService._normalize(NotNormalize)).toEqual(Normalize);
+    expect(explorationTagsService._isValid(Normalize)).toBe(true);
+    expect(
+      explorationTagsService._isValid(UpperCaseNotValid)).toBe(false);
+    expect(explorationTagsService._isValid(NumberNotValid)).toBe(false);
+    expect(explorationTagsService._isValid(SpecialNotValid)).toBe(false);
   });
 });

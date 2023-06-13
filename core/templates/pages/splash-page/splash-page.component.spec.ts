@@ -16,145 +16,264 @@
  * @fileoverview Unit tests for the splash page.
  */
 
+import { EventEmitter } from '@angular/core';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
-import { TestBed } from '@angular/core/testing';
-
+import { TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
+import { I18nLanguageCodeService } from 'services/i18n-language-code.service';
+import { LoaderService } from 'services/loader.service';
+import { UrlInterpolationService } from
+  'domain/utilities/url-interpolation.service';
+import { WindowDimensionsService } from
+  'services/contextual/window-dimensions.service';
+import { WindowRef } from 'services/contextual/window-ref.service';
+import { SiteAnalyticsService } from 'services/site-analytics.service';
+import { UserInfo } from 'domain/user/user-info.model';
 import { UserService } from 'services/user.service';
+import { SplashPageComponent } from './splash-page.component';
+import { of } from 'rxjs';
+import { MockTranslatePipe } from 'tests/unit-test-utils';
+import { PlatformFeatureService } from 'services/platform-feature.service';
 
-require('pages/splash-page/splash-page.component.ts');
-
-import constants from 'assets/constants';
-
-describe('Splash Page', function() {
-  var $scope = null, ctrl = null;
-  var $timeout = null;
-  var $q = null;
-  var userService: UserService = null;
-  var LoaderService = null;
-  var loadingMessage = null;
-  var SiteAnalyticsService = null;
-  var subscriptions = [];
-  var windowRefMock = {
-    nativeWindow: {
-      location: ''
+class MockPlatformFeatureService {
+  status = {
+    AndroidBetaLandingPage: {
+      isEnabled: false
     }
   };
+}
 
-  beforeEach(angular.mock.module('oppia'));
+class MockWindowRef {
+  _window = {
+    location: {
+      _href: '',
+      get href() {
+        return this._href;
+      },
+      set href(val) {
+        this._href = val;
+      },
+      replace: (val: string) => {}
+    },
+    sessionStorage: {
+      last_uploaded_audio_lang: 'en',
+      removeItem: (name: string) => {}
+    },
+    gtag: () => {}
+  };
+
+  get nativeWindow() {
+    return this._window;
+  }
+}
+
+class MockI18nLanguageCodeService {
+  codeChangeEventEmitter = new EventEmitter<string>();
+  getCurrentI18nLanguageCode() {
+    return 'en';
+  }
+
+  isCurrentLanguageRTL() {
+    return true;
+  }
+
+  get onI18nLanguageCodeChange() {
+    return this.codeChangeEventEmitter;
+  }
+}
+
+describe('Splash Page', () => {
+  let siteAnalyticsService: SiteAnalyticsService;
+  let loaderService: LoaderService;
+  let userService: UserService;
+  let windowDimensionsService: WindowDimensionsService;
+  let resizeEvent = new Event('resize');
+  let mockWindowRef = new MockWindowRef();
+  let mockPlatformFeatureService = new MockPlatformFeatureService();
+
+  beforeEach(async() => {
+    TestBed.configureTestingModule({
+      declarations: [SplashPageComponent, MockTranslatePipe],
+      providers: [
+        {
+          provide: I18nLanguageCodeService,
+          useClass: MockI18nLanguageCodeService
+        },
+        {
+          provide: WindowDimensionsService,
+          useValue: {
+            isWindowNarrow: () => true,
+            getResizeEvent: () => of(resizeEvent)
+          }
+        },
+        SiteAnalyticsService,
+        UrlInterpolationService,
+        {
+          provide: WindowRef,
+          useValue: mockWindowRef
+        },
+        {
+          provide: PlatformFeatureService,
+          useValue: mockPlatformFeatureService
+        }
+      ]
+    }).compileComponents();
+  });
+
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [HttpClientTestingModule]
     });
+    loaderService = TestBed.get(LoaderService);
+    userService = TestBed.get(UserService);
+    windowDimensionsService = TestBed.get(WindowDimensionsService);
+    siteAnalyticsService = TestBed.inject(SiteAnalyticsService);
   });
-  beforeEach(angular.mock.module('oppia', function($provide) {
-    $provide.value('WindowRef', windowRefMock);
-    $provide.value('UserService', TestBed.get(UserService));
-  }));
-  beforeEach(angular.mock.inject(function($injector, $componentController) {
-    $timeout = $injector.get('$timeout');
-    $q = $injector.get('$q');
-    userService = $injector.get('UserService');
-    LoaderService = $injector.get('LoaderService');
-    SiteAnalyticsService = $injector.get('SiteAnalyticsService');
-    subscriptions.push(LoaderService.onLoadingMessageChange.subscribe(
-      (message: string) => loadingMessage = message
-    ));
-    loadingMessage = '';
-    var $rootScope = $injector.get('$rootScope');
-    $scope = $rootScope.$new();
 
-    ctrl = $componentController('splashPage', {
-      $rootScope: $scope
-    });
-  }));
-
-  afterEach(function() {
-    for (let subscription of subscriptions) {
-      subscription.unsubscribe();
-    }
+  let component: SplashPageComponent;
+  beforeEach(() => {
+    const splashPageComponent = TestBed.createComponent(SplashPageComponent);
+    component = splashPageComponent.componentInstance;
   });
 
   it('should get static image url', function() {
-    expect(ctrl.getStaticImageUrl('/path/to/image')).toBe(
+    expect(component.getStaticImageUrl('/path/to/image')).toBe(
       '/assets/images/path/to/image');
   });
 
-  it('should get static subject image url', function() {
-    expect(ctrl.getStaticSubjectImageUrl('subject-file-name')).toBe(
-      '/assets/images/subjects/subject-file-name.svg');
-  });
-
-  it('should redirect to login page', function() {
-    var startLoginEventSpy = spyOn(
-      SiteAnalyticsService, 'registerStartLoginEvent').and.callThrough();
-    ctrl.onRedirectToLogin('/login');
-    $timeout.flush(150);
-
-    expect(windowRefMock.nativeWindow.location).toBe('/login');
-    expect(startLoginEventSpy).toHaveBeenCalled();
-  });
-
-  it('should redirect to default classroom page', function() {
-    var clickBrowseLibraryButtonEventSpy = spyOn(
-      SiteAnalyticsService, 'registerClickBrowseLessonsButtonEvent')
+  it('should record analytics when start learning is clicked', function() {
+    spyOn(
+      siteAnalyticsService, 'registerClickHomePageStartLearningButtonEvent')
       .and.callThrough();
-    ctrl.onClickBrowseLessonsButton();
-    $timeout.flush(150);
 
-    expect(windowRefMock.nativeWindow.location).toBe(
-      `/learn/${constants.DEFAULT_CLASSROOM_URL_FRAGMENT}`);
-    expect(clickBrowseLibraryButtonEventSpy).toHaveBeenCalled();
+    component.onClickStartLearningButton();
+
+    expect(siteAnalyticsService.registerClickHomePageStartLearningButtonEvent)
+      .toHaveBeenCalled();
   });
 
-  it('should redirect to create exploration page', function() {
-    var clickCreateExplorationButtonEventSpy = spyOn(
-      SiteAnalyticsService, 'registerClickCreateExplorationButtonEvent')
+  it('should record analytics when Browse Lessons is clicked', function() {
+    spyOn(
+      siteAnalyticsService, 'registerClickBrowseLessonsButtonEvent')
       .and.callThrough();
-    ctrl.onClickCreateExplorationButton();
-    $timeout.flush(150);
-
-    expect(windowRefMock.nativeWindow.location).toBe(
-      '/creator-dashboard?mode=create');
-    expect(clickCreateExplorationButtonEventSpy).toHaveBeenCalled();
+    component.onClickBrowseLessonsButton();
+    expect(siteAnalyticsService.registerClickBrowseLessonsButtonEvent)
+      .toHaveBeenCalled();
   });
 
-  it('should evaluate if user is logged in', function() {
-    spyOn(userService, 'getUserInfoAsync').and.callFake(function() {
-      var deferred = $q.defer();
-      deferred.resolve({
-        isLoggedIn: function() {
-          return true;
-        }
-      });
-      return deferred.promise;
-    });
+  it('should direct users to the android page on click', function() {
+    expect(mockWindowRef.nativeWindow.location.href).not.toEqual('/android');
 
-    ctrl.$onInit();
-    expect(ctrl.userIsLoggedIn).toBe(null);
-    expect(loadingMessage).toBe('Loading');
+    component.onClickAccessAndroidButton();
 
-    $scope.$digest();
-    expect(ctrl.userIsLoggedIn).toBe(true);
-    expect(loadingMessage).toBe('');
+    expect(mockWindowRef.nativeWindow.location.href).toEqual('/android');
   });
 
-  it('should evaluate if user is not logged in', function() {
-    spyOn(userService, 'getUserInfoAsync').and.callFake(function() {
-      var deferred = $q.defer();
-      deferred.resolve({
-        isLoggedIn: function() {
-          return false;
-        }
-      });
-      return deferred.promise;
-    });
+  it('should record analytics when Start Contributing is clicked', function() {
+    spyOn(
+      siteAnalyticsService, 'registerClickStartContributingButtonEvent')
+      .and.callThrough();
+    component.onClickStartContributingButton();
+    expect(siteAnalyticsService.registerClickStartContributingButtonEvent)
+      .toHaveBeenCalled();
+  });
 
-    ctrl.$onInit();
-    expect(ctrl.userIsLoggedIn).toBe(null);
-    expect(loadingMessage).toBe('Loading');
+  it('should record analytics when Start Teaching is clicked', function() {
+    spyOn(
+      siteAnalyticsService, 'registerClickStartTeachingButtonEvent'
+    ).and.callThrough();
+    component.onClickStartTeachingButton();
+    expect(siteAnalyticsService.registerClickStartTeachingButtonEvent)
+      .toHaveBeenCalled();
+  });
 
-    $scope.$digest();
-    expect(ctrl.userIsLoggedIn).toBe(false);
-    expect(loadingMessage).toBe('');
+  it('should increment and decrement testimonial IDs correctly', function() {
+    component.ngOnInit();
+    expect(component.displayedTestimonialId).toBe(0);
+    component.incrementDisplayedTestimonialId();
+    expect(component.displayedTestimonialId).toBe(1);
+    component.incrementDisplayedTestimonialId();
+    component.incrementDisplayedTestimonialId();
+    component.incrementDisplayedTestimonialId();
+    expect(component.displayedTestimonialId).toBe(0);
+
+    component.decrementDisplayedTestimonialId();
+    expect(component.displayedTestimonialId).toBe(3);
+    component.decrementDisplayedTestimonialId();
+    expect(component.displayedTestimonialId).toBe(2);
+  });
+
+  it('should get testimonials correctly', function() {
+    component.ngOnInit();
+    expect(component.getTestimonials().length).toBe(component.testimonialCount);
+  });
+
+  it('should evaluate if user is logged in', fakeAsync(() => {
+    const UserInfoObject = {
+      roles: ['USER_ROLE'],
+      is_moderator: false,
+      is_curriculum_admin: false,
+      is_super_admin: false,
+      is_topic_manager: false,
+      can_create_collections: true,
+      preferred_site_language_code: null,
+      username: 'tester',
+      email: 'test@test.com',
+      user_is_logged_in: true
+    };
+    spyOn(userService, 'getUserInfoAsync').and.returnValue(Promise.resolve(
+      UserInfo.createFromBackendDict(UserInfoObject))
+    );
+    component.ngOnInit();
+    flushMicrotasks();
+    expect(component.userIsLoggedIn).toBe(true);
+  }));
+
+  it('should evaluate if user is not logged in', fakeAsync(() => {
+    const UserInfoObject = {
+      roles: ['USER_ROLE'],
+      is_moderator: false,
+      is_curriculum_admin: false,
+      is_super_admin: false,
+      is_topic_manager: false,
+      can_create_collections: true,
+      preferred_site_language_code: null,
+      username: 'tester',
+      email: 'test@test.com',
+      user_is_logged_in: false
+    };
+    spyOn(userService, 'getUserInfoAsync').and.returnValue(Promise.resolve(
+      UserInfo.createFromBackendDict(UserInfoObject))
+    );
+    component.ngOnInit();
+    flushMicrotasks();
+    expect(component.userIsLoggedIn).toBe(false);
+  }));
+
+  it('should check if loader screen is working', fakeAsync(() => {
+    spyOn(loaderService, 'showLoadingScreen').and.callThrough();
+    component.ngOnInit();
+    expect(loaderService.showLoadingScreen)
+      .toHaveBeenCalledWith('Loading');
+  }));
+
+  it('should set component properties when ngOnInit() is called', () => {
+    component.ngOnInit();
+    expect(component.displayedTestimonialId).toBe(0);
+    expect(component.testimonialCount).toBe(4);
+    expect(component.classroomUrl).toBe('/learn/math');
+    spyOn(windowDimensionsService, 'isWindowNarrow').and.callThrough;
+    expect(windowDimensionsService.isWindowNarrow()).toHaveBeenCalled;
+    expect(component.isWindowNarrow).toBe(true);
+  });
+
+  it('should show android button if the feature is enabled', () => {
+    // The androidPageIsEnabled property is set when the component is
+    // constructed and the value is not modified after that so there is no
+    // pre-check for this test.
+    mockPlatformFeatureService.status.AndroidBetaLandingPage.isEnabled = true;
+
+    const component = TestBed.createComponent(SplashPageComponent);
+
+    expect(component.componentInstance.androidPageIsEnabled).toBeTrue();
   });
 });

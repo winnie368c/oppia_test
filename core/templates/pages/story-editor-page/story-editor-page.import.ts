@@ -16,18 +16,33 @@
  * @fileoverview Directive scripts for the story editor page.
  */
 
+import 'core-js/es7/reflect';
+import 'zone.js';
+
+import uiValidate from 'angular-ui-validate';
+import 'third-party-imports/dnd-lists.import';
+
+angular.module('oppia', [
+  require('angular-cookies'), 'dndLists', 'ngAnimate',
+  'ngMaterial', 'ngSanitize', 'ngTouch', 'pascalprecht.translate',
+  'ui.bootstrap',
+  uiValidate
+]);
+
+require('Polyfills.ts');
+
 // The module needs to be loaded directly after jquery since it defines the
 // main module the elements are attached to.
 require('pages/story-editor-page/story-editor-page.module.ts');
 require('App.ts');
 require('base-components/oppia-root.directive.ts');
 
-require('base-components/base-content.directive.ts');
+require('base-components/base-content.component.ts');
 require(
   'pages/story-editor-page/chapter-editor/chapter-editor-tab.component.ts');
 require(
   'pages/story-editor-page/story-preview-tab/story-preview-tab.component.ts');
 require(
-  'pages/story-editor-page/navbar/story-editor-navbar-breadcrumb.directive.ts');
-require('pages/story-editor-page/navbar/story-editor-navbar.directive.ts');
+  'pages/story-editor-page/navbar/story-editor-navbar-breadcrumb.component.ts');
+require('pages/story-editor-page/navbar/story-editor-navbar.component.ts');
 require('pages/story-editor-page/story-editor-page.component.ts');

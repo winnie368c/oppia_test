@@ -27,7 +27,7 @@ import { Injectable } from '@angular/core';
 import cloneDeep from 'lodash/cloneDeep';
 
 import { LoggerService } from 'services/contextual/logger.service';
-import { StateCard } from 'domain/state_card/StateCardObjectFactory';
+import { StateCard } from 'domain/state_card/state-card.model';
 
 @Injectable({
   providedIn: 'root'
@@ -43,8 +43,16 @@ export class PlayerTranscriptService {
   // they carry on.
   transcript: StateCard[] = [];
   numAnswersSubmitted = 0;
+
   restore(oldTranscript: StateCard[]): void {
     this.transcript = cloneDeep(oldTranscript);
+  }
+
+  restoreImmutably(oldTranscript: StateCard[]): void {
+    for (let i = 0; i < this.transcript.length; i++) {
+      // Immutably restore the cards so that Angular can detect changes.
+      this.transcript[i].restoreImmutable(oldTranscript[i]);
+    }
   }
 
   init(): void {
@@ -57,6 +65,7 @@ export class PlayerTranscriptService {
       return transcriptItem.getStateName() === stateName;
     });
   }
+
   addNewCard(newCard: StateCard): void {
     this.transcript.push(newCard);
     this.numAnswersSubmitted = 0;
@@ -100,12 +109,17 @@ export class PlayerTranscriptService {
     card.setLastOppiaResponse(response);
   }
 
+  addNewResponseToExistingFeedback(response: string): void {
+    let card = this.getLastCard();
+    card.addToExistingFeedback(response);
+  }
+
   getNumCards(): number {
     return this.transcript.length;
   }
 
   getCard(index: number): StateCard {
-    if (index < 0 || index >= this.transcript.length) {
+    if (index !== null && (index < 0 || index >= this.transcript.length)) {
       this.log.error(
         'Requested card with index ' + index +
           ', but transcript only has length ' +
@@ -114,7 +128,9 @@ export class PlayerTranscriptService {
     return this.transcript[index];
   }
 
-  getLastAnswerOnDisplayedCard(displayedCardIndex: number): string | null {
+  getLastAnswerOnDisplayedCard(
+      displayedCardIndex: number
+  ): { answerDetails: string } | string | null {
     if (
       this.isLastCard(displayedCardIndex) ||
         this.transcript[displayedCardIndex].getStateName() === null ||

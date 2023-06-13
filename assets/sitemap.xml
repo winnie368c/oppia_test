@@ -4,7 +4,19 @@
     <loc>https://www.oppia.org/</loc>
   </url>
   <url>
+    <loc>https://www.oppia.org/android</loc>
+  </url>
+  <url>
     <loc>https://www.oppia.org/donate</loc>
+  </url>
+  <url>
+    <loc>https://www.oppia.org/partnerships</loc>
+  </url>
+  <url>
+    <loc>https://www.oppia.org/about-foundation</loc>
+  </url>
+  <url>
+    <loc>https://www.oppia.org/volunteer</loc>
   </url>
   <url>
     <loc>https://www.oppia.org/about</loc>
@@ -19,10 +31,16 @@
     <loc>https://www.oppia.org/community-library</loc>
   </url>
   <url>
+    <loc>https://www.oppia.org/blog</loc>
+  </url>
+  <url>
     <loc>https://www.oppia.org/contact</loc>
   </url>
   <url>
-    <loc>https://www.oppia.org/fractions</loc>
+    <loc>https://www.oppia.org/math/fractions</loc>
+  </url>
+  <url>
+    <loc>https://www.oppia.org/learn/math</loc>
   </url>
   <url>
     <loc>https://www.oppia.org/explore/0</loc>

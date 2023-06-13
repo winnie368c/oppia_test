@@ -16,31 +16,88 @@
  * @fileoverview Unit tests for explorationTitleEditor component.
  */
 
-require(
-  'pages/exploration-editor-page/exploration-title-editor/' +
-  'exploration-title-editor.component.ts');
+import { NO_ERRORS_SCHEMA, EventEmitter } from '@angular/core';
+import { ComponentFixture, fakeAsync, flush, TestBed, tick, waitForAsync } from '@angular/core/testing';
+import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { ExplorationTitleEditorComponent } from './exploration-title-editor.component';
+import { FocusManagerService } from 'services/stateful/focus-manager.service';
+import { RouterService } from '../services/router.service';
+import { ExplorationTitleService } from '../services/exploration-title.service';
 
-import { importAllAngularServices } from 'tests/unit-test-utils';
+describe('Exploration Title Editor Component', () => {
+  let component: ExplorationTitleEditorComponent;
+  let fixture: ComponentFixture<ExplorationTitleEditorComponent>;
+  let focusManagerService: FocusManagerService;
+  let mockEventEmitter = new EventEmitter();
+  let explorationTitleService: ExplorationTitleService;
 
-describe('Exploration Title Editor directive', function() {
-  var $scope = null;
-  var ExplorationTitleService = null;
+  class MockRouterService {
+    onRefreshSettingsTab = mockEventEmitter;
+  }
 
-  beforeEach(angular.mock.module('oppia'));
-  importAllAngularServices();
-  beforeEach(angular.mock.inject(function($injector, $componentController) {
-    var $rootScope = $injector.get('$rootScope');
-    ExplorationTitleService = $injector.get('ExplorationTitleService');
-
-    $scope = $rootScope.$new();
-    $componentController('explorationTitleEditor', {
-      $scope: $scope,
-      ExplorationTitleService: ExplorationTitleService
-    });
+  beforeEach(waitForAsync(() => {
+    TestBed.configureTestingModule({
+      imports: [
+        HttpClientTestingModule,
+        FormsModule,
+        ReactiveFormsModule
+      ],
+      declarations: [
+        ExplorationTitleEditorComponent
+      ],
+      providers: [
+        {
+          provide: RouterService,
+          useClass: MockRouterService
+        },
+        ExplorationTitleService,
+        FocusManagerService,
+      ],
+      schemas: [NO_ERRORS_SCHEMA]
+    }).compileComponents();
   }));
 
-  it('should initialize controller properties after its initialization',
-    function() {
-      expect($scope.explorationTitleService).toEqual(ExplorationTitleService);
-    });
+
+  beforeEach(() => {
+    fixture = TestBed.createComponent(ExplorationTitleEditorComponent);
+    component = fixture.componentInstance;
+
+    focusManagerService = TestBed.inject(FocusManagerService);
+
+    explorationTitleService = TestBed.inject(ExplorationTitleService);
+    explorationTitleService.displayed = '';
+
+    component.ngOnInit();
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    component.ngOnDestroy();
+  });
+
+  it('should set focus on settings tab when refreshSettingsTab flag is ' +
+    'emit', fakeAsync(() => {
+    spyOn(focusManagerService, 'setFocus').and.stub();
+
+    component.focusLabel = 'xyzz';
+
+    mockEventEmitter.emit();
+    component.inputFieldBlur();
+    tick();
+
+    flush();
+
+    expect(focusManagerService.setFocus).toHaveBeenCalledWith(
+      'xyzz');
+  }));
+
+  it('should unsubscribe when component is destroyed', () => {
+    const unsubscribeSpy =
+      spyOn(component.directiveSubscriptions, 'unsubscribe');
+
+    component.ngOnDestroy();
+
+    expect(unsubscribeSpy).toHaveBeenCalled();
+  });
 });

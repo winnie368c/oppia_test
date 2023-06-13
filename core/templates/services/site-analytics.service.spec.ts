@@ -21,406 +21,709 @@ import { SiteAnalyticsService } from 'services/site-analytics.service';
 import { WindowRef } from 'services/contextual/window-ref.service';
 
 describe('Site Analytics Service', () => {
-  let sas = null;
-  let ws = null;
-  let gaSpy: jasmine.Spy = null;
+  let sas: SiteAnalyticsService;
+  let ws: WindowRef;
+  let gtagSpy: jasmine.Spy;
+  let pathname = 'pathname';
+
+  class MockWindowRef {
+    nativeWindow = {
+      gtag: () => {},
+      location: {
+        pathname
+      }
+    };
+  }
 
   beforeEach(() => {
-    sas = TestBed.get(SiteAnalyticsService);
-    ws = TestBed.get(WindowRef);
-    spyOnProperty(sas, 'CAN_SEND_ANALYTICS_EVENTS', 'get')
-      .and.returnValue(true);
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: WindowRef,
+          useClass: MockWindowRef
+        }
+      ]
+    }).compileComponents();
 
-    ws.nativeWindow.ga = function() {};
-    gaSpy = spyOn(ws.nativeWindow, 'ga').and.stub();
+    sas = TestBed.inject(SiteAnalyticsService);
+    ws = TestBed.inject(WindowRef);
   });
 
-  it('should register start login event', () => {
-    const element = 'LoginEventButton';
-    sas.registerStartLoginEvent(element);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'LoginButton', 'click',
-      '/context.html LoginEventButton');
+  it('should initialize google analytics', () => {
+    expect(ws.nativeWindow.gtag).toBeDefined();
   });
 
-  it('should register new signup event', () => {
-    sas.registerNewSignupEvent();
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'SignupButton', 'click', '');
-  });
-
-  it('should register click browse lessons event', () => {
-    sas.registerClickBrowseLessonsButtonEvent();
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'BrowseLessonsButton', 'click', '/context.html');
-  });
-
-  it('should register go to donation site event', () => {
-    const donationSite = 'https://donation.com';
-    sas.registerGoToDonationSiteEvent(donationSite);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'GoToDonationSite', 'click', donationSite);
-  });
-
-  it('should register apply to teach with oppia event', () => {
-    sas.registerApplyToTeachWithOppiaEvent();
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'ApplyToTeachWithOppia', 'click', '');
-  });
-
-  it('should register click create exploration button event', () => {
-    sas.registerClickCreateExplorationButtonEvent();
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'CreateExplorationButton', 'click', '/context.html');
-  });
-
-  it('should register create new exploration event', () => {
-    const explorationId = 'abc1';
-    sas.registerCreateNewExplorationEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'NewExploration', 'create', explorationId);
-  });
-
-  it('should register create new exploration in collection event', () => {
-    const explorationId = 'abc1';
-    sas.registerCreateNewExplorationInCollectionEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'NewExplorationFromCollection', 'create',
-      explorationId);
-  });
-
-  it('should register new collection event', () => {
-    const collectionId = 'abc1';
-    sas.registerCreateNewCollectionEvent(collectionId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'NewCollection', 'create', collectionId);
-  });
-
-  it('should register commit changes to private exploration event', () => {
-    const explorationId = 'abc1';
-    sas.registerCommitChangesToPrivateExplorationEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'CommitToPrivateExploration', 'click', explorationId);
-  });
-
-  it('should register share exploration event', () => {
-    const network = 'ShareExplorationNetwork';
-    sas.registerShareExplorationEvent(network);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'social', network, 'share', '/context.html');
-  });
-
-  it('should register share collection event', () => {
-    const network = 'ShareCollectionNetwork';
-    sas.registerShareCollectionEvent(network);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'social', network, 'share', '/context.html');
-  });
-
-  it('should register open embed info event', () => {
-    const explorationId = 'abc1';
-    sas.registerOpenEmbedInfoEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'EmbedInfoModal', 'open', explorationId);
-  });
-
-  it('should register commit changes to public exploration event', () => {
-    const explorationId = 'abc1';
-    sas.registerCommitChangesToPublicExplorationEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'CommitToPublicExploration', 'click', explorationId);
-  });
-
-  it('should register tutorial modal open event', () => {
-    const explorationId = 'abc1';
-    sas.registerTutorialModalOpenEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'TutorialModalOpen', 'open', explorationId);
-  });
-
-  it('should register decline tutorial modal event', () => {
-    const explorationId = 'abc1';
-    sas.registerDeclineTutorialModalEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'DeclineTutorialModal', 'click', explorationId);
-  });
-
-  it('should register accept tutorial modal event', () => {
-    const explorationId = 'abc1';
-    sas.registerAcceptTutorialModalEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'AcceptTutorialModal', 'click', explorationId);
-  });
-
-  it('should register click help button event', () => {
-    const explorationId = 'abc1';
-    sas.registerClickHelpButtonEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'ClickHelpButton', 'click', explorationId);
-  });
-
-  it('should register visit help center event', () => {
-    const explorationId = 'abc1';
-    sas.registerVisitHelpCenterEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'VisitHelpCenter', 'click', explorationId);
-  });
-
-  it('should register open tutorial from help center event', () => {
-    const explorationId = 'abc1';
-    sas.registerOpenTutorialFromHelpCenterEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'OpenTutorialFromHelpCenter', 'click', explorationId);
-  });
-
-  it('should register skip tutorial event', () => {
-    const explorationId = 'abc1';
-    sas.registerSkipTutorialEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'SkipTutorial', 'click', explorationId);
-  });
-
-  it('should register finish tutorial event', () => {
-    const explorationId = 'abc1';
-    sas.registerFinishTutorialEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'FinishTutorial', 'click', explorationId);
-  });
-
-  it('should register editor first entry event', () => {
-    const explorationId = 'abc1';
-    sas.registerEditorFirstEntryEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'FirstEnterEditor', 'open', explorationId);
-  });
-
-  it('should register first open content box event', () => {
-    const explorationId = 'abc1';
-    sas.registerFirstOpenContentBoxEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'FirstOpenContentBox', 'open', explorationId);
-  });
-
-  it('should register first save content event', () => {
-    const explorationId = 'abc1';
-    sas.registerFirstSaveContentEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'FirstSaveContent', 'click', explorationId);
-  });
-
-  it('should register first click add interaction event', () => {
-    const explorationId = 'abc1';
-    sas.registerFirstClickAddInteractionEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'FirstClickAddInteraction', 'click', explorationId);
-  });
-
-  it('should register select interaction type event', () => {
-    const explorationId = 'abc1';
-    sas.registerFirstSelectInteractionTypeEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'FirstSelectInteractionType', 'click', explorationId);
-  });
-
-  it('should register first save interaction event', () => {
-    const explorationId = 'abc1';
-    sas.registerFirstSaveInteractionEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'FirstSaveInteraction', 'click', explorationId);
-  });
-
-  it('should register first save rule event', () => {
-    const explorationId = 'abc1';
-    sas.registerFirstSaveRuleEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'FirstSaveRule', 'click', explorationId);
-  });
-
-  it('should register first create second state event', () => {
-    const explorationId = 'abc1';
-    sas.registerFirstCreateSecondStateEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'FirstCreateSecondState', 'create', explorationId);
-  });
-
-  it('should register save playable exploration event', () => {
-    const explorationId = 'abc1';
-    sas.registerSavePlayableExplorationEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'SavePlayableExploration', 'save', explorationId);
-  });
-
-  it('should register open publish exploration modal event', () => {
-    const explorationId = 'abc1';
-    sas.registerOpenPublishExplorationModalEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'PublishExplorationModal', 'open', explorationId);
-  });
-
-  it('should register publish exploration event', () => {
-    const explorationId = 'abc1';
-    sas.registerPublishExplorationEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'PublishExploration', 'click', explorationId);
-  });
-
-  it('should register visit oppia from iframe event', () => {
-    const explorationId = 'abc1';
-    sas.registerVisitOppiaFromIframeEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'VisitOppiaFromIframe', 'click', explorationId);
-  });
-
-  it('should register new card when card number is less than 10', () => {
-    const cardNumber = 1;
-    sas.registerNewCard(cardNumber);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'PlayerNewCard', 'click', String(cardNumber));
-  });
-
-  it('should register new card when card number is greather than 10 and' +
-    ' it\'s a multiple of 10', () => {
-    const cardNumber = 20;
-    sas.registerNewCard(cardNumber);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'PlayerNewCard', 'click', String(cardNumber));
-  });
-
-  it('should not register new card', () => {
-    const cardNumber = 35;
-    sas.registerNewCard(cardNumber);
-
-    expect(gaSpy).not.toHaveBeenCalled();
-  });
-
-  it('should register finish exploration event', () => {
-    sas.registerFinishExploration();
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'PlayerFinishExploration', 'click', '');
-  });
-
-  it('should register open collection from landing page event', () => {
-    const collectionId = 'abc1';
-    sas.registerOpenCollectionFromLandingPageEvent(collectionId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'OpenFractionsFromLandingPage', 'click', collectionId);
-  });
-
-  it('should register stewards landing page event', () => {
-    const viewerType = 'user';
-    const buttonText = 'Button Text';
-    sas.registerStewardsLandingPageEvent(viewerType, buttonText);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'ClickButtonOnStewardsPage', 'click',
-      viewerType + ':' + buttonText);
-  });
-
-  it('should register save recorded audio event', () => {
-    const explorationId = 'abc1';
-    sas.registerSaveRecordedAudioEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'SaveRecordedAudio', 'click', explorationId);
-  });
-
-  it('should register audio recording event', () => {
-    const explorationId = 'abc1';
-    sas.registerStartAudioRecordingEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'StartAudioRecording', 'click', explorationId);
-  });
-
-  it('should register upload audio event', () => {
-    const explorationId = 'abc1';
-    sas.registerUploadAudioEvent(explorationId);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'UploadRecordedAudio', 'click', explorationId);
-  });
-
-  it('should register Contributor Dashboard suggest event', () => {
-    const contributionType = 'Translation';
-    sas.registerContributorDashboardSuggestEvent(contributionType);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'ContributorDashboardSuggest', 'click',
-      contributionType);
-  });
-
-  it('should register Contributor Dashboard submit suggestion event', () => {
-    const contributionType = 'Translation';
-    sas.registerContributorDashboardSubmitSuggestionEvent(contributionType);
-
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'ContributorDashboardSubmitSuggestion', 'click',
-      contributionType);
-  });
-
-  it('should register Contributor Dashboard view suggestion for review event',
-    () => {
-      const contributionType = 'Translation';
-      sas.registerContributorDashboardViewSuggestionForReview(contributionType);
-
-      expect(gaSpy).toHaveBeenCalledWith(
-        'send', 'event', 'ContributorDashboardViewSuggestionForReview', 'click',
-        contributionType);
+  describe('when tested using gtag spy', () => {
+    beforeEach(() => {
+      gtagSpy = spyOn(ws.nativeWindow, 'gtag');
     });
 
-  it('should register Contributor Dashboard accept suggestion event', () => {
-    const contributionType = 'Translation';
-    sas.registerContributorDashboardAcceptSuggestion(contributionType);
+    it('should register start login event', () => {
+      const element = 'LoginEventButton';
+      sas.registerStartLoginEvent(element);
 
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'ContributorDashboardAcceptSuggestion', 'click',
-      contributionType);
-  });
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'LoginButton',
+        event_label: pathname + ' LoginEventButton'
+      });
+    });
 
-  it('should register Contributor Dashboard reject suggestion event', () => {
-    const contributionType = 'Translation';
-    sas.registerContributorDashboardRejectSuggestion(contributionType);
+    it('should register new signup event', () => {
+      sas.registerNewSignupEvent('srcElement');
 
-    expect(gaSpy).toHaveBeenCalledWith(
-      'send', 'event', 'ContributorDashboardRejectSuggestion', 'click',
-      contributionType);
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'sign_up', {
+        source_element: 'srcElement'
+      });
+    });
+
+    it('should register click browse lessons event', () => {
+      sas.registerClickBrowseLessonsButtonEvent();
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'BrowseLessonsButton',
+        event_label: pathname
+      });
+    });
+
+    it('should register click start learning button event', () => {
+      sas.registerClickStartLearningButtonEvent();
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'StartLearningButton',
+        event_label: pathname
+      });
+    });
+
+    it('should register click start contributing button event', () => {
+      sas.registerClickStartContributingButtonEvent();
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'StartContributingButton',
+        event_label: pathname
+      });
+    });
+
+    it('should register go to donation site event', () => {
+      const donationSite = 'https://donation.com';
+      sas.registerGoToDonationSiteEvent(donationSite);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'GoToDonationSite',
+        event_label: donationSite
+      });
+    });
+
+    it('should register apply to teach with oppia event', () => {
+      sas.registerApplyToTeachWithOppiaEvent();
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'ApplyToTeachWithOppia',
+        event_label: ''
+      });
+    });
+
+    it('should register click create exploration button event', () => {
+      sas.registerClickCreateExplorationButtonEvent();
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'CreateExplorationButton',
+        event_label: pathname
+      });
+    });
+
+    it('should register create new exploration event', () => {
+      const explorationId = 'abc1';
+      sas.registerCreateNewExplorationEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'create', {
+        event_category: 'NewExploration',
+        event_label: explorationId
+      });
+    });
+
+    it('should register create new exploration in collection event', () => {
+      const explorationId = 'abc1';
+      sas.registerCreateNewExplorationInCollectionEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event', 'create', {
+          event_category: 'NewExplorationFromCollection',
+          event_label: explorationId
+        });
+    });
+
+    it('should register new collection event', () => {
+      const collectionId = 'abc1';
+      sas.registerCreateNewCollectionEvent(collectionId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'create', {
+        event_category: 'NewCollection',
+        event_label: collectionId
+      });
+    });
+
+    it('should register commit changes to private exploration event', () => {
+      const explorationId = 'abc1';
+      sas.registerCommitChangesToPrivateExplorationEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event', 'click', {
+          event_category: 'CommitToPrivateExploration',
+          event_label: explorationId
+        });
+    });
+
+    it('should register share exploration event', () => {
+      const network = 'ShareExplorationNetwork';
+      sas.registerShareExplorationEvent(network);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'share', {
+        event_category: network,
+        event_label: pathname
+      });
+    });
+
+    it('should register share collection event', () => {
+      const network = 'ShareCollectionNetwork';
+      sas.registerShareCollectionEvent(network);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'share', {
+        event_category: network,
+        event_label: pathname
+      });
+    });
+
+    it('should register share blog post event', () => {
+      const network = 'ShareBlogPostNetwork';
+      sas.registerShareBlogPostEvent(network);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'share', {
+        event_category: network,
+        event_label: pathname
+      });
+    });
+
+    it('should register open embed info event', () => {
+      const explorationId = 'abc1';
+      sas.registerOpenEmbedInfoEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'open', {
+        event_category: 'EmbedInfoModal',
+        event_label: explorationId
+      });
+    });
+
+    it('should register commit changes to public exploration event', () => {
+      const explorationId = 'abc1';
+      sas.registerCommitChangesToPublicExplorationEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'CommitToPublicExploration',
+        event_label: explorationId
+      });
+    });
+
+    it('should register tutorial modal open event', () => {
+      const explorationId = 'abc1';
+      sas.registerTutorialModalOpenEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'open', {
+        event_category: 'TutorialModalOpen',
+        event_label: explorationId
+      });
+    });
+
+    it('should register decline tutorial modal event', () => {
+      const explorationId = 'abc1';
+      sas.registerDeclineTutorialModalEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'DeclineTutorialModal',
+        event_label: explorationId
+      });
+    });
+
+    it('should register accept tutorial modal event', () => {
+      const explorationId = 'abc1';
+      sas.registerAcceptTutorialModalEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'AcceptTutorialModal',
+        event_label: explorationId
+      });
+    });
+
+    it('should register click help button event', () => {
+      const explorationId = 'abc1';
+      sas.registerClickHelpButtonEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'ClickHelpButton',
+        event_label: explorationId
+      });
+    });
+
+    it('should register visit help center event', () => {
+      const explorationId = 'abc1';
+      sas.registerVisitHelpCenterEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'VisitHelpCenter',
+        event_label: explorationId
+      });
+    });
+
+    it('should register open tutorial from help center event', () => {
+      const explorationId = 'abc1';
+      sas.registerOpenTutorialFromHelpCenterEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'OpenTutorialFromHelpCenter',
+        event_label: explorationId
+      });
+    });
+
+    it('should register skip tutorial event', () => {
+      const explorationId = 'abc1';
+      sas.registerSkipTutorialEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'SkipTutorial',
+        event_label: explorationId
+      });
+    });
+
+    it('should register finish tutorial event', () => {
+      const explorationId = 'abc1';
+      sas.registerFinishTutorialEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'FinishTutorial',
+        event_label: explorationId
+      });
+    });
+
+    it('should register editor first entry event', () => {
+      const explorationId = 'abc1';
+      sas.registerEditorFirstEntryEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'open', {
+        event_category: 'FirstEnterEditor',
+        event_label: explorationId
+      });
+    });
+
+    it('should register first open content box event', () => {
+      const explorationId = 'abc1';
+      sas.registerFirstOpenContentBoxEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'open', {
+        event_category: 'FirstOpenContentBox',
+        event_label: explorationId
+      });
+    });
+
+    it('should register first save content event', () => {
+      const explorationId = 'abc1';
+      sas.registerFirstSaveContentEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'FirstSaveContent',
+        event_label: explorationId
+      });
+    });
+
+    it('should register first click add interaction event', () => {
+      const explorationId = 'abc1';
+      sas.registerFirstClickAddInteractionEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'FirstClickAddInteraction',
+        event_label: explorationId
+      });
+    });
+
+    it('should register select interaction type event', () => {
+      const explorationId = 'abc1';
+      sas.registerFirstSelectInteractionTypeEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'FirstSelectInteractionType',
+        event_label: explorationId
+      });
+    });
+
+    it('should register first save interaction event', () => {
+      const explorationId = 'abc1';
+      sas.registerFirstSaveInteractionEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'FirstSaveInteraction',
+        event_label: explorationId
+      });
+    });
+
+    it('should register first save rule event', () => {
+      const explorationId = 'abc1';
+      sas.registerFirstSaveRuleEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'FirstSaveRule',
+        event_label: explorationId
+      });
+    });
+
+    it('should register first create second state event', () => {
+      const explorationId = 'abc1';
+      sas.registerFirstCreateSecondStateEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'create', {
+        event_category: 'FirstCreateSecondState',
+        event_label: explorationId
+      });
+    });
+
+    it('should register save playable exploration event', () => {
+      const explorationId = 'abc1';
+      sas.registerSavePlayableExplorationEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'save', {
+        event_category: 'SavePlayableExploration',
+        event_label: explorationId
+      });
+    });
+
+    it('should register open publish exploration modal event', () => {
+      const explorationId = 'abc1';
+      sas.registerOpenPublishExplorationModalEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'open', {
+        event_category: 'PublishExplorationModal',
+        event_label: explorationId
+      });
+    });
+
+    it('should register publish exploration event', () => {
+      const explorationId = 'abc1';
+      sas.registerPublishExplorationEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'PublishExploration',
+        event_label: explorationId
+      });
+    });
+
+    it('should register visit oppia from iframe event', () => {
+      const explorationId = 'abc1';
+      sas.registerVisitOppiaFromIframeEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'VisitOppiaFromIframe',
+        event_label: explorationId
+      });
+    });
+
+    it('should register new card when card number is less than 10', () => {
+      const cardNumber = 1;
+      sas.registerNewCard(cardNumber, 'abc1');
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'PlayerNewCard',
+        event_label: String(cardNumber)
+      });
+    });
+
+    it('should register new card when card number is greather than 10 and' +
+      ' it\'s a multiple of 10', () => {
+      const cardNumber = 20;
+      sas.registerNewCard(cardNumber, 'abc1');
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'PlayerNewCard',
+        event_label: String(cardNumber)
+      });
+    });
+
+    it('should not register new card', () => {
+      const cardNumber = 35;
+      sas.registerNewCard(cardNumber, 'abc1');
+
+      expect(gtagSpy).not.toHaveBeenCalled();
+    });
+
+    it('should register finish exploration event', () => {
+      sas.registerFinishExploration('123');
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'engage', {
+        event_category: 'PlayerFinishExploration',
+        event_label: '123'
+      });
+    });
+
+    it('should register finish curated lesson event', () => {
+      sas.registerCuratedLessonStarted('Fractions', '123');
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event',
+        'classroom_lesson_started',
+        {
+          topic_name: 'Fractions',
+          exploration_id: '123'
+        }
+      );
+    });
+
+    it('should register finish curated lesson event', () => {
+      sas.registerCuratedLessonCompleted(
+        'math',
+        'Fractions',
+        'ch1',
+        '123',
+        '2',
+        '3',
+        'en'
+      );
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event',
+        'classroom_lesson_completed',
+        {
+          classroom_name: 'math',
+          topic_name: 'Fractions',
+          chapter_name: 'ch1',
+          exploration_id: '123',
+          chapter_number: '2',
+          chapter_card_count: '3',
+          exploration_language: 'en'
+        }
+      );
+    });
+
+    it('should register open collection from landing page event', () => {
+      const collectionId = 'abc1';
+      sas.registerOpenCollectionFromLandingPageEvent(collectionId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'OpenFractionsFromLandingPage',
+        event_label: collectionId
+      });
+    });
+
+    it('should register save recorded audio event', () => {
+      const explorationId = 'abc1';
+      sas.registerSaveRecordedAudioEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'SaveRecordedAudio',
+        event_label: explorationId
+      });
+    });
+
+    it('should register audio recording event', () => {
+      const explorationId = 'abc1';
+      sas.registerStartAudioRecordingEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'StartAudioRecording',
+        event_label: explorationId
+      });
+    });
+
+    it('should register upload audio event', () => {
+      const explorationId = 'abc1';
+      sas.registerUploadAudioEvent(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'UploadRecordedAudio',
+        event_label: explorationId
+      });
+    });
+
+    it('should register Contributor Dashboard suggest event', () => {
+      const contributionType = 'Translation';
+      sas.registerContributorDashboardSuggestEvent(contributionType);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'ContributorDashboardSuggest',
+        event_label: contributionType
+      });
+    });
+
+    it('should register Contributor Dashboard submit suggestion event', () => {
+      const contributionType = 'Translation';
+      sas.registerContributorDashboardSubmitSuggestionEvent(contributionType);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'ContributorDashboardSubmitSuggestion',
+        event_label: contributionType
+      });
+    });
+
+    it('should register Contributor Dashboard view suggestion for review event',
+      () => {
+        const contributionType = 'Translation';
+        sas.registerContributorDashboardViewSuggestionForReview(
+          contributionType);
+
+        expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+          event_category: 'ContributorDashboardViewSuggestionForReview',
+          event_label: contributionType
+        });
+      });
+
+    it('should register Contributor Dashboard accept suggestion event', () => {
+      const contributionType = 'Translation';
+      sas.registerContributorDashboardAcceptSuggestion(contributionType);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'ContributorDashboardAcceptSuggestion',
+        event_label: contributionType
+      });
+    });
+
+    it('should register Contributor Dashboard reject suggestion event', () => {
+      const contributionType = 'Translation';
+      sas.registerContributorDashboardRejectSuggestion(contributionType);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'ContributorDashboardRejectSuggestion',
+        event_label: contributionType
+      });
+    });
+
+    it('should register active lesson usage', () => {
+      sas.registerLessonActiveUse();
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'engage', {
+        event_category: 'ActiveUserStartAndSawCards',
+        event_label: ''
+      });
+    });
+
+    it('should register exploration start', () => {
+      const explorationId = 'abc1';
+      sas.registerStartExploration(explorationId);
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'engage', {
+        event_category: 'PlayerStartExploration',
+        event_label: explorationId
+      });
+    });
+
+    it('should register classroom page viewed', () => {
+      spyOn(sas, '_sendEventToLegacyGoogleAnalytics');
+
+      sas.registerClassroomPageViewed();
+      expect(sas._sendEventToLegacyGoogleAnalytics).toHaveBeenCalledWith(
+        'ClassroomEngagement', 'impression', 'ViewClassroom');
+    });
+
+    it('should register active classroom lesson usage', () => {
+      let explorationId = '123';
+      sas.registerClassroomLessonEngagedWithEvent(
+        'math', 'Fractions', 'ch1', explorationId, '2', '3', 'en');
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event',
+        'classroom_lesson_engaged_with',
+        {
+          classroom_name: 'math',
+          topic_name: 'Fractions',
+          chapter_name: 'ch1',
+          exploration_id: '123',
+          chapter_number: '2',
+          chapter_card_count: '3',
+          exploration_language: 'en'
+        }
+      );
+    });
+
+    it('should register classroom header click event', () => {
+      sas.registerClassroomHeaderClickEvent();
+
+      expect(gtagSpy).toHaveBeenCalledWith('event', 'click', {
+        event_category: 'ClassroomEngagement',
+        event_label: 'ClickOnClassroom'
+      });
+    });
+
+    it('should register community lesson completed event', () => {
+      sas.registerCommunityLessonCompleted('exp_id');
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event', 'community_lesson_completed',
+        {
+          exploration_id: 'exp_id'
+        }
+      );
+    });
+
+    it('should register community lesson started event', () => {
+      sas.registerCommunityLessonStarted('exp_id');
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event', 'community_lesson_started',
+        {
+          exploration_id: 'exp_id'
+        }
+      );
+    });
+
+    it('should register audio play event', () => {
+      sas.registerStartAudioPlayedEvent('exp_id', 0);
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event', 'audio_played',
+        {
+          exploration_id: 'exp_id',
+          card_number: 0
+        }
+      );
+    });
+
+    it('should register practice session start event', () => {
+      sas.registerPracticeSessionStartEvent('math', 'topic', '1,2,3');
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event', 'practice_session_start',
+        {
+          classroom_name: 'math',
+          topic_name: 'topic',
+          practice_session_id: '1,2,3'
+        }
+      );
+    });
+
+    it('should register practice session end event', () => {
+      sas.registerPracticeSessionEndEvent(
+        'math', 'topic', '1,2,3', 10, 10);
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event', 'practice_session_complete',
+        {
+          classroom_name: 'math',
+          topic_name: 'topic',
+          practice_session_id: '1,2,3',
+          questions_answered: 10,
+          total_score: 10
+        }
+      );
+    });
+
+    it('should register search results viewed event', () => {
+      sas.registerSearchResultsViewedEvent();
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event', 'view_search_results', {}
+      );
+    });
+
+    it('should register homepage start learning button click event', () => {
+      sas.registerClickHomePageStartLearningButtonEvent();
+
+      expect(gtagSpy).toHaveBeenCalledWith(
+        'event', 'discovery_start_learning', {}
+      );
+    });
   });
 });

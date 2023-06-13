@@ -25,7 +25,9 @@ import { Exploration, ExplorationBackendDict, ExplorationObjectFactory } from
 import { ImagePreloaderService } from
   'pages/exploration-player-page/services/image-preloader.service';
 import { AssetsBackendApiService } from 'services/assets-backend-api.service';
+import { EntityTranslationsService } from 'services/entity-translations.services';
 import { ContextService } from 'services/context.service';
+import { SvgSanitizerService } from 'services/svg-sanitizer.service';
 
 describe('Image preloader service', () => {
   let httpTestingController: HttpTestingController;
@@ -43,11 +45,19 @@ describe('Image preloader service', () => {
   let imagePreloaderService: ImagePreloaderService;
   let explorationObjectFactory: ExplorationObjectFactory;
   let contextService: ContextService;
+  let entityTranslationsService: EntityTranslationsService;
+  let svgSanitizerService: SvgSanitizerService;
+
 
   const initStateName = 'Introduction';
   const explorationDict: ExplorationBackendDict = {
+    correctness_feedback_enabled: false,
+    draft_changes: [],
+    is_version_of_draft_valid: true,
     language_code: 'en',
     title: 'My Title',
+    draft_change_list_id: 0,
+    next_content_id_index: 5,
     init_state_name: initStateName,
     states: {
       'State 1': {
@@ -70,6 +80,7 @@ describe('Image preloader service', () => {
               html: ''
             },
             dest: 'State 3',
+            dest_if_really_stuck: null,
             param_changes: [],
             labelled_as_correct: null,
             refresher_exploration_id: null,
@@ -89,14 +100,9 @@ describe('Image preloader service', () => {
           hints: []
         },
         solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {},
-            default_outcome: {}
-          }
-        },
+        card_is_checkpoint: false,
+        linked_skill_id: null,
         classifier_model_id: null,
-        next_content_id_index: null,
       },
       'State 3': {
         param_changes: [],
@@ -123,13 +129,9 @@ describe('Image preloader service', () => {
           hints: []
         },
         solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {}
-          }
-        },
+        card_is_checkpoint: false,
+        linked_skill_id: null,
         classifier_model_id: null,
-        next_content_id_index: null,
       },
       [initStateName]: {
         classifier_model_id: null,
@@ -150,6 +152,7 @@ describe('Image preloader service', () => {
           id: 'MultipleChoiceInput',
           default_outcome: {
             dest: initStateName,
+            dest_if_really_stuck: null,
             feedback: {
               content_id: 'default_outcome',
               html: 'Try Again!'
@@ -182,6 +185,7 @@ describe('Image preloader service', () => {
             {
               outcome: {
                 dest: 'State 6',
+                dest_if_really_stuck: null,
                 feedback: {
                   content_id: 'feedback_1',
                   html: '<p>We are going to ItemSelection' +
@@ -204,6 +208,7 @@ describe('Image preloader service', () => {
             {
               outcome: {
                 dest: 'State 1',
+                dest_if_really_stuck: null,
                 feedback: {
                   content_id: 'feedback_2',
                   html: "Let's go to state 1 ImageAndRegion"
@@ -225,15 +230,8 @@ describe('Image preloader service', () => {
           solution: null
         },
         solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {},
-            default_outcome: {},
-            feedback_1: {},
-            feedback_2: {}
-          }
-        },
-        next_content_id_index: null,
+        card_is_checkpoint: true,
+        linked_skill_id: null,
       },
       'State 6': {
         param_changes: [],
@@ -254,6 +252,7 @@ describe('Image preloader service', () => {
           id: 'TextInput',
           default_outcome: {
             dest: 'State 6',
+            dest_if_really_stuck: null,
             feedback: {
               content_id: 'default_outcome',
               html: ''
@@ -273,15 +272,22 @@ describe('Image preloader service', () => {
                 unicode_str: '',
                 content_id: ''
               }
+            },
+            catchMisspellings: {
+              value: false
             }
           },
           answer_groups: [{
             rule_specs: [{
               rule_type: 'Contains',
-              inputs: {x: '1'}
+              inputs: {x: {
+                contentId: 'rule_input',
+                normalizedStrSet: ['1']
+              }}
             }],
             outcome: {
               dest: 'State 1',
+              dest_if_really_stuck: null,
               feedback: {
                 content_id: 'feedback_1',
                 html: "<p>Let's go to State 1</p>"
@@ -296,10 +302,14 @@ describe('Image preloader service', () => {
           }, {
             rule_specs: [{
               rule_type: 'Contains',
-              inputs: {x: '2'}
+              inputs: {x: {
+                contentId: 'rule_input',
+                normalizedStrSet: ['2']
+              }}
             }],
             outcome: {
               dest: 'State 1',
+              dest_if_really_stuck: null,
               feedback: {
                 content_id: 'feedback_2',
                 html: "<p>Let's go to State 1</p>"
@@ -323,22 +333,44 @@ describe('Image preloader service', () => {
           solution: null,
         },
         solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {},
-            default_outcome: {},
-            feedback_1: {},
-            feedback_2: {},
-            hint_1: {}
-          }
-        },
+        card_is_checkpoint: false,
+        linked_skill_id: null,
         classifier_model_id: null,
-        next_content_id_index: null,
       }
     },
     param_specs: {},
     param_changes: [],
-  };
+    exploration_metadata: {
+      title: 'Exploration',
+      category: 'Algebra',
+      objective: 'To learn',
+      language_code: 'en',
+      tags: [],
+      blurb: '',
+      author_notes: '',
+      states_schema_version: 50,
+      init_state_name: 'Introduction',
+      param_specs: {},
+      param_changes: [],
+      auto_tts_enabled: false,
+      correctness_feedback_enabled: true,
+      edits_allowed: true
+    }
+  } as unknown as ExplorationBackendDict;
+  class mockReaderObject {
+    result = null;
+    onloadend: () => string;
+    constructor() {
+      this.onloadend = () => {
+        return 'Fake onload executed';
+      };
+    }
+
+    readAsDataURL(file: File) {
+      this.onloadend();
+      return 'The file is loaded';
+    }
+  }
   const filename1 = 'sIMChoice1_height_32_width_42.png';
   const filename2 = 'sIMChoice2_height_30_width_40.png';
   const filename3 = 'sIOFeedback_height_50_width_50.png';
@@ -362,10 +394,16 @@ describe('Image preloader service', () => {
     explorationObjectFactory = TestBed.get(ExplorationObjectFactory);
     contextService = TestBed.get(ContextService);
     assetsBackendApiService = TestBed.get(AssetsBackendApiService);
+    entityTranslationsService = TestBed.get(EntityTranslationsService);
+    svgSanitizerService = TestBed.inject(SvgSanitizerService);
 
     spyOn(contextService, 'getExplorationId').and.returnValue('1');
     spyOn(contextService, 'getEntityType').and.returnValue('exploration');
     spyOn(contextService, 'getEntityId').and.returnValue('1');
+    spyOn(entityTranslationsService, 'getHtmlTranslations').and.callFake(
+      (unusedLanguageCode, unusedContentIds) => {
+        return [];
+      });
 
     exploration = (
       explorationObjectFactory.createFromBackendDict(explorationDict));
@@ -596,7 +634,7 @@ describe('Image preloader service', () => {
     }).toThrowError(/it does not contain dimensions/);
   });
 
-  it('should get image url', fakeAsync(() => {
+  it('should fetch a non-SVG image', fakeAsync(() => {
     imagePreloaderService.init(exploration);
     imagePreloaderService.kickOffImagePreloader(initStateName);
 
@@ -616,10 +654,55 @@ describe('Image preloader service', () => {
 
     var onSuccess = jasmine.createSpy('success');
     var onFailure = jasmine.createSpy('fail');
+    // This throws "Argument of type 'mockReaderObject' is not assignable
+    // to parameter of type 'FileReader'.". We need to suppress this error
+    // because 'FileReader' has around 15 more properties. We have only defined
+    // the properties we need in 'mockReaderObject'.
+    // @ts-expect-error
+    spyOn(window, 'FileReader').and.returnValue(new mockReaderObject());
 
-    imagePreloaderService.getImageUrl(filename1).then(onSuccess, onFailure);
+    imagePreloaderService.getImageUrlAsync(filename1)
+      .then(onSuccess, onFailure);
     flushMicrotasks();
 
+    expect(onSuccess).toHaveBeenCalled();
+    expect(onFailure).not.toHaveBeenCalled();
+  }));
+
+  it('should fetch an SVG image', fakeAsync(() => {
+    imagePreloaderService.init(exploration);
+    imagePreloaderService.kickOffImagePreloader(initStateName);
+
+    httpTestingController.expectOne(requestUrl1).flush(
+      new Blob(['svg image'], { type: 'image/svg+xml' }));
+    httpTestingController.expectOne(requestUrl2);
+    httpTestingController.expectOne(requestUrl3);
+    expect(imagePreloaderService.getFilenamesOfImageCurrentlyDownloading())
+      .toEqual([filename1, filename2, filename3]);
+    expect(imagePreloaderService.isLoadingImageFile(filename1)).toBeTrue();
+
+    flushMicrotasks();
+
+    httpTestingController.expectOne(requestUrl4);
+    expect(imagePreloaderService.getFilenamesOfImageCurrentlyDownloading())
+      .toEqual([filename2, filename3, filename4]);
+    expect(imagePreloaderService.isLoadingImageFile(filename1)).toBeFalse();
+
+    var onSuccess = jasmine.createSpy('success');
+    var onFailure = jasmine.createSpy('fail');
+    // This throws "Argument of type 'mockReaderObject' is not assignable
+    // to parameter of type 'FileReader'.". We need to suppress this error
+    // because 'FileReader' has around 15 more properties. We have only defined
+    // the properties we need in 'mockReaderObject'.
+    // @ts-expect-error
+    spyOn(window, 'FileReader').and.returnValue(new mockReaderObject());
+    spyOn(svgSanitizerService, 'getTrustedSvgResourceUrl');
+
+    imagePreloaderService.getImageUrlAsync(filename1)
+      .then(onSuccess, onFailure);
+    flushMicrotasks();
+
+    expect(svgSanitizerService.getTrustedSvgResourceUrl).toHaveBeenCalled();
     expect(onSuccess).toHaveBeenCalled();
     expect(onFailure).not.toHaveBeenCalled();
   }));
@@ -646,8 +729,15 @@ describe('Image preloader service', () => {
 
     var onSuccess = jasmine.createSpy('success');
     var onFailure = jasmine.createSpy('fail');
+    // This throws "Argument of type 'mockReaderObject' is not assignable
+    // to parameter of type 'FileReader'.". We need to suppress this error
+    // because 'FileReader' has around 15 more properties. We have only defined
+    // the properties we need in 'mockReaderObject'.
+    // @ts-expect-error
+    spyOn(window, 'FileReader').and.returnValue(new mockReaderObject());
 
-    imagePreloaderService.getImageUrl(filename1).then(onSuccess, onFailure);
+    imagePreloaderService.getImageUrlAsync(filename1)
+      .then(onSuccess, onFailure);
 
     httpTestingController.expectOne(requestUrl1).flush(imageBlob);
     flushMicrotasks();
@@ -680,7 +770,8 @@ describe('Image preloader service', () => {
       var onSuccess = jasmine.createSpy('success');
       var onFailure = jasmine.createSpy('fail');
 
-      imagePreloaderService.getImageUrl(filename1).then(onSuccess, onFailure);
+      imagePreloaderService.getImageUrlAsync(filename1)
+        .then(onSuccess, onFailure);
 
       httpTestingController.expectOne(requestUrl1)
         .flush(imageBlob, {status: 404, statusText: 'Status Text'});
@@ -698,8 +789,15 @@ describe('Image preloader service', () => {
 
     var onSuccess = jasmine.createSpy('success');
     var onFailure = jasmine.createSpy('fail');
+    // This throws "Argument of type 'mockReaderObject' is not assignable
+    // to parameter of type 'FileReader'.". We need to suppress this error
+    // because 'FileReader' has around 15 more properties. We have only defined
+    // the properties we need in 'mockReaderObject'.
+    // @ts-expect-error
+    spyOn(window, 'FileReader').and.returnValue(new mockReaderObject());
 
-    imagePreloaderService.getImageUrl(filename1).then(onSuccess, onFailure);
+    imagePreloaderService.getImageUrlAsync(filename1)
+      .then(onSuccess, onFailure);
 
     httpTestingController.expectOne(requestUrl1).flush(imageBlob);
     httpTestingController.expectOne(requestUrl2);
@@ -726,7 +824,8 @@ describe('Image preloader service', () => {
     var onSuccess = jasmine.createSpy('success');
     var onFailure = jasmine.createSpy('fail');
 
-    imagePreloaderService.getImageUrl(filename1).then(onSuccess, onFailure);
+    imagePreloaderService.getImageUrlAsync(filename1)
+      .then(onSuccess, onFailure);
 
     httpTestingController.expectOne(requestUrl1)
       .flush(imageBlob, {status: 404, statusText: 'Status Text'});

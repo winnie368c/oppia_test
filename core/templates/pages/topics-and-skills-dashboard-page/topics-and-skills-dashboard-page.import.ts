@@ -16,6 +16,19 @@
  * @fileoverview Directive scripts for the topics and skills dashboard.
  */
 
+import 'core-js/es7/reflect';
+import 'zone.js';
+
+import uiValidate from 'angular-ui-validate';
+
+angular.module('oppia', [
+  require('angular-cookies'), 'ngAnimate',
+  'ngMaterial', 'ngSanitize', 'ngTouch', 'pascalprecht.translate',
+  'ui.bootstrap', uiValidate
+]);
+
+require('Polyfills.ts');
+
 // The module needs to be loaded directly after jquery since it defines the
 // main module the elements are attached to.
 require(
@@ -26,7 +39,7 @@ require('base-components/oppia-root.directive.ts');
 
 require(
   'pages/topics-and-skills-dashboard-page/navbar/' +
-  'topics-and-skills-dashboard-navbar-breadcrumb.directive.ts'
+  'topics-and-skills-dashboard-navbar-breadcrumb.component.ts'
 );
 require(
   'pages/topics-and-skills-dashboard-page/' +

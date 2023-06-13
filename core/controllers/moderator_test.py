@@ -14,23 +14,24 @@
 
 """Tests for the moderator page."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
+from core import feconf
 from core.domain import rights_manager
 from core.domain import user_services
 from core.tests import test_utils
-import feconf
+
+from typing import Final
 
 
 class ModeratorPageTests(test_utils.GenericTestBase):
 
-    def test_moderator_page(self):
+    def test_moderator_page(self) -> None:
         """Tests access to the Moderator page."""
         # Try accessing the moderator page without logging in.
         self.get_html_response('/moderator', expected_status_int=302)
 
-        # Try accessing the moderator page without being a moderator or admin.
+        # Try accessing the moderator page without being a moderator.
         self.signup(self.VIEWER_EMAIL, self.VIEWER_USERNAME)
         self.login(self.VIEWER_EMAIL)
         self.get_html_response('/moderator', expected_status_int=401)
@@ -43,34 +44,29 @@ class ModeratorPageTests(test_utils.GenericTestBase):
         self.get_html_response('/moderator')
         self.logout()
 
-        # Try accessing the moderator page after logging in as an admin.
-        self.signup(self.ADMIN_EMAIL, self.ADMIN_USERNAME)
-        self.set_admins([self.ADMIN_USERNAME])
-        self.login(self.ADMIN_EMAIL)
-        self.get_html_response('/moderator')
-        self.logout()
-
 
 class FeaturedActivitiesHandlerTests(test_utils.GenericTestBase):
 
-    EXP_ID_1 = 'exp_id_1'
-    EXP_ID_2 = 'exp_id_2'
+    EXP_ID_1: Final = 'exp_id_1'
+    EXP_ID_2: Final = 'exp_id_2'
     username = 'albert'
     user_email = 'albert@example.com'
 
-    def setUp(self):
-        super(FeaturedActivitiesHandlerTests, self).setUp()
+    def setUp(self) -> None:
+        super().setUp()
         self.signup(self.MODERATOR_EMAIL, self.MODERATOR_USERNAME)
         self.signup(self.user_email, self.username)
         self.set_moderators([self.MODERATOR_USERNAME])
         self.user_id = self.get_user_id_from_email(self.user_email)
-        self.user = user_services.UserActionsInfo(self.user_id)
+        self.user = user_services.get_user_actions_info(self.user_id)
         self.save_new_valid_exploration(self.EXP_ID_1, self.user_id)
         rights_manager.publish_exploration(self.user, self.EXP_ID_1)
 
         self.save_new_valid_exploration(self.EXP_ID_2, self.user_id)
 
-    def test_unpublished_activities_cannot_be_added_to_featured_list(self):
+    def test_unpublished_activities_cannot_be_added_to_featured_list(
+        self
+    ) -> None:
         self.login(self.MODERATOR_EMAIL)
         csrf_token = self.get_new_csrf_token()
 
@@ -108,8 +104,8 @@ class FeaturedActivitiesHandlerTests(test_utils.GenericTestBase):
 
 
 class EmailDraftHandlerTests(test_utils.GenericTestBase):
-    def setUp(self):
-        super(EmailDraftHandlerTests, self).setUp()
+    def setUp(self) -> None:
+        super().setUp()
         self.signup(self.MODERATOR_EMAIL, self.MODERATOR_USERNAME)
         self.set_moderators([self.MODERATOR_USERNAME])
 
@@ -118,7 +114,7 @@ class EmailDraftHandlerTests(test_utils.GenericTestBase):
         self.can_send_email_moderator_action_ctx = self.swap(
             feconf, 'REQUIRE_EMAIL_ON_MODERATOR_ACTION', True)
 
-    def test_get_draft_email_body(self):
+    def test_get_draft_email_body(self) -> None:
         self.login(self.MODERATOR_EMAIL)
         d_text = self.get_json(
             '/moderatorhandler/email_draft')['draft_email_body']

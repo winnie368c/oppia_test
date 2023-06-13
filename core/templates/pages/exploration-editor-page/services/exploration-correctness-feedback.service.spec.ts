@@ -16,47 +16,49 @@
  * @fileoverview Unit tests for ExplorationCorrectnessFeedbackService
  */
 
-import { UpgradedServices } from 'services/UpgradedServices';
+import { TestBed } from '@angular/core/testing';
+import { ExplorationCorrectnessFeedbackService } from './exploration-correctness-feedback.service';
+import { ExplorationPropertyService } from './exploration-property.service';
+import { HttpClientTestingModule, HttpTestingController } from
+  '@angular/common/http/testing';
+import { ExplorationDataService } from './exploration-data.service';
 
-/* eslint-disable-next-line max-len */
-require('pages/exploration-editor-page/services/exploration-correctness-feedback.service');
+describe('Exploration Correctness Feedback Service', () => {
+  let ecfs: ExplorationCorrectnessFeedbackService;
+  let httpTestingController: HttpTestingController;
 
-describe('Exploration Correctness Feedback Service', function() {
-  var ExplorationCorrectnessFeedbackService;
-
-  beforeEach(angular.mock.module('oppia'));
-  beforeEach(function() {
-    angular.mock.module(function($provide) {
-      $provide.value('ExplorationDataService', {
-        autosaveChangeList: function() {}
-      });
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [
+        ExplorationPropertyService,
+        {
+          provide: ExplorationDataService,
+          useValue: {
+            explorationId: 0,
+            autosaveChangeListAsync() {
+              return;
+            }
+          }
+        }
+      ]
     });
+    httpTestingController = TestBed.inject(HttpTestingController);
+    ecfs = TestBed.inject(ExplorationCorrectnessFeedbackService);
   });
-  beforeEach(angular.mock.module('oppia', function($provide) {
-    var ugs = new UpgradedServices();
-    for (let [key, value] of Object.entries(ugs.getUpgradedServices())) {
-      $provide.value(key, value);
-    }
-  }));
-  beforeEach(angular.mock.inject(function($injector) {
-    ExplorationCorrectnessFeedbackService = $injector.get(
-      'ExplorationCorrectnessFeedbackService');
-  }));
 
-  it('should toggle correctness feedback display', function() {
-    var isValidSpy = spyOn(
-      ExplorationCorrectnessFeedbackService, '_isValid').and.callThrough();
+  afterEach(() => {
+    httpTestingController.verify();
+  });
 
+  it('should toggl correctness feedback display', () => {
     // Function isEnabled() returns undefined in the first time.
-    expect(ExplorationCorrectnessFeedbackService.isEnabled()).toBeFalsy();
+    expect(ecfs.isEnabled()).toBeFalsy();
 
-    ExplorationCorrectnessFeedbackService.toggleCorrectnessFeedback();
-    ExplorationCorrectnessFeedbackService.isEnabled();
-    expect(ExplorationCorrectnessFeedbackService.isEnabled()).toBe(true);
+    ecfs.toggleCorrectnessFeedback();
+    expect(ecfs.isEnabled()).toBeTrue();
 
-    ExplorationCorrectnessFeedbackService.toggleCorrectnessFeedback();
-    expect(ExplorationCorrectnessFeedbackService.isEnabled()).toBe(false);
-
-    expect(isValidSpy).toHaveBeenCalledTimes(2);
+    ecfs.toggleCorrectnessFeedback();
+    expect(ecfs.isEnabled()).toBeFalse();
   });
 });

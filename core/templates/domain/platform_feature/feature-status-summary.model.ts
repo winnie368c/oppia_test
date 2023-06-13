@@ -24,6 +24,12 @@
  */
 export enum FeatureNames {
   DummyFeature = 'dummy_feature',
+  EndChapterCelebration = 'end_chapter_celebration',
+  CheckpointCelebration = 'checkpoint_celebration',
+  ContributorDashboardAccomplishments = 'contributor_dashboard_accomplishments',
+  AndroidBetaLandingPage = 'android_beta_landing_page',
+  BlogPages = 'blog_pages',
+  DiagnosticTest = 'diagnostic_test'
 }
 
 export interface FeatureStatusSummaryBackendDict {
@@ -41,6 +47,8 @@ export type FeatureStatusChecker = {
       isEnabled: boolean;
   }
 };
+
+export type FeatureNamesKeys = (keyof typeof FeatureNames)[];
 
 /**
  * Item of the status checker of feature flags, which represents the status of
@@ -91,7 +99,8 @@ export class FeatureStatusSummary {
    */
   static createDefault(): FeatureStatusSummary {
     const defaultDict: FeatureStatusSummaryBackendDict = {};
-    Object.keys(FeatureNames).forEach(
+    const featureNamesKeys = Object.keys(FeatureNames) as FeatureNamesKeys;
+    featureNamesKeys.forEach(
       name => defaultDict[FeatureNames[name]] = false);
     return this.createFromBackendDict(defaultDict);
   }
@@ -103,7 +112,7 @@ export class FeatureStatusSummary {
    * of the instance.
    */
   toBackendDict(): FeatureStatusSummaryBackendDict {
-    const backendDict = {};
+    const backendDict: Record<string, boolean> = {};
     for (const [key, value] of this.featureNameToFlag.entries()) {
       backendDict[key] = value;
     }
@@ -116,11 +125,14 @@ export class FeatureStatusSummary {
    * @returns {FeatureStatusChecker} - The feature status checker.
    */
   toStatusChecker(): FeatureStatusChecker {
-    const checker = <FeatureStatusChecker>{};
-    Object.keys(FeatureNames).forEach(name => {
-      checker[name] = new FeatureStatusCheckerItem(
-        () => this.isFeatureEnabled(FeatureNames[name])
-      );
+    const checker = {} as FeatureStatusChecker;
+    const featureNamesKeys = Object.keys(FeatureNames) as FeatureNamesKeys;
+    featureNamesKeys.forEach(name => {
+      Object.defineProperty(checker, name, {
+        value: new FeatureStatusCheckerItem(
+          () => this.isFeatureEnabled(FeatureNames[name])
+        )
+      });
     });
     return checker;
   }
@@ -134,9 +146,10 @@ export class FeatureStatusSummary {
    * @throws {Error} - If the feature with the specified name doesn't exist.
    */
   private isFeatureEnabled(featureName: string): boolean {
-    if (!this.featureNameToFlag.has(featureName)) {
+    const isEnabled = this.featureNameToFlag.get(featureName);
+    if (isEnabled === undefined) {
       throw new Error(`Feature '${featureName}' does not exist.`);
     }
-    return this.featureNameToFlag.get(featureName);
+    return isEnabled;
   }
 }

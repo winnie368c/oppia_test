@@ -1,4 +1,4 @@
-// Copyright 2014 The Oppia Authors. All Rights Reserved.
+// Copyright 2021 The Oppia Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,107 +18,149 @@
  * with base class as ExplorationPropertyService.
  */
 
+import { downgradeInjectable } from '@angular/upgrade/static';
 import { EventEmitter } from '@angular/core';
+import { Injectable } from '@angular/core';
+import cloneDeep from 'lodash/cloneDeep';
 
-require('pages/exploration-editor-page/services/change-list.service.ts');
-require('services/alerts.service.ts');
+import { ChangeListService } from 'pages/exploration-editor-page/services/change-list.service';
+import { AlertsService } from 'services/alerts.service';
+import { LoggerService } from 'services/contextual/logger.service';
+import { ParamChange, ParamChangeBackendDict } from 'domain/exploration/ParamChangeObjectFactory';
+import { ParamSpecs } from 'domain/exploration/ParamSpecsObjectFactory';
 
-angular.module('oppia').factory('ExplorationPropertyService', [
-  '$log', 'AlertsService', 'ChangeListService',
-  function($log, AlertsService, ChangeListService) {
-    // Public base API for data services corresponding to exploration properties
-    // (title, category, etc.)
+export type ExplorationPropertyValues = (
+  null |
+  number |
+  string |
+  string[] |
+  boolean |
+  ParamChange |
+  ParamChange[] |
+  ParamSpecs |
+  ParamChangeBackendDict |
+  ParamChangeBackendDict[]
+);
 
-    var _explorationPropertyChangedEventEmitter = new EventEmitter();
+@Injectable({
+  providedIn: 'root'
+})
+export class ExplorationPropertyService {
+  // These properties are initialized using private methods and we need to do
+  // non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  public displayed!: ExplorationPropertyValues;
+  savedMemento!: ExplorationPropertyValues;
 
-    var BACKEND_CONVERSIONS = {
-      param_changes: function(paramChanges) {
-        return paramChanges.map(function(paramChange) {
-          return paramChange.toBackendDict();
-        });
-      },
-      param_specs: function(paramSpecs) {
-        return paramSpecs.toBackendDict();
-      },
-    };
+  // The backend name for this property. THIS MUST BE SPECIFIED BY
+  // SUBCLASSES.
+  // Null if this property is not saved to the backend.
+  propertyName: string | null = null;
 
-    return {
-      init: function(value) {
-        if (this.propertyName === null) {
-          throw new Error('Exploration property name cannot be null.');
-        }
+  _explorationPropertyChangedEventEmitter = new EventEmitter();
+  constructor(
+    protected alertsService: AlertsService,
+    protected changeListService: ChangeListService,
+    protected loggerService: LoggerService,
+  ) {}
 
-        $log.info('Initializing exploration ' + this.propertyName + ':', value);
+  private BACKEND_CONVERSIONS = {
+    param_changes: (paramChanges: ParamChange[]) => {
+      return paramChanges.map(paramChange => {
+        return paramChange.toBackendDict();
+      });
+    },
+    param_specs: (paramSpecs: ParamChange) => {
+      return paramSpecs.toBackendDict();
+    },
+  };
 
-        // The current value of the property (which may not have been saved to
-        // the frontend yet). In general, this will be bound directly to the UI.
-        this.displayed = angular.copy(value);
-        // The previous (saved-in-the-frontend) value of the property. Here,
-        // 'saved' means that this is the latest value of the property as
-        // determined by the frontend change list.
-        this.savedMemento = angular.copy(value);
+  init(value: string | number | boolean | ParamChange[] | ParamSpecs): void {
+    if (!this.propertyName) {
+      throw new Error('Exploration property name cannot be null.');
+    }
 
-        _explorationPropertyChangedEventEmitter.emit();
-      },
-      // Returns whether the current value has changed from the memento.
-      hasChanged: function() {
-        return !angular.equals(this.savedMemento, this.displayed);
-      },
-      // The backend name for this property. THIS MUST BE SPECIFIED BY
-      // SUBCLASSES.
-      propertyName: null,
-      // Transforms the given value into a normalized form. THIS CAN BE
-      // OVERRIDDEN BY SUBCLASSES. The default behavior is to do nothing.
-      _normalize: function(value) {
-        return value;
-      },
-      // Validates the given value and returns a boolean stating whether it
-      // is valid or not. THIS CAN BE OVERRIDDEN BY SUBCLASSES. The default
-      // behavior is to always return true.
-      _isValid: function(value) {
-        return true;
-      },
-      // Normalizes the displayed value. Then, if the memento and the displayed
-      // value are the same, does nothing. Otherwise, creates a new entry in the
-      // change list, and updates the memento to the displayed value.
-      saveDisplayedValue: function() {
-        if (this.propertyName === null) {
-          throw new Error('Exploration property name cannot be null.');
-        }
+    this.loggerService.info(
+      'Initializing exploration ' + this.propertyName + ': ' + value);
 
-        this.displayed = this._normalize(this.displayed);
+    // The current value of the property (which may not have been saved to
+    // the frontend yet). In general, this will be bound directly to the UI.
+    this.displayed = cloneDeep(value);
 
-        if (!this._isValid(this.displayed) || !this.hasChanged()) {
-          this.restoreFromMemento();
-          return;
-        }
+    // The previous (saved-in-the-frontend) value of the property. Here,
+    // 'saved' means that this is the latest value of the property as
+    // determined by the frontend change list.
+    this.savedMemento = cloneDeep(value);
 
-        AlertsService.clearWarnings();
-
-        var newBackendValue = angular.copy(this.displayed);
-        var oldBackendValue = angular.copy(this.savedMemento);
-
-        if (BACKEND_CONVERSIONS.hasOwnProperty(this.propertyName)) {
-          newBackendValue =
-            BACKEND_CONVERSIONS[this.propertyName](this.displayed);
-          oldBackendValue =
-            BACKEND_CONVERSIONS[this.propertyName](this.savedMemento);
-        }
-
-        ChangeListService.editExplorationProperty(
-          this.propertyName, newBackendValue, oldBackendValue);
-        this.savedMemento = angular.copy(this.displayed);
-
-        _explorationPropertyChangedEventEmitter.emit();
-      },
-      // Reverts the displayed value to the saved memento.
-      restoreFromMemento: function() {
-        this.displayed = angular.copy(this.savedMemento);
-      },
-
-      get onExplorationPropertyChanged() {
-        return _explorationPropertyChangedEventEmitter;
-      }
-    };
+    this._explorationPropertyChangedEventEmitter.emit(this.propertyName);
   }
-]);
+
+  // Returns whether the current value has changed from the memento.
+  hasChanged(): boolean {
+    return !angular.equals(this.savedMemento, this.displayed);
+  }
+
+  // Transforms the given value into a normalized form. THIS CAN BE
+  // OVERRIDDEN BY SUBCLASSES. The default behavior is to do nothing.
+  _normalize(value: ExplorationPropertyValues): ExplorationPropertyValues {
+    return value;
+  }
+
+  // Validates the given value and returns a boolean stating whether it
+  // is valid or not. THIS CAN BE OVERRIDDEN BY SUBCLASSES. The default
+  // behavior is to always return true.
+  _isValid(value: ExplorationPropertyValues): boolean {
+    return true;
+  }
+
+  // Normalizes the displayed value. Then, if the memento and the displayed
+  // value are the same, does nothing. Otherwise, creates a new entry in the
+  // change list, and updates the memento to the displayed value.
+  saveDisplayedValue(): void {
+    if (this.propertyName === null) {
+      throw new Error('Exploration property name cannot be null.');
+    }
+
+    this.displayed = this._normalize(this.displayed);
+
+    if (!this._isValid(this.displayed) || !this.hasChanged()) {
+      this.restoreFromMemento();
+      return;
+    }
+
+    this.alertsService.clearWarnings();
+
+    let newBackendValue = cloneDeep(this.displayed);
+    let oldBackendValue = cloneDeep(this.savedMemento);
+    const that = this;
+    if (this.BACKEND_CONVERSIONS.hasOwnProperty(this.propertyName)) {
+      newBackendValue =
+        this.BACKEND_CONVERSIONS[
+          this.propertyName as keyof typeof that.BACKEND_CONVERSIONS
+        ](this.displayed as ParamChange[] & ParamChange);
+      oldBackendValue =
+        this.BACKEND_CONVERSIONS[
+          this.propertyName as keyof typeof that.BACKEND_CONVERSIONS
+        ](this.savedMemento as ParamChange[] & ParamChange);
+    }
+
+    this.changeListService.editExplorationProperty(
+      this.propertyName, newBackendValue as string, oldBackendValue as string);
+    this.savedMemento = cloneDeep(this.displayed);
+
+    this._explorationPropertyChangedEventEmitter.emit();
+  }
+
+  // Reverts the displayed value to the saved memento.
+  restoreFromMemento(): void {
+    this.displayed = cloneDeep(this.savedMemento);
+  }
+
+  get onExplorationPropertyChanged(): EventEmitter<void> {
+    return this._explorationPropertyChangedEventEmitter;
+  }
+}
+
+angular.module('oppia').factory(
+  'ExplorationPropertyService', downgradeInjectable(
+    ExplorationPropertyService));

@@ -14,40 +14,53 @@
 
 """Controllers for the topic viewer page."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import logging
 
+from core import feconf
+from core import utils
+from core.constants import constants
 from core.controllers import acl_decorators
 from core.controllers import base
 from core.domain import email_manager
 from core.domain import skill_services
 from core.domain import story_fetchers
 from core.domain import topic_fetchers
-import feconf
-import utils
+
+from typing import Dict
 
 
-class TopicViewerPage(base.BaseHandler):
+class TopicViewerPage(base.BaseHandler[Dict[str, str], Dict[str, str]]):
     """Renders the topic viewer page."""
 
+    URL_PATH_ARGS_SCHEMAS = {
+        'classroom_url_fragment': constants.SCHEMA_FOR_CLASSROOM_URL_FRAGMENTS,
+        'topic_url_fragment': constants.SCHEMA_FOR_TOPIC_URL_FRAGMENTS
+    }
+    HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
+
     @acl_decorators.can_access_topic_viewer_page
-    def get(self, _):
+    def get(self, _: str) -> None:
         """Handles GET requests."""
 
         self.render_template('topic-viewer-page.mainpage.html')
 
 
-class TopicPageDataHandler(base.BaseHandler):
+class TopicPageDataHandler(base.BaseHandler[Dict[str, str], Dict[str, str]]):
     """Manages the data that needs to be displayed to a learner on the topic
     viewer page.
     """
 
     GET_HANDLER_ERROR_RETURN_TYPE = feconf.HANDLER_TYPE_JSON
+    URL_PATH_ARGS_SCHEMAS = {
+        'classroom_url_fragment': constants.SCHEMA_FOR_CLASSROOM_URL_FRAGMENTS,
+        'topic_url_fragment': constants.SCHEMA_FOR_TOPIC_URL_FRAGMENTS
+    }
+    HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
 
     @acl_decorators.can_access_topic_viewer_page
-    def get(self, topic_name):
+    def get(self, topic_name: str) -> None:
         """Handles GET requests."""
 
         topic = topic_fetchers.get_topic_by_name(topic_name)
@@ -67,31 +80,51 @@ class TopicPageDataHandler(base.BaseHandler):
 
         canonical_story_dicts = []
         for story_summary in canonical_story_summaries:
-            pending_nodes = story_fetchers.get_pending_nodes_in_story(
-                self.user_id, story_summary.id)
+            all_nodes = story_fetchers.get_pending_and_all_nodes_in_story(
+                self.user_id, story_summary.id)['all_nodes']
+            pending_nodes = story_fetchers.get_pending_and_all_nodes_in_story(
+                self.user_id, story_summary.id)['pending_nodes']
             pending_node_titles = [node.title for node in pending_nodes]
             completed_node_titles = utils.compute_list_difference(
                 story_summary.node_titles, pending_node_titles)
             story_summary_dict = story_summary.to_human_readable_dict()
-            story_summary_dict['story_is_published'] = True
-            story_summary_dict['completed_node_titles'] = completed_node_titles
-            story_summary_dict['pending_node_dicts'] = [
-                node.to_dict() for node in pending_nodes]
-            canonical_story_dicts.append(story_summary_dict)
+            canonical_story_dict = {
+                'id': story_summary_dict['id'],
+                'title': story_summary_dict['title'],
+                'description': story_summary_dict['description'],
+                'node_titles': story_summary_dict['node_titles'],
+                'thumbnail_bg_color': story_summary_dict['thumbnail_bg_color'],
+                'thumbnail_filename': story_summary_dict['thumbnail_filename'],
+                'url_fragment': story_summary_dict['url_fragment'],
+                'story_is_published': True,
+                'completed_node_titles': completed_node_titles,
+                'all_node_dicts': [node.to_dict() for node in all_nodes]
+            }
+            canonical_story_dicts.append(canonical_story_dict)
 
         additional_story_dicts = []
         for story_summary in additional_story_summaries:
-            pending_nodes = story_fetchers.get_pending_nodes_in_story(
-                self.user_id, story_summary.id)
+            all_nodes = story_fetchers.get_pending_and_all_nodes_in_story(
+                self.user_id, story_summary.id)['all_nodes']
+            pending_nodes = story_fetchers.get_pending_and_all_nodes_in_story(
+                self.user_id, story_summary.id)['pending_nodes']
             pending_node_titles = [node.title for node in pending_nodes]
             completed_node_titles = utils.compute_list_difference(
                 story_summary.node_titles, pending_node_titles)
             story_summary_dict = story_summary.to_human_readable_dict()
-            story_summary_dict['story_is_published'] = True
-            story_summary_dict['completed_node_titles'] = completed_node_titles
-            story_summary_dict['pending_node_dicts'] = [
-                node.to_dict() for node in pending_nodes]
-            additional_story_dicts.append(story_summary_dict)
+            additional_story_dict = {
+                'id': story_summary_dict['id'],
+                'title': story_summary_dict['title'],
+                'description': story_summary_dict['description'],
+                'node_titles': story_summary_dict['node_titles'],
+                'thumbnail_bg_color': story_summary_dict['thumbnail_bg_color'],
+                'thumbnail_filename': story_summary_dict['thumbnail_filename'],
+                'url_fragment': story_summary_dict['url_fragment'],
+                'story_is_published': True,
+                'completed_node_titles': completed_node_titles,
+                'all_node_dicts': [node.to_dict() for node in all_nodes]
+            }
+            additional_story_dicts.append(additional_story_dict)
 
         uncategorized_skill_ids = topic.get_all_uncategorized_skill_ids()
         subtopics = topic.get_all_subtopics()
@@ -103,7 +136,7 @@ class TopicPageDataHandler(base.BaseHandler):
 
         if deleted_skill_ids:
             deleted_skills_string = ', '.join(deleted_skill_ids)
-            logging.error(
+            logging.exception(
                 'The deleted skills: %s are still present in topic with id %s'
                 % (deleted_skills_string, topic.id)
             )

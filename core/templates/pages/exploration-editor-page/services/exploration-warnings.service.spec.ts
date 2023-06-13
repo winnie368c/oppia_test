@@ -13,864 +13,377 @@
 // limitations under the License.
 
 /**
- * @fileoverview Unit tests for ExplorationWarningsService.
+ * @fileoverview Unit tests for explorationWarningsService.
  */
 
-import { fakeAsync } from '@angular/core/testing';
+import { fakeAsync, tick } from '@angular/core/testing';
+import { AnswerStats } from 'domain/exploration/answer-stats.model';
+import { StateTopAnswersStats } from 'domain/statistics/state-top-answers-stats-object.factory';
+import { TestBed } from '@angular/core/testing';
+import { ExplorationParamChangesService } from 'pages/exploration-editor-page/services/exploration-param-changes.service';
+import { ExplorationStatesService } from 'pages/exploration-editor-page/services/exploration-states.service';
+import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { ExplorationInitStateNameService } from 'pages/exploration-editor-page/services/exploration-init-state-name.service';
+import { ExplorationWarningsService } from './exploration-warnings.service';
+import { StateTopAnswersStatsService } from 'services/state-top-answers-stats.service';
+import { StateTopAnswersStatsBackendApiService } from 'services/state-top-answers-stats-backend-api.service';
+import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 
-import { AnswerStats } from 'domain/exploration/AnswerStatsObjectFactory';
-import { StateTopAnswersStats } from
-  'domain/statistics/state-top-answers-stats-object.factory';
+ class MockNgbModal {
+   open() {
+     return {
+       result: Promise.resolve()
+     };
+   }
+ }
+ class MockExplorationParamChangesService {
+   savedMemento = [{
+     customizationArgs: {
+       parse_with_jinja: false,
+       value: '5'
+     },
+     generatorId: 'Copier',
+     name: 'ParamChange1'
+   }, {
+     customizationArgs: {
+       parse_with_jinja: true,
+       value: '{{ParamChange2}}'
+     },
+     generatorId: 'Copier',
+   }, {
+     customizationArgs: {
+       parse_with_jinja: true,
+       value: '5'
+     },
+     generatorId: 'RandomSelector',
+     name: 'ParamChange3'
+   }];
+ }
+describe('Exploration Warnings Service', () => {
+  let explorationInitStateNameService: ExplorationInitStateNameService;
+  let explorationWarningsService: ExplorationWarningsService;
+  let explorationStatesService: ExplorationStatesService;
+  let stateTopAnswersStatsService: StateTopAnswersStatsService;
+  let stateTopAnswersStatsBackendApiService:
+     StateTopAnswersStatsBackendApiService;
 
-// TODO(#7222): Remove the following block of unnnecessary imports once
-// exploration-editor-tab.directive.ts is upgraded to Angular 8.
-import { AngularNameService } from
-  'pages/exploration-editor-page/services/angular-name.service';
-import { AnswerGroupObjectFactory } from
-  'domain/exploration/AnswerGroupObjectFactory';
-import { AnswerStatsObjectFactory } from
-  'domain/exploration/AnswerStatsObjectFactory';
-import { ExplorationFeaturesService } from
-  'services/exploration-features.service';
-import { FractionObjectFactory } from 'domain/objects/FractionObjectFactory';
-import { HintObjectFactory } from 'domain/exploration/HintObjectFactory';
-import { ImprovementsService } from 'services/improvements.service';
-import { OutcomeObjectFactory } from
-  'domain/exploration/OutcomeObjectFactory';
-import { ParamChangeObjectFactory } from
-  'domain/exploration/ParamChangeObjectFactory';
-import { ParamChangesObjectFactory } from
-  'domain/exploration/ParamChangesObjectFactory';
-import { RecordedVoiceoversObjectFactory } from
-  'domain/exploration/RecordedVoiceoversObjectFactory';
-import { RuleObjectFactory } from 'domain/exploration/RuleObjectFactory';
-import { SolutionValidityService } from
-  'pages/exploration-editor-page/editor-tab/services/solution-validity.service';
-import { StateClassifierMappingService } from
-  'pages/exploration-player-page/services/state-classifier-mapping.service';
-import { StateEditorService } from 'components/state-editor/state-editor-properties-services/state-editor.service';
-import { SubtitledHtmlObjectFactory } from
-  'domain/exploration/SubtitledHtmlObjectFactory';
-import { UnitsObjectFactory } from 'domain/objects/UnitsObjectFactory';
-import { VoiceoverObjectFactory } from
-  'domain/exploration/VoiceoverObjectFactory';
-import { WrittenTranslationObjectFactory } from
-  'domain/exploration/WrittenTranslationObjectFactory';
-import { WrittenTranslationsObjectFactory } from
-  'domain/exploration/WrittenTranslationsObjectFactory';
-// TODO(#7222): Remove the following block of unnnecessary imports once
-// the code corresponding to the spec is upgraded to Angular 8.
-import { importAllAngularServices } from 'tests/unit-test-utils';
-// ^^^ This block is to be removed.
-
-require('pages/exploration-editor-page/services/graph-data.service');
-require('pages/exploration-editor-page/services/exploration-property.service');
-require(
-  'pages/exploration-editor-page/services/exploration-init-state-name.service');
-
-describe('Exploration Warnings Service', function() {
-  var ExplorationWarningsService = null;
-  var ExplorationStatesService = null;
-  var StateTopAnswersStatsService = null;
-  var StateTopAnswersStatsBackendApiService = null;
-
-  beforeEach(angular.mock.module('oppia'));
-
-  importAllAngularServices();
-
-  beforeEach(angular.mock.module('oppia', function($provide) {
-    $provide.value('AngularNameService', new AngularNameService());
-    $provide.value(
-      'AnswerGroupObjectFactory', new AnswerGroupObjectFactory(
-        new OutcomeObjectFactory(new SubtitledHtmlObjectFactory()),
-        new RuleObjectFactory()));
-    $provide.value(
-      'AnswerStatsObjectFactory', new AnswerStatsObjectFactory());
-    $provide.value(
-      'ExplorationFeaturesService', new ExplorationFeaturesService());
-    $provide.value('FractionObjectFactory', new FractionObjectFactory());
-    $provide.value(
-      'HintObjectFactory', new HintObjectFactory(
-        new SubtitledHtmlObjectFactory()));
-    $provide.value('ImprovementsService', new ImprovementsService());
-    $provide.value(
-      'OutcomeObjectFactory', new OutcomeObjectFactory(
-        new SubtitledHtmlObjectFactory()));
-    $provide.value(
-      'ParamChangeObjectFactory', new ParamChangeObjectFactory());
-    $provide.value(
-      'ParamChangesObjectFactory', new ParamChangesObjectFactory(
-        new ParamChangeObjectFactory()));
-    $provide.value(
-      'RecordedVoiceoversObjectFactory',
-      new RecordedVoiceoversObjectFactory(new VoiceoverObjectFactory()));
-    $provide.value('RuleObjectFactory', new RuleObjectFactory());
-    $provide.value('SolutionValidityService', new SolutionValidityService());
-    $provide.value(
-      'StateClassifierMappingService', new StateClassifierMappingService());
-    $provide.value(
-      'StateEditorService', new StateEditorService(
-        new SolutionValidityService()));
-    $provide.value(
-      'SubtitledHtmlObjectFactory', new SubtitledHtmlObjectFactory());
-    $provide.value('UnitsObjectFactory', new UnitsObjectFactory());
-    $provide.value('VoiceoverObjectFactory', new VoiceoverObjectFactory());
-    $provide.value(
-      'WrittenTranslationObjectFactory',
-      new WrittenTranslationObjectFactory());
-    $provide.value(
-      'WrittenTranslationsObjectFactory',
-      new WrittenTranslationsObjectFactory(
-        new WrittenTranslationObjectFactory()));
-  }));
-
-  describe('when exploration param changes has jinja values', function() {
-    beforeEach(angular.mock.module('oppia', function($provide) {
-      $provide.value('ExplorationInitStateNameService', {
-        savedMemento: 'Hola'
-      });
-      $provide.value('ExplorationParamChangesService', {
-        savedMemento: [{
-          customizationArgs: {
-            parse_with_jinja: false,
-            value: '5'
-          },
-          generatorId: 'Copier',
-          name: 'ParamChange1'
-        }, {
-          customizationArgs: {
-            parse_with_jinja: true,
-            value: '{{ParamChange2}}'
-          },
-          generatorId: 'Copier',
-        }, {
-          customizationArgs: {
-            parse_with_jinja: true,
-            value: '5'
-          },
-          generatorId: 'RandomSelector',
-          name: 'ParamChange3'
-        }]
-      });
-    }));
-    beforeEach(angular.mock.inject(function($injector) {
-      ExplorationWarningsService = $injector.get('ExplorationWarningsService');
-      ExplorationStatesService = $injector.get('ExplorationStatesService');
-      StateTopAnswersStatsBackendApiService = $injector.get(
-        'StateTopAnswersStatsBackendApiService');
-      StateTopAnswersStatsService = $injector.get(
-        'StateTopAnswersStatsService');
-    }));
-
-    it('should update warnings with TextInput as interaction id', function() {
-      ExplorationStatesService.init({
-        Hola: {
-          content: {
-            content_id: 'content',
-            html: '{{HtmlValue}}'
-          },
-          recorded_voiceovers: {
-            voiceovers_mapping: {},
-          },
-          param_changes: [],
-          interaction: {
-            id: 'TextInput',
-            answer_groups: [{
-              outcome: {
-                dest: '',
-                feedback: {
-                  content_id: 'feedback_1',
-                  html: ''
-                },
-              },
-              rule_specs: [],
-              training_data: []
-            }],
-            default_outcome: {
-              dest: 'Hola',
-              feedback: {
-                content_id: '',
-                html: '',
-              },
-            },
-            customization_args: {
-              rows: {
-                value: true
-              },
-              placeholder: {
-                value: 1
-              }
-            },
-            hints: [],
-          },
-          written_translations: {
-            translations_mapping: {
-              content: {},
-              default_outcome: {},
-            },
-          },
-        }
-      });
-      ExplorationWarningsService.updateWarnings();
-
-      expect(ExplorationWarningsService.getWarnings()).toEqual([{
-        type: 'critical',
-        message: 'Please ensure the value of parameter "ParamChange2" is' +
-        ' set before it is referred to in the initial list of parameter' +
-        ' changes.'
-      }, {
-        type: 'critical',
-        message: 'Please ensure the value of parameter "HtmlValue" is set' +
-        ' before using it in "Hola".'
-      }, {
-        type: 'error',
-        message: 'The following card has errors: Hola.'
-      }, {
-        type: 'error',
-        message: 'In \'Hola\', the following answer group has a classifier' +
-        ' with no training data: 0'
-      }]);
-      expect(ExplorationWarningsService.hasCriticalWarnings())
-        .toBe(true);
-      expect(ExplorationWarningsService.countWarnings()).toBe(4);
-      expect(ExplorationWarningsService.getAllStateRelatedWarnings()).toEqual({
-        Hola: [
-          'Placeholder text must be a string.',
-          'Number of rows must be integral.',
-          'There\'s no way to complete the exploration starting from this' +
-          ' card. To fix this, make sure that the last card in the chain' +
-          ' starting from this one has an \'End Exploration\' question type.'
-        ]
-      });
-    });
-
-    it('should update warnings with Continue as interaction id', function() {
-      ExplorationStatesService.init({
-        Hola: {
-          content: {
-            content_id: 'content',
-            html: '{{HtmlValue}}'
-          },
-          recorded_voiceovers: {
-            voiceovers_mapping: {},
-          },
-          param_changes: [],
-          interaction: {
-            id: 'Continue',
-            answer_groups: [{
-              outcome: {
-                dest: '',
-                feedback: {
-                  content_id: 'feedback_1',
-                  html: ''
-                },
-              },
-              rule_specs: [],
-              training_data: []
-            }, {
-              outcome: {
-                dest: '',
-                feedback: {
-                  content_id: 'feedback_1',
-                  html: ''
-                },
-              },
-              rule_specs: [],
-              training_data: []
-            }],
-            default_outcome: {
-              dest: 'Hola',
-              feedback: {
-                content_id: '',
-                html: '',
-              },
-            },
-            customization_args: {
-              rows: {
-                value: true
-              },
-              placeholder: {
-                value: 1
-              },
-              buttonText: {
-                value: {
-                  unicode_str: '',
-                  content_id: ''
-                }
-              }
-            },
-            hints: [],
-          },
-          written_translations: {
-            translations_mapping: {
-              content: {},
-              default_outcome: {},
-            },
-          },
-        }
-      });
-      ExplorationWarningsService.updateWarnings();
-
-      expect(ExplorationWarningsService.getWarnings()).toEqual([{
-        type: 'critical',
-        message: 'Please ensure the value of parameter "ParamChange2" is set' +
-        ' before it is referred to in the initial list of parameter changes.'
-      }, {
-        type: 'critical',
-        message: 'Please ensure the value of parameter "HtmlValue" is set' +
-        ' before using it in "Hola".'
-      }, {
-        type: 'error',
-        message: 'The following card has errors: Hola.'
-      }, {
-        type: 'error',
-        message: 'In \'Hola\', the following answer groups have classifiers' +
-        ' with no training data: 0, 1'
-      }]);
-      expect(ExplorationWarningsService.countWarnings()).toBe(4);
-      expect(ExplorationWarningsService.hasCriticalWarnings())
-        .toBe(true);
-      expect(ExplorationWarningsService.getAllStateRelatedWarnings()).toEqual({
-        Hola: [
-          'The button text should not be empty.',
-          'Only the default outcome is necessary for a continue interaction.',
-          'There\'s no way to complete the exploration starting from this' +
-          ' card. To fix this, make sure that the last card in the chain' +
-          ' starting from this one has an \'End Exploration\' question type.'
-        ]
-      });
-    });
-
-    it('should update warnings when no interaction id is provided', function() {
-      ExplorationStatesService.init({
-        Hola: {
-          content: {
-            content_id: 'content',
-            html: '{{HtmlValue}}'
-          },
-          recorded_voiceovers: {
-            voiceovers_mapping: {},
-          },
-          param_changes: [],
-          interaction: {
-            id: null,
-            answer_groups: [{
-              outcome: {
-                dest: '',
-                feedback: {
-                  content_id: 'feedback_1',
-                  html: ''
-                },
-              },
-              rule_specs: [],
-              training_data: []
-            }],
-            default_outcome: {
-              dest: 'Hola',
-              feedback: {
-                content_id: '',
-                html: '',
-              },
-            },
-            customization_args: {},
-            hints: [],
-          },
-          written_translations: {
-            translations_mapping: {
-              content: {},
-              default_outcome: {},
-            },
-          },
-        }
-      });
-      ExplorationWarningsService.updateWarnings();
-
-      expect(ExplorationWarningsService.getWarnings()).toEqual([{
-        type: 'critical',
-        message: 'Please ensure the value of parameter "ParamChange2" is set' +
-        ' before it is referred to in the initial list of parameter changes.'
-      }, {
-        type: 'critical',
-        message: 'Please ensure the value of parameter "HtmlValue" is set' +
-        ' before using it in "Hola".'
-      }, {
-        type: 'error',
-        message: 'The following card has errors: Hola.'
-      }, {
-        type: 'error',
-        message: 'In \'Hola\', the following answer group has a classifier' +
-        ' with no training data: 0'
-      }]);
-      expect(ExplorationWarningsService.countWarnings()).toBe(4);
-      expect(ExplorationWarningsService.hasCriticalWarnings()).toBe(true);
-      expect(ExplorationWarningsService.getAllStateRelatedWarnings()).toEqual({
-        Hola: [
-          'Please add an interaction to this card.',
-          'There\'s no way to complete the exploration starting from this' +
-          ' card. To fix this, make sure that the last card in the chain' +
-          ' starting from this one has an \'End Exploration\' question type.'
-        ]
-      });
-    });
-
-    it('should update warnings when there is a solution in the interaction',
-      function() {
-        ExplorationStatesService.init({
-          Hola: {
-            content: {
-              content_id: 'content',
-              html: '{{HtmlValue}}'
-            },
-            recorded_voiceovers: {
-              voiceovers_mapping: {},
-            },
-            param_changes: [],
-            interaction: {
-              id: 'TextInput',
-              solution: {
-                correct_answer: 'This is the correct answer',
-                answer_is_exclusive: false,
-                explanation: {
-                  html: 'Solution explanation'
-                }
-              },
-              answer_groups: [{
-                outcome: {
-                  dest: '',
-                  feedback: {
-                    content_id: 'feedback_1',
-                    html: ''
-                  },
-                },
-                rule_specs: [],
-                training_data: []
-              }],
-              default_outcome: {
-                dest: 'Hola',
-                feedback: {
-                  content_id: '',
-                  html: '',
-                },
-              },
-              customization_args: {
-                rows: {
-                  value: true
-                },
-                placeholder: {
-                  value: 1
-                }
-              },
-              hints: [],
-            },
-            written_translations: {
-              translations_mapping: {
-                content: {},
-                default_outcome: {},
-              },
-            },
-          }
-        });
-        ExplorationWarningsService.updateWarnings();
-
-        expect(ExplorationWarningsService.getWarnings()).toEqual([{
-          type: 'critical',
-          message: 'Please ensure the value of parameter "ParamChange2"' +
-          ' is set before it is referred to in the initial list of' +
-          ' parameter changes.'
-        }, {
-          type: 'critical',
-          message: 'Please ensure the value of parameter "HtmlValue" is set' +
-          ' before using it in "Hola".'
-        }, {
-          type: 'error',
-          message: 'The following card has errors: Hola.'
-        }, {
-          type: 'error',
-          message: 'In \'Hola\', the following answer group has a classifier' +
-          ' with no training data: 0'
-        }]);
-        expect(ExplorationWarningsService.countWarnings()).toBe(4);
-        expect(ExplorationWarningsService.hasCriticalWarnings()).toBe(true);
-        expect(ExplorationWarningsService.getAllStateRelatedWarnings())
-          .toEqual({
-            Hola: [
-              'Placeholder text must be a string.',
-              'Number of rows must be integral.',
-              'The current solution does not lead to another card.',
-              'There\'s no way to complete the exploration starting from' +
-              ' this card. To fix this, make sure that the last card in' +
-              ' the chain starting from this one has an \'End Exploration\'' +
-              ' question type.'
-            ]
-          });
-      });
-
-    it('should update warnings when state top answers stats is initiated',
-      fakeAsync(async function() {
-        ExplorationStatesService.init({
-          Hola: {
-            content: {
-              content_id: 'content',
-              html: '{{HtmlValue}}'
-            },
-            recorded_voiceovers: {
-              voiceovers_mapping: {},
-            },
-            param_changes: [],
-            interaction: {
-              id: 'TextInput',
-              solution: {
-                correct_answer: 'This is the correct answer',
-                answer_is_exclusive: false,
-                explanation: {
-                  html: 'Solution explanation'
-                }
-              },
-              answer_groups: [{
-                outcome: {
-                  dest: '',
-                  feedback: {
-                    content_id: 'feedback_1',
-                    html: ''
-                  },
-                },
-                rule_specs: [],
-                training_data: []
-              }],
-              default_outcome: {
-                dest: 'Hola',
-                feedback: {
-                  content_id: '',
-                  html: '',
-                },
-              },
-              customization_args: {
-                rows: {
-                  value: true
-                },
-                placeholder: {
-                  value: 1
-                }
-              },
-              hints: [],
-            },
-            written_translations: {
-              translations_mapping: {
-                content: {},
-                default_outcome: {},
-              },
-            },
-          }
-        });
-        spyOn(StateTopAnswersStatsBackendApiService, 'fetchStatsAsync')
-          .and.returnValue(Promise.resolve(
-            new StateTopAnswersStats(
-              {Hola: [new AnswerStats('hola', 'hola', 7, false)]},
-              {Hola: 'TextInput'})));
-        await StateTopAnswersStatsService.initAsync(
-          'expId', ExplorationStatesService.getStates());
-
-        ExplorationWarningsService.updateWarnings();
-
-        expect(ExplorationWarningsService.getWarnings()).toEqual([{
-          type: 'critical',
-          message: 'Please ensure the value of parameter "ParamChange2" is' +
-          ' set before it is referred to in the initial list of parameter' +
-          ' changes.'
-        }, {
-          type: 'critical',
-          message: 'Please ensure the value of parameter "HtmlValue" is set' +
-          ' before using it in "Hola".'
-        }, {
-          type: 'error',
-          message: 'The following card has errors: Hola.'
-        }, {
-          type: 'error',
-          message: 'In \'Hola\', the following answer group has a classifier' +
-          ' with no training data: 0'
-        }]);
-        expect(ExplorationWarningsService.countWarnings()).toBe(4);
-        expect(ExplorationWarningsService.hasCriticalWarnings()).toBe(true);
-        expect(ExplorationWarningsService.getAllStateRelatedWarnings())
-          .toEqual({
-            Hola: [
-              'Placeholder text must be a string.',
-              'Number of rows must be integral.',
-              'There is an answer among the top 10 which has no explicit' +
-              ' feedback.',
-              'The current solution does not lead to another card.',
-              'There\'s no way to complete the exploration starting from' +
-              ' this card. To fix this, make sure that the last card in' +
-              ' the chain starting from this one has an \'End Exploration\'' +
-              ' question type.'
-            ]
-          });
-      }));
-
-    it('should update warnings when state name is not equal to the default' +
-    ' outcome destination', function() {
-      ExplorationStatesService.init({
-        Hola: {
-          content: {
-            content_id: 'content',
-            html: '{{HtmlValue}}'
-          },
-          recorded_voiceovers: {
-            voiceovers_mapping: {},
-          },
-          param_changes: [],
-          interaction: {
-            id: 'TextInput',
-            solution: {
-              correct_answer: 'This is the correct answer',
-              answer_is_exclusive: false,
-              explanation: {
-                html: 'Solution explanation'
-              }
-            },
-            answer_groups: [{
-              outcome: {
-                dest: '',
-                feedback: {
-                  content_id: 'feedback_1',
-                  html: ''
-                },
-              },
-              rule_specs: [],
-              training_data: []
-            }],
-            default_outcome: {
-              dest: 'State',
-              feedback: {
-                content_id: '',
-                html: '',
-              },
-            },
-            customization_args: {
-              rows: {
-                value: true
-              },
-              placeholder: {
-                value: 1
-              }
-            },
-            hints: [],
-          },
-          written_translations: {
-            translations_mapping: {
-              content: {},
-              default_outcome: {},
-            },
-          },
-        }
-      });
-      ExplorationWarningsService.updateWarnings();
-
-      expect(ExplorationWarningsService.getWarnings()).toEqual([{
-        type: 'critical',
-        message: 'Please ensure the value of parameter "ParamChange2" is set' +
-        ' before it is referred to in the initial list of parameter changes.'
-      }, {
-        type: 'critical',
-        message: 'Please ensure the value of parameter "HtmlValue" is set' +
-        ' before using it in "Hola".'
-      }, {
-        type: 'error',
-        message: 'The following card has errors: Hola.'
-      }, {
-        type: 'error',
-        message: 'In \'Hola\', the following answer group has a classifier' +
-        ' with no training data: 0'
-      }]);
-      expect(ExplorationWarningsService.countWarnings()).toBe(4);
-      expect(ExplorationWarningsService.hasCriticalWarnings()).toBe(true);
-      expect(ExplorationWarningsService.getAllStateRelatedWarnings()).toEqual({
-        Hola: [
-          'Placeholder text must be a string.',
-          'Number of rows must be integral.',
-          'There\'s no way to complete the exploration starting from this' +
-          ' card. To fix this, make sure that the last card in the chain' +
-          ' starting from this one has an \'End Exploration\' question type.'
-        ]
-      });
-    });
-
-    it('should update warnings when there are two states but only one saved' +
-    ' memento value', function() {
-      ExplorationStatesService.init({
-        Hola: {
-          content: {
-            content_id: 'content',
-            html: '{{HtmlValue}}'
-          },
-          recorded_voiceovers: {
-            voiceovers_mapping: {},
-          },
-          param_changes: [],
-          interaction: {
-            id: 'TextInput',
-            solution: {
-              correct_answer: 'This is the correct answer',
-              answer_is_exclusive: false,
-              explanation: {
-                html: 'Solution explanation'
-              }
-            },
-            answer_groups: [{
-              outcome: {
-                dest: '',
-                feedback: {
-                  content_id: 'feedback_1',
-                  html: ''
-                },
-              },
-              rule_specs: [],
-              training_data: []
-            }],
-            default_outcome: {
-              dest: 'Hola',
-              feedback: {
-                content_id: '',
-                html: '',
-              },
-            },
-            customization_args: {
-              rows: {
-                value: true
-              },
-              placeholder: {
-                value: 1
-              }
-            },
-            hints: [],
-          },
-          written_translations: {
-            translations_mapping: {
-              content: {},
-              default_outcome: {},
-            },
-          },
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [
+        {
+          provide: NgbModal,
+          useClass: MockNgbModal
         },
-        State: {
-          content: {
-            content_id: 'content',
-            html: '{{HtmlValue}}'
-          },
-          recorded_voiceovers: {
-            voiceovers_mapping: {},
-          },
-          param_changes: [],
-          interaction: {
-            id: 'TextInput',
-            solution: {
-              correct_answer: 'This is the correct answer',
-              answer_is_exclusive: false,
-              explanation: {
-                html: 'Solution explanation'
-              }
-            },
-            answer_groups: [{
-              outcome: {
-                dest: '',
-                feedback: {
-                  content_id: 'feedback_1',
-                  html: ''
-                },
-              },
-              rule_specs: [],
-              training_data: []
-            }],
-            default_outcome: {
-              dest: 'State',
-              feedback: {
-                content_id: '',
-                html: '',
-              },
-            },
-            customization_args: {
-              rows: {
-                value: true
-              },
-              placeholder: {
-                value: 1
-              }
-            },
-            hints: [],
-          },
-          written_translations: {
-            translations_mapping: {
-              content: {},
-              default_outcome: {},
-            },
-          },
-        }
-      });
-      ExplorationWarningsService.updateWarnings();
+        {
+          provide: ExplorationParamChangesService,
+          useClass: MockExplorationParamChangesService
+        },
+        ExplorationInitStateNameService,
+        ExplorationStatesService,
+        StateTopAnswersStatsBackendApiService,
+        StateTopAnswersStatsService,
+        ExplorationWarningsService
+      ]
+    });
 
-      expect(ExplorationWarningsService.getWarnings()).toEqual([{
-        type: 'critical',
-        message: 'Please ensure the value of parameter "ParamChange2" is set' +
-        ' before it is referred to in the initial list of parameter changes.'
-      }, {
-        type: 'critical',
-        message: 'Please ensure the value of parameter "HtmlValue" is set' +
-        ' before using it in "Hola".'
-      }, {
-        type: 'error',
-        message: 'The following cards have errors: Hola, State.'
-      }, {
-        type: 'error',
-        message: 'In \'Hola\', the following answer group has a classifier' +
-        ' with no training data: 0'
-      }, {
-        type: 'error',
-        message: 'In \'State\', the following answer group has a classifier' +
-        ' with no training data: 0'
-      }]);
-      expect(ExplorationWarningsService.countWarnings()).toBe(5);
-      expect(ExplorationWarningsService.hasCriticalWarnings()).toBe(true);
-      expect(ExplorationWarningsService.getAllStateRelatedWarnings()).toEqual({
-        Hola: [
-          'Placeholder text must be a string.',
-          'Number of rows must be integral.',
-          'The current solution does not lead to another card.',
-        ],
-        State: [
-          'Placeholder text must be a string.',
-          'Number of rows must be integral.',
-          'The current solution does not lead to another card.',
-          'This card is unreachable.'
-        ]
-      });
+    explorationInitStateNameService = TestBed.inject(
+      ExplorationInitStateNameService);
+    explorationStatesService = TestBed.inject(ExplorationStatesService);
+    stateTopAnswersStatsBackendApiService = TestBed.inject(
+      StateTopAnswersStatsBackendApiService);
+    stateTopAnswersStatsService = TestBed.inject(
+      StateTopAnswersStatsService);
+    explorationWarningsService = TestBed.inject(ExplorationWarningsService);
+
+    explorationInitStateNameService.init('Hola');
+  });
+
+  it('should update warnings with TextInput as interaction id', () => {
+    explorationStatesService.init({
+      Hola: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        card_is_checkpoint: true,
+        linked_skill_id: null,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: '',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_1',
+                html: ''
+              },
+            },
+          }],
+          default_outcome: {
+            labelled_as_correct: false,
+            param_changes: [],
+            refresher_exploration_id: null,
+            missing_prerequisite_skill_id: null,
+            dest: 'Hola',
+            dest_if_really_stuck: null,
+            feedback: {
+              content_id: 'feedback',
+              html: 'feedback',
+            },
+          },
+          hints: [],
+        },
+      }
+    }, false);
+    explorationWarningsService.updateWarnings();
+
+    expect(explorationWarningsService.getWarnings()).toEqual([{
+      type: 'critical',
+      message: 'Please ensure the value of parameter "ParamChange2" is' +
+         ' set before it is referred to in the initial list of parameter' +
+         ' changes.'
+    }, {
+      type: 'critical',
+      message: 'Please ensure the value of parameter "HtmlValue" is set' +
+         ' before using it in "Hola".'
+    }, {
+      type: 'error',
+      message: 'The following card has errors: Hola.'
+    }, {
+      type: 'error',
+      message: 'In \'Hola\', the following answer group has a classifier' +
+         ' with no training data: 0'
+    }]);
+    expect(explorationWarningsService.hasCriticalWarnings()).toBe(true);
+    expect(explorationWarningsService.countWarnings()).toBe(4);
+    expect(explorationWarningsService.getAllStateRelatedWarnings()).toEqual({
+      Hola: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'There\'s no way to complete the exploration starting from this' +
+         ' card. To fix this, make sure that the last card in the chain' +
+         ' starting from this one has an \'End Exploration\' question type.'
+      ]
     });
   });
 
-  describe('when exploration param changes has no jinja values', function() {
-    beforeEach(angular.mock.module('oppia', function($provide) {
-      $provide.value('ExplorationInitStateNameService', {
-        savedMemento: 'Hola'
-      });
-      $provide.value('ExplorationParamChangesService', {
-        savedMemento: [{
-          customizationArgs: {
-            parse_with_jinja: true,
-            value: ''
+  it('should update warnings with Continue as interaction id', () => {
+    explorationStatesService.init({
+      Hola: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        card_is_checkpoint: true,
+        linked_skill_id: null,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          id: 'Continue',
+          confirmed_unclassified_answers: [],
+          solution: null,
+          answer_groups: [
+            {
+              rule_specs: [],
+              training_data: [],
+              tagged_skill_misconception_id: null,
+              outcome: {
+                labelled_as_correct: true,
+                param_changes: [],
+                refresher_exploration_id: null,
+                missing_prerequisite_skill_id: null,
+                dest: '',
+                dest_if_really_stuck: null,
+                feedback: {
+                  content_id: 'feedback_1',
+                  html: ''
+                },
+              },
+            },
+            {
+              rule_specs: [],
+              training_data: [],
+              tagged_skill_misconception_id: null,
+              outcome: {
+                labelled_as_correct: true,
+                param_changes: [],
+                refresher_exploration_id: null,
+                missing_prerequisite_skill_id: null,
+                dest: '',
+                dest_if_really_stuck: null,
+                feedback: {
+                  content_id: 'feedback_1',
+                  html: ''
+                },
+              },
+            }],
+          default_outcome: {
+            labelled_as_correct: false,
+            param_changes: [],
+            refresher_exploration_id: null,
+            missing_prerequisite_skill_id: null,
+            dest: 'Hola',
+            dest_if_really_stuck: null,
+            feedback: {
+              content_id: '',
+              html: 'feedback',
+            },
           },
-          generatorId: 'Copier',
-        }]
-      });
-    }));
-    beforeEach(angular.mock.inject(function($injector) {
-      ExplorationWarningsService = $injector.get('ExplorationWarningsService');
-      ExplorationStatesService = $injector.get('ExplorationStatesService');
-    }));
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            buttonText: {
+              value: {
+                unicode_str: '',
+                content_id: ''
+              }
+            }
+          },
+          hints: [],
+        },
+      }
+    }, false);
+    explorationWarningsService.updateWarnings();
 
-    it('should update warning to an empty array', function() {
-      ExplorationStatesService.init({
+    expect(explorationWarningsService.getWarnings()).toEqual([{
+      type: 'critical',
+      message: 'Please ensure the value of parameter "ParamChange2" is set' +
+         ' before it is referred to in the initial list of parameter changes.'
+    }, {
+      type: 'critical',
+      message: 'Please ensure the value of parameter "HtmlValue" is set' +
+         ' before using it in "Hola".'
+    }, {
+      type: 'error',
+      message: 'The following card has errors: Hola.'
+    }, {
+      type: 'error',
+      message: 'In \'Hola\', the following answer groups have classifiers' +
+         ' with no training data: 0, 1'
+    }]);
+    expect(explorationWarningsService.countWarnings()).toBe(4);
+    expect(explorationWarningsService.hasCriticalWarnings())
+      .toBe(true);
+    expect(explorationWarningsService.getAllStateRelatedWarnings()).toEqual({
+      Hola: [
+        'The button text should not be empty.',
+        'Only the default outcome is necessary for a continue interaction.',
+        'There\'s no way to complete the exploration starting from this' +
+         ' card. To fix this, make sure that the last card in the chain' +
+         ' starting from this one has an \'End Exploration\' question type.'
+      ]
+    });
+  });
+
+  it('should update warnings when no interaction id is provided', () => {
+    explorationStatesService.init({
+      Hola: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        card_is_checkpoint: true,
+        linked_skill_id: null,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: null,
+          answer_groups: [],
+          default_outcome: {
+            labelled_as_correct: true,
+            param_changes: [],
+            refresher_exploration_id: null,
+            missing_prerequisite_skill_id: null,
+            dest: 'Hola',
+            dest_if_really_stuck: null,
+            feedback: {
+              content_id: '',
+              html: '',
+            },
+          },
+          customization_args: {},
+          hints: [],
+        },
+      }
+    }, false);
+    explorationWarningsService.updateWarnings();
+
+    expect(explorationWarningsService.getWarnings()).toEqual([{
+      type: 'critical',
+      message: 'Please ensure the value of parameter "ParamChange2" is set' +
+         ' before it is referred to in the initial list of parameter changes.'
+    }, {
+      type: 'critical',
+      message: 'Please ensure the value of parameter "HtmlValue" is set' +
+         ' before using it in "Hola".'
+    }, {
+      type: 'error',
+      message: 'The following card has errors: Hola.'
+    }]);
+    expect(explorationWarningsService.countWarnings()).toBe(3);
+    expect(explorationWarningsService.hasCriticalWarnings()).toBe(true);
+    expect(explorationWarningsService.getAllStateRelatedWarnings()).toEqual({
+      Hola: [
+        'Please add an interaction to this card.',
+        'There\'s no way to complete the exploration starting from this' +
+         ' card. To fix this, make sure that the last card in the chain' +
+         ' starting from this one has an \'End Exploration\' question type.'
+      ]
+    });
+  });
+
+  it('should update warnings when there is a solution in the interaction',
+    fakeAsync(() => {
+      explorationStatesService.init({
         Hola: {
+          classifier_model_id: null,
+          solicit_answer_details: false,
+          linked_skill_id: null,
+          card_is_checkpoint: true,
           content: {
             content_id: 'content',
-            html: ''
+            html: '{{HtmlValue}}'
           },
           recorded_voiceovers: {
             voiceovers_mapping: {},
@@ -878,87 +391,1761 @@ describe('Exploration Warnings Service', function() {
           param_changes: [],
           interaction: {
             id: 'TextInput',
+            confirmed_unclassified_answers: [],
+            solution: {
+              correct_answer: 'This is the correct answer',
+              answer_is_exclusive: false,
+              explanation: {
+                content_id: 'content_id',
+                html: 'Solution explanation'
+              }
+            },
             answer_groups: [{
+              tagged_skill_misconception_id: null,
               outcome: {
-                dest: 'State',
+                labelled_as_correct: false,
+                param_changes: [],
+                refresher_exploration_id: null,
+                missing_prerequisite_skill_id: null,
+                dest: '',
+                dest_if_really_stuck: null,
+                feedback: {
+                  content_id: 'feedback_1',
+                  html: 'something'
+                },
+              },
+              rule_specs: [],
+              training_data: []
+            }],
+            default_outcome: {
+              labelled_as_correct: false,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'Hola',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'something',
+                html: 'something',
+              },
+            },
+            customization_args: {
+              rows: {
+                value: true
+              },
+              placeholder: {
+                value: 1
+              },
+              catchMisspellings: {
+                value: false
+              }
+            },
+            hints: [],
+          },
+        }
+      }, false);
+      explorationWarningsService.updateWarnings();
+      tick();
+
+      expect(explorationWarningsService.getWarnings()).toEqual([{
+        type: 'critical',
+        message: 'Please ensure the value of parameter "ParamChange2"' +
+           ' is set before it is referred to in the initial list of' +
+           ' parameter changes.'
+      }, {
+        type: 'critical',
+        message: 'Please ensure the value of parameter "HtmlValue" is set' +
+           ' before using it in "Hola".'
+      }, {
+        type: 'error',
+        message: 'The following card has errors: Hola.'
+      }, {
+        type: 'error',
+        message: 'In \'Hola\', the following answer group has a classifier' +
+           ' with no training data: 0'
+      }]);
+      expect(explorationWarningsService.countWarnings()).toBe(4);
+      expect(explorationWarningsService.hasCriticalWarnings()).toBe(true);
+      expect(explorationWarningsService.getAllStateRelatedWarnings())
+        .toEqual({
+          Hola: [
+            'Placeholder text must be a string.',
+            'Number of rows must be integral.',
+            'The current solution does not lead to another card.',
+            'There\'s no way to complete the exploration starting from' +
+             ' this card. To fix this, make sure that the last card in' +
+             ' the chain starting from this one has an \'End Exploration\'' +
+             ' question type.'
+          ]
+        });
+    }));
+
+  it('should update warnings when state top answers stats is initiated',
+    fakeAsync(async() => {
+      explorationStatesService.init({
+        Hola: {
+          classifier_model_id: null,
+          solicit_answer_details: false,
+          card_is_checkpoint: true,
+          linked_skill_id: null,
+          content: {
+            content_id: 'content',
+            html: '{{HtmlValue}}'
+          },
+          recorded_voiceovers: {
+            voiceovers_mapping: {},
+          },
+          param_changes: [],
+          interaction: {
+            id: 'TextInput',
+            confirmed_unclassified_answers: [],
+            customization_args: {
+              rows: {
+                value: true
+              },
+              placeholder: {
+                value: 1
+              },
+              catchMisspellings: {
+                value: false
+              }
+            },
+            solution: {
+              correct_answer: 'This is the correct answer',
+              answer_is_exclusive: false,
+              explanation: {
+                content_id: 'null',
+                html: 'Solution explanation'
+              }
+            },
+            answer_groups: [{
+              rule_specs: [],
+              training_data: [],
+              tagged_skill_misconception_id: null,
+              outcome: {
+                labelled_as_correct: false,
+                param_changes: [],
+                refresher_exploration_id: null,
+                missing_prerequisite_skill_id: null,
+                dest: '',
+                dest_if_really_stuck: null,
                 feedback: {
                   content_id: 'feedback_1',
                   html: ''
                 },
               },
-              rule_specs: [{
-                rule_type: 'Equals',
-                inputs: {x: 10}
-              }],
-              training_data: ['1']
             }],
             default_outcome: {
-              dest: '',
+              labelled_as_correct: false,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'Hola',
+              dest_if_really_stuck: null,
               feedback: {
                 content_id: '',
-                html: '',
+                html: 'feedback',
               },
-            },
-            customization_args: {
-              rows: {
-                value: 1
-              },
-              placeholder: {
-                value: {
-                  unicode_str: 'placeholder value',
-                  content_id: ''
-                }
-              }
             },
             hints: [],
           },
-          written_translations: {
-            translations_mapping: {
-              content: {},
-              default_outcome: {},
-            },
+        }
+      }, false);
+      spyOn(stateTopAnswersStatsBackendApiService, 'fetchStatsAsync')
+        .and.returnValue(Promise.resolve(
+          new StateTopAnswersStats(
+            { Hola: [new AnswerStats('hola', 'hola', 7, false)] },
+            { Hola: 'TextInput' })));
+      await stateTopAnswersStatsService.initAsync(
+        'expId', explorationStatesService.getStates());
+
+      explorationWarningsService.updateWarnings();
+
+      expect(explorationWarningsService.getWarnings()).toEqual([{
+        type: 'critical',
+        message: 'Please ensure the value of parameter "ParamChange2" is' +
+           ' set before it is referred to in the initial list of parameter' +
+           ' changes.'
+      }, {
+        type: 'critical',
+        message: 'Please ensure the value of parameter "HtmlValue" is set' +
+           ' before using it in "Hola".'
+      }, {
+        type: 'error',
+        message: 'The following card has errors: Hola.'
+      }, {
+        type: 'error',
+        message: 'In \'Hola\', the following answer group has a classifier' +
+           ' with no training data: 0'
+      }]);
+      expect(explorationWarningsService.countWarnings()).toBe(4);
+      expect(explorationWarningsService.hasCriticalWarnings()).toBe(true);
+      expect(explorationWarningsService.getAllStateRelatedWarnings())
+        .toEqual({
+          Hola: [
+            'Placeholder text must be a string.',
+            'Number of rows must be integral.',
+            'There is an answer among the top 10 which has no explicit' +
+             ' feedback.',
+            'The current solution does not lead to another card.',
+            'There\'s no way to complete the exploration starting from' +
+             ' this card. To fix this, make sure that the last card in' +
+             ' the chain starting from this one has an \'End Exploration\'' +
+             ' question type.'
+          ]
+        });
+    }));
+
+  it('should update warnings when state name is not equal to the default' +
+     ' outcome destination', () => {
+    explorationStatesService.init({
+      Hola: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        card_is_checkpoint: true,
+        linked_skill_id: null,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {
+            content: {},
+            default_outcome: {},
           },
         },
-        State: {
-          param_changes: [],
-          content: {
-            content_id: '',
-            html: ''
-          },
-          recorded_voiceovers: {
-            voiceovers_mapping: {
-              content: {},
-              default_outcome: {}
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          id: 'TextInput',
+          solution: {
+            correct_answer: 'This is the correct answer',
+            answer_is_exclusive: false,
+            explanation: {
+              content_id: 'null',
+              html: 'Solution explanation'
             }
           },
-          interaction: {
-            id: 'EndExploration',
-            default_outcome: null,
-            confirmed_unclassified_answers: [],
-            customization_args: {
-              recommendedExplorationIds: {
-                value: []
-              }
+          answer_groups: [{
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: '',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_1',
+                html: ''
+              },
             },
-            solution: null,
-            answer_groups: [],
-            hints: []
+            rule_specs: [],
+            training_data: []
+          }],
+          default_outcome: {
+            labelled_as_correct: true,
+            param_changes: [],
+            refresher_exploration_id: null,
+            missing_prerequisite_skill_id: null,
+            dest: 'State',
+            dest_if_really_stuck: null,
+            feedback: {
+              content_id: '',
+              html: '',
+            },
           },
-          solicit_answer_details: false,
-          written_translations: {
-            translations_mapping: {
-              content: {},
-              default_outcome: {}
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
             }
           },
-          classifier_model_id: null
-        }
-      });
-      ExplorationWarningsService.updateWarnings();
+          hints: [],
+        },
+      }
+    }, false);
+    explorationWarningsService.updateWarnings();
 
-      expect(ExplorationWarningsService.getWarnings()).toEqual([]);
-      expect(ExplorationWarningsService.getAllStateRelatedWarnings()).toEqual(
-        {});
+    expect(explorationWarningsService.getWarnings()).toEqual([{
+      type: 'critical',
+      message: 'Please ensure the value of parameter "ParamChange2" is set' +
+           ' before it is referred to in the initial list of parameter changes.'
+    }, {
+      type: 'critical',
+      message: 'Please ensure the value of parameter "HtmlValue" is set' +
+           ' before using it in "Hola".'
+    }, {
+      type: 'error',
+      message: 'The following card has errors: Hola.'
+    }, {
+      type: 'error',
+      message: 'In \'Hola\', the following answer group has a classifier' +
+           ' with no training data: 0'
+    }]);
+    expect(explorationWarningsService.countWarnings()).toBe(4);
+    expect(explorationWarningsService.hasCriticalWarnings()).toBe(true);
+    expect(explorationWarningsService.getAllStateRelatedWarnings()).toEqual({
+      Hola: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'There\'s no way to complete the exploration starting from this' +
+           ' card. To fix this, make sure that the last card in the chain' +
+           ' starting from this one has an \'End Exploration\' question type.'
+      ]
+    });
+  });
+
+  it('should update warnings when there are two states but only one saved' +
+     ' memento value', () => {
+    explorationStatesService.init({
+      Hola: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        card_is_checkpoint: true,
+        linked_skill_id: null,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          solution: {
+            correct_answer: 'This is the correct answer',
+            answer_is_exclusive: false,
+            explanation: {
+              content_id: 'id',
+              html: 'Solution explanation'
+            }
+          },
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: '',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_1',
+                html: ''
+              },
+            },
+          }],
+          default_outcome: {
+            labelled_as_correct: false,
+            param_changes: [],
+            refresher_exploration_id: null,
+            missing_prerequisite_skill_id: null,
+            dest: 'Hola',
+            dest_if_really_stuck: null,
+            feedback: {
+              content_id: '',
+              html: 'feedback',
+            },
+          },
+          hints: [],
+        },
+      },
+      State: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        card_is_checkpoint: false,
+        linked_skill_id: null,
+        content: {
+          content_id: 'content',
+          html: 'content'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          id: 'TextInput',
+          confirmed_unclassified_answers: [],
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          solution: {
+            correct_answer: 'This is the correct answer',
+            answer_is_exclusive: false,
+            explanation: {
+              content_id: 'id',
+              html: 'Solution explanation'
+            }
+          },
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: '',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_1',
+                html: ''
+              },
+            },
+          }],
+          default_outcome: {
+            labelled_as_correct: false,
+            param_changes: [],
+            refresher_exploration_id: null,
+            missing_prerequisite_skill_id: null,
+            dest: 'State',
+            dest_if_really_stuck: null,
+            feedback: {
+              content_id: 'default_outcome',
+              html: 'feedback'
+            },
+          },
+          hints: []
+        }
+      }
+    }, false);
+    explorationWarningsService.updateWarnings();
+
+    expect(explorationWarningsService.getWarnings()).toEqual([{
+      type: 'critical',
+      message: 'Please ensure the value of parameter "ParamChange2" is set' +
+           ' before it is referred to in the initial list of parameter changes.'
+    }, {
+      type: 'critical',
+      message: 'Please ensure the value of parameter "HtmlValue" is set' +
+           ' before using it in "Hola".'
+    }, {
+      type: 'error',
+      message: 'The following cards have errors: Hola, State.'
+    }, {
+      type: 'error',
+      message: 'In \'Hola\', the following answer group has a classifier' +
+           ' with no training data: 0'
+    }, {
+      type: 'error',
+      message: 'In \'State\', the following answer group has a classifier' +
+           ' with no training data: 0'
+    }]);
+    expect(explorationWarningsService.countWarnings()).toBe(5);
+    expect(explorationWarningsService.hasCriticalWarnings()).toBe(true);
+    expect(explorationWarningsService.getAllStateRelatedWarnings()).toEqual({
+      Hola: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'The current solution does not lead to another card.',
+      ],
+      State: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'The current solution does not lead to another card.',
+        'This card is unreachable.'
+      ]
+    });
+  });
+
+  it('should update warning when first card is not a checkpoint', () => {
+    explorationStatesService.init({
+      Hola: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        card_is_checkpoint: false,
+        linked_skill_id: null,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: '',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_1',
+                html: ''
+              },
+            },
+          }],
+          default_outcome: {
+            labelled_as_correct: false,
+            param_changes: [],
+            refresher_exploration_id: null,
+            missing_prerequisite_skill_id: null,
+            dest: 'Hola',
+            dest_if_really_stuck: null,
+            feedback: {
+              content_id: 'feedback',
+              html: 'feedback',
+            },
+          },
+          hints: [],
+        },
+      }
+    }, false);
+
+    explorationWarningsService.updateWarnings();
+    expect(explorationWarningsService.countWarnings()).toBe(4);
+    expect(explorationWarningsService.hasCriticalWarnings()).toBe(true);
+    expect(explorationWarningsService.getAllStateRelatedWarnings()).toEqual({
+      Hola: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'There\'s no way to complete the exploration starting from this' +
+         ' card. To fix this, make sure that the last card in the chain' +
+         ' starting from this one has an \'End Exploration\' question type.',
+        'The first card of the lesson must be a checkpoint.'
+      ]
+    });
+  });
+
+  it('should show warning if terminal card is a checkpoint', () => {
+    explorationStatesService.init({
+      Hola: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        card_is_checkpoint: true,
+        linked_skill_id: null,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {
+            content: {},
+            default_outcome: {},
+          },
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: '',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_1',
+                html: ''
+              },
+            },
+          }],
+          default_outcome: {
+            labelled_as_correct: false,
+            param_changes: [],
+            refresher_exploration_id: null,
+            missing_prerequisite_skill_id: null,
+            dest: 'End',
+            dest_if_really_stuck: null,
+            feedback: {
+              content_id: '',
+              html: 'feedback',
+            },
+          },
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      End: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        card_is_checkpoint: true,
+        linked_skill_id: null,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          customization_args: {
+            recommendedExplorationIds: {
+              value: []
+            }
+          },
+          solution: null,
+          id: 'EndExploration',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: '',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            },
+          }],
+          default_outcome: null,
+          hints: [],
+        },
+      }
+    }, false);
+
+    explorationWarningsService.updateWarnings();
+    expect(explorationWarningsService.countWarnings()).toBe(5);
+    expect(explorationWarningsService.hasCriticalWarnings()).toBe(true);
+    expect(explorationWarningsService.getAllStateRelatedWarnings()).toEqual({
+      Hola: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+      ],
+      End: [
+        'Please make sure end exploration interactions do not ' +
+         'have any Oppia responses.',
+        'Checkpoints are not allowed on the last card of the lesson.',
+        'Checkpoints must not be assigned to cards that can be bypassed.'
+      ]
+    });
+  });
+
+  it('should show warnings if checkpoint count is more than 8 and' +
+     ' bypassable state is made a checkpoint', () => {
+    explorationStatesService.init({
+      Hola: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          default_outcome: null,
+          id: 'TextInput',
+          answer_groups: [
+            {
+              rule_specs: [],
+              training_data: [],
+              tagged_skill_misconception_id: null,
+              outcome: {
+                labelled_as_correct: true,
+                param_changes: [],
+                refresher_exploration_id: null,
+                missing_prerequisite_skill_id: null,
+                dest: 'State1',
+                dest_if_really_stuck: null,
+                feedback: {
+                  content_id: 'feedback_1',
+                  html: ''
+                },
+              },
+            },
+            {
+              rule_specs: [],
+              training_data: [],
+              tagged_skill_misconception_id: null,
+              outcome: {
+                labelled_as_correct: true,
+                param_changes: [],
+                refresher_exploration_id: null,
+                missing_prerequisite_skill_id: null,
+                dest: 'State2',
+                dest_if_really_stuck: null,
+                feedback: {
+                  content_id: 'feedback_2',
+                  html: ''
+                },
+              },
+            },
+            {
+              rule_specs: [],
+              training_data: [],
+              tagged_skill_misconception_id: null,
+              outcome: {
+                labelled_as_correct: true,
+                param_changes: [],
+                refresher_exploration_id: null,
+                missing_prerequisite_skill_id: null,
+                dest: 'State3',
+                dest_if_really_stuck: null,
+                feedback: {
+                  content_id: 'feedback_3',
+                  html: ''
+                },
+              },
+            }
+          ],
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State1: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'State4',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State2: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'State4',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State3: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'State4',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State4: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'State5',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State5: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'State6',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State6: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'State7',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State7: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'End',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      End: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          id: 'EndExploration',
+          confirmed_unclassified_answers: [],
+          solution: null,
+          answer_groups: [{
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: '',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            },
+            rule_specs: [],
+            training_data: []
+          }],
+          default_outcome: null,
+          customization_args: {
+            recommendedExplorationIds: {
+              value: []
+            }
+          },
+          hints: [],
+        },
+      }
+    }, false);
+
+    explorationWarningsService.updateWarnings();
+    expect(explorationWarningsService.countWarnings()).toBe(13);
+    expect(explorationWarningsService.hasCriticalWarnings()).toBe(true);
+    expect(explorationWarningsService.getCheckpointCountWarning()).toEqual(
+      'Only a maximum of 8 checkpoints are allowed per lesson.');
+    expect(explorationWarningsService.getAllStateRelatedWarnings()).toEqual({
+      Hola: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+      ],
+      State1: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'Checkpoints must not be assigned to cards that can be bypassed.'
+      ],
+      State2: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'Checkpoints must not be assigned to cards that can be bypassed.'
+      ],
+      State3: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'Checkpoints must not be assigned to cards that can be bypassed.'
+      ],
+      State4: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+      ],
+      State5: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+      ],
+      State6: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+      ],
+      State7: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+      ],
+      End: [
+        'Please make sure end exploration interactions do not ' +
+           'have any Oppia responses.',
+        'Checkpoints are not allowed on the last card of the lesson.',
+        'Checkpoints must not be assigned to cards that can be bypassed.'
+      ]
+    });
+  });
+
+  it('should show warnings if learner is directed more than 3 cards' +
+     ' back in the exploration', () => {
+    explorationStatesService.init({
+      Hola: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          default_outcome: null,
+          id: 'TextInput',
+          answer_groups: [
+            {
+              rule_specs: [],
+              training_data: [],
+              tagged_skill_misconception_id: null,
+              outcome: {
+                labelled_as_correct: true,
+                param_changes: [],
+                refresher_exploration_id: null,
+                missing_prerequisite_skill_id: null,
+                dest: 'State1',
+                dest_if_really_stuck: null,
+                feedback: {
+                  content_id: 'feedback_1',
+                  html: ''
+                },
+              },
+            },
+            {
+              rule_specs: [],
+              training_data: [],
+              tagged_skill_misconception_id: null,
+              outcome: {
+                labelled_as_correct: true,
+                param_changes: [],
+                refresher_exploration_id: null,
+                missing_prerequisite_skill_id: null,
+                dest: 'State2',
+                dest_if_really_stuck: null,
+                feedback: {
+                  content_id: 'feedback_2',
+                  html: ''
+                },
+              },
+            }
+          ],
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State1: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'State3',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State2: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'State5',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State3: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'State4',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State4: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'State6',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State5: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'End',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State6: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: true,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'State7',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: {
+            labelled_as_correct: false,
+            param_changes: [],
+            refresher_exploration_id: null,
+            missing_prerequisite_skill_id: null,
+            dest: 'Hola',
+            dest_if_really_stuck: null,
+            feedback: {
+              content_id: 'feedback',
+              html: 'feedback',
+            },
+          },
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      State7: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: false,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          confirmed_unclassified_answers: [],
+          solution: null,
+          id: 'TextInput',
+          answer_groups: [{
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'End',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }, {
+            rule_specs: [],
+            training_data: [],
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: 'Hola',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            }
+          }],
+          default_outcome: null,
+          customization_args: {
+            rows: {
+              value: true
+            },
+            placeholder: {
+              value: 1
+            },
+            catchMisspellings: {
+              value: false
+            }
+          },
+          hints: [],
+        },
+      },
+      End: {
+        classifier_model_id: null,
+        solicit_answer_details: false,
+        linked_skill_id: null,
+        card_is_checkpoint: false,
+        content: {
+          content_id: 'content',
+          html: '{{HtmlValue}}'
+        },
+        recorded_voiceovers: {
+          voiceovers_mapping: {},
+        },
+        param_changes: [],
+        interaction: {
+          id: 'EndExploration',
+          confirmed_unclassified_answers: [],
+          solution: null,
+          answer_groups: [{
+            tagged_skill_misconception_id: null,
+            outcome: {
+              labelled_as_correct: true,
+              param_changes: [],
+              refresher_exploration_id: null,
+              missing_prerequisite_skill_id: null,
+              dest: '',
+              dest_if_really_stuck: null,
+              feedback: {
+                content_id: 'feedback_2',
+                html: ''
+              },
+            },
+            rule_specs: [],
+            training_data: []
+          }],
+          default_outcome: null,
+          customization_args: {
+            recommendedExplorationIds: {
+              value: []
+            }
+          },
+          hints: [],
+        },
+      }
+    }, false);
+
+    explorationWarningsService.updateWarnings();
+    expect(explorationWarningsService.countWarnings()).toBe(12);
+    expect(explorationWarningsService.hasCriticalWarnings()).toBe(true);
+    expect(explorationWarningsService.getAllStateRelatedWarnings()).toEqual({
+      Hola: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+      ],
+      State1: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'Checkpoints must not be assigned to cards that can be bypassed.'
+      ],
+      State2: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'Checkpoints must not be assigned to cards that can be bypassed.'
+      ],
+      State3: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'Checkpoints must not be assigned to cards that can be bypassed.'
+      ],
+      State4: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'Checkpoints must not be assigned to cards that can be bypassed.'
+      ],
+      State5: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'Checkpoints must not be assigned to cards that can be bypassed.'
+      ],
+      State6: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'Learner should not be directed back by more than' +
+          ' 3 cards in the lesson.',
+        'Checkpoints must not be assigned to cards that can be bypassed.'
+      ],
+      State7: [
+        'Placeholder text must be a string.',
+        'Number of rows must be integral.',
+        'Learner should not be directed back by more than' +
+          ' 3 cards in the lesson.'
+      ],
+      End: [
+        'Please make sure end exploration interactions do not ' +
+           'have any Oppia responses.',
+      ]
     });
   });
 });

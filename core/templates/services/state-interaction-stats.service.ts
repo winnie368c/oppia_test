@@ -21,8 +21,7 @@ import { Injectable } from '@angular/core';
 
 import { AnswerClassificationService } from
   'pages/exploration-player-page/services/answer-classification.service';
-import { FractionObjectFactory } from
-  'domain/objects/FractionObjectFactory';
+import { Fraction } from 'domain/objects/fraction.model';
 import { InteractionAnswer, FractionAnswer, MultipleChoiceAnswer } from
   'interactions/answer-defs';
 import { MultipleChoiceInputCustomizationArgs } from
@@ -63,7 +62,6 @@ export class StateInteractionStatsService {
 
   constructor(
       private answerClassificationService: AnswerClassificationService,
-      private fractionObjectFactory: FractionObjectFactory,
       private interactionRulesRegistryService: InteractionRulesRegistryService,
       private stateInteractionStatsBackendApiService:
       StateInteractionStatsBackendApiService) {}
@@ -80,14 +78,13 @@ export class StateInteractionStatsService {
   private getReadableAnswerString(
       state: State, answer: InteractionAnswer): InteractionAnswer {
     if (state.interaction.id === 'FractionInput') {
-      return this.fractionObjectFactory.fromDict(
-        <FractionAnswer> answer).toString();
+      return Fraction.fromDict(answer as FractionAnswer).toString();
     } else if (state.interaction.id === 'MultipleChoiceInput') {
       const customizationArgs = (
-        <MultipleChoiceInputCustomizationArgs>
-        state.interaction.customizationArgs);
+        state.interaction.customizationArgs
+      ) as MultipleChoiceInputCustomizationArgs;
       return customizationArgs.choices.value[
-        <MultipleChoiceAnswer> answer].getHtml();
+        answer as MultipleChoiceAnswer].html;
     }
     return answer;
   }
@@ -96,39 +93,50 @@ export class StateInteractionStatsService {
    * Returns a promise which will provide details of the given state's
    * answer-statistics.
    */
-  computeStats(expId: string, state: State): Promise<StateInteractionStats> {
-    if (this.statsCache.has(state.name)) {
-      return this.statsCache.get(state.name);
+  async computeStatsAsync(
+      expId: string, state: State): Promise<StateInteractionStats> {
+    const stateName = state.name;
+    if (stateName === null) {
+      throw new Error('State name cannot be null.');
+    }
+    if (this.statsCache.has(stateName)) {
+      return this.statsCache.get(stateName) as Promise<StateInteractionStats>;
+    }
+
+    const interactionId = state.interaction.id;
+    if (!interactionId) {
+      throw new Error('Cannot compute stats for a state with no interaction.');
     }
     const interactionRulesService = (
       this.interactionRulesRegistryService.getRulesServiceByInteractionId(
-        state.interaction.id));
-
-    const statsPromise = this.stateInteractionStatsBackendApiService.getStats(
-      expId, state.name).then(vizInfo => <StateInteractionStats> {
+        interactionId));
+    const statsPromise = (
+      this.stateInteractionStatsBackendApiService.getStatsAsync(
+        expId,
+        stateName
+      )).then(vizInfo => ({
         explorationId: expId,
-        stateName: state.name,
-        visualizationsInfo: vizInfo.map(info => <VisualizationInfo> ({
+        stateName: stateName,
+        visualizationsInfo: vizInfo.map(info => ({
           addressedInfoIsSupported: info.addressedInfoIsSupported,
-          data: info.data.map(datum => <AnswerData>{
+          data: info.data.map(datum => ({
             answer: this.getReadableAnswerString(state, datum.answer),
             frequency: datum.frequency,
             isAddressed: (
               info.addressedInfoIsSupported ?
               this.answerClassificationService
                 .isClassifiedExplicitlyOrGoesToNewState(
-                  state.name, state, datum.answer, interactionRulesService) :
+                  stateName, state, datum.answer, interactionRulesService) :
               undefined)
-          }),
+          }) as AnswerData),
           id: info.id,
           options: info.options
-        })),
-      });
-    this.statsCache.set(state.name, statsPromise);
+        }) as VisualizationInfo),
+      }) as StateInteractionStats);
+    this.statsCache.set(stateName, statsPromise);
     return statsPromise;
   }
 }
-
 angular.module('oppia').factory(
   'StateInteractionStatsService',
   downgradeInjectable(StateInteractionStatsService));

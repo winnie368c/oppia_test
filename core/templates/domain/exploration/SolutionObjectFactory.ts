@@ -20,33 +20,34 @@
 import { downgradeInjectable } from '@angular/upgrade/static';
 import { Injectable } from '@angular/core';
 
-import {
-  CapitalizePipe
-} from 'filters/string-utility-filters/capitalize.pipe';
 import { ConvertToPlainTextPipe } from
   'filters/string-utility-filters/convert-to-plain-text.pipe';
-import { FormatRtePreviewPipe } from 'filters/format-rte-preview.pipe.ts';
 import { ExplorationHtmlFormatterService } from
   'services/exploration-html-formatter.service';
-import { FractionObjectFactory } from 'domain/objects/FractionObjectFactory';
+import { Fraction } from 'domain/objects/fraction.model';
 import { HtmlEscaperService } from 'services/html-escaper.service';
 import { LoggerService } from 'services/contextual/logger.service';
 import { NumberWithUnitsObjectFactory } from
   'domain/objects/NumberWithUnitsObjectFactory';
-import { SubtitledHtml, SubtitledHtmlObjectFactory } from
-  'domain/exploration/SubtitledHtmlObjectFactory';
-import { UnitsObjectFactory } from 'domain/objects/UnitsObjectFactory.ts';
+import { SubtitledHtml } from
+  'domain/exploration/subtitled-html.model';
+import { UnitsObjectFactory } from 'domain/objects/UnitsObjectFactory';
 import {
+  DragAndDropAnswer,
   FractionAnswer,
   InteractionAnswer,
-  LogicProofAnswer,
   NumberWithUnitsAnswer,
   PencilCodeEditorAnswer
 } from 'interactions/answer-defs';
 import { Interaction } from 'domain/exploration/InteractionObjectFactory';
+import { BaseTranslatableObject } from 'domain/objects/BaseTranslatableObject.model';
+import { InteractionCustomizationArgs, DragAndDropSortInputCustomizationArgs } from 'interactions/customization-args-defs';
 
 export interface ExplanationBackendDict {
-  'content_id': string;
+  // A null 'content_id' indicates that the 'Solution' has been created
+  // but not saved. Before the 'Solution' object is saved into a State,
+  // the 'content_id' should be set to a string.
+  'content_id': string | null;
   'html': string;
 }
 
@@ -56,27 +57,30 @@ export interface SolutionBackendDict {
   'explanation': ExplanationBackendDict;
 }
 
-interface ShortAnswerResponse {
+export interface ShortAnswerResponse {
   prefix: string;
   answer: string;
 }
 
-export class Solution {
+export class Solution extends BaseTranslatableObject {
   ehfs: ExplorationHtmlFormatterService;
-  shof: SubtitledHtmlObjectFactory;
   answerIsExclusive: boolean;
   correctAnswer: InteractionAnswer;
   explanation: SubtitledHtml;
   constructor(
       ehfs: ExplorationHtmlFormatterService,
-      shof: SubtitledHtmlObjectFactory,
       answerIsExclusive: boolean, correctAnswer: InteractionAnswer,
       explanation: SubtitledHtml) {
+    super();
+
     this.ehfs = ehfs;
-    this.shof = shof;
     this.answerIsExclusive = answerIsExclusive;
     this.correctAnswer = correctAnswer;
     this.explanation = explanation;
+  }
+
+  getTranslatableFields(): SubtitledHtml[] {
+    return [this.explanation];
   }
 
   toBackendDict(): SolutionBackendDict {
@@ -87,33 +91,37 @@ export class Solution {
     };
   }
 
-  getSummary(interactionId: string): string {
-    var solutionType = (
-      this.answerIsExclusive ? 'The only' : 'One');
-    var correctAnswer = null;
+  getSummary(
+      interactionId: string, customizationArgs: InteractionCustomizationArgs
+  ): string {
+    const solutionType = this.answerIsExclusive ? 'The only' : 'One';
+    let correctAnswer = null;
     if (interactionId === 'GraphInput') {
       correctAnswer = '[Graph]';
     } else if (interactionId === 'CodeRepl' ||
       interactionId === 'PencilCodeEditor') {
-      correctAnswer = (<PencilCodeEditorAnswer> this.correctAnswer).code;
+      correctAnswer = (this.correctAnswer as PencilCodeEditorAnswer).code;
     } else if (interactionId === 'MusicNotesInput') {
       correctAnswer = '[Music Notes]';
-    } else if (interactionId === 'LogicProof') {
-      correctAnswer = (<LogicProofAnswer> this.correctAnswer).correct;
     } else if (interactionId === 'FractionInput') {
-      correctAnswer = (new FractionObjectFactory()).fromDict(
-        <FractionAnswer> this.correctAnswer).toString();
+      correctAnswer = Fraction.fromDict(
+        this.correctAnswer as FractionAnswer).toString();
     } else if (interactionId === 'NumberWithUnits') {
       correctAnswer = (new NumberWithUnitsObjectFactory(
-        new UnitsObjectFactory(), new FractionObjectFactory())).fromDict(
-        <NumberWithUnitsAnswer> this.correctAnswer).toString();
+        new UnitsObjectFactory())).fromDict(
+          this.correctAnswer as NumberWithUnitsAnswer).toString();
     } else if (interactionId === 'DragAndDropSortInput') {
-      let formatRtePreview = new FormatRtePreviewPipe(new CapitalizePipe());
       correctAnswer = [];
-      for (let arr of this.correctAnswer) {
-        let transformedArray = [];
-        for (let elem of arr) {
-          transformedArray.push(formatRtePreview.transform(elem));
+      const subtitledHtmlChoices = (
+        customizationArgs as DragAndDropSortInputCustomizationArgs)
+        .choices.value;
+      const subtitledHtmlChoicesContentIds = subtitledHtmlChoices.map(
+        choice => choice.contentId);
+      for (const arr of this.correctAnswer as DragAndDropAnswer) {
+        const transformedArray = [];
+        for (const elem of arr) {
+          const choiceIndex = subtitledHtmlChoicesContentIds.indexOf(elem);
+          transformedArray.push(subtitledHtmlChoices[choiceIndex].html);
         }
         correctAnswer.push(transformedArray);
       }
@@ -124,8 +132,8 @@ export class Solution {
         (new HtmlEscaperService(new LoggerService())).objToEscapedJson(
           this.correctAnswer));
     }
-    var explanation = (
-      (new ConvertToPlainTextPipe()).transform(this.explanation.getHtml()));
+    const explanation = (
+      (new ConvertToPlainTextPipe()).transform(this.explanation.html));
     return (
       solutionType + ' solution is "' + correctAnswer +
       '". ' + explanation + '.');
@@ -140,15 +148,21 @@ export class Solution {
   }
 
   getOppiaShortAnswerResponseHtml(interaction: Interaction):
-  ShortAnswerResponse {
+    ShortAnswerResponse {
+    if (interaction.id === null) {
+      throw new Error('Interaction id is possibly null.');
+    }
     return {
       prefix: (this.answerIsExclusive ? 'The only' : 'One'),
       answer: this.ehfs.getShortAnswerHtml(
-        this.correctAnswer, interaction.id, interaction.customizationArgs)};
+        this.correctAnswer, interaction.id,
+        interaction.customizationArgs
+      )
+    };
   }
 
   getOppiaSolutionExplanationResponseHtml(): string {
-    return this.explanation.getHtml();
+    return this.explanation.html;
   }
 }
 
@@ -157,15 +171,14 @@ export class Solution {
 })
 export class SolutionObjectFactory {
   constructor(
-    private shof: SubtitledHtmlObjectFactory,
     private ehfs: ExplorationHtmlFormatterService) {}
+
   createFromBackendDict(solutionBackendDict: SolutionBackendDict): Solution {
     return new Solution(
       this.ehfs,
-      this.shof,
       solutionBackendDict.answer_is_exclusive,
       solutionBackendDict.correct_answer,
-      this.shof.createFromBackendDict(
+      SubtitledHtml.createFromBackendDict(
         solutionBackendDict.explanation));
   }
 
@@ -174,10 +187,9 @@ export class SolutionObjectFactory {
       explanationHtml: string, explanationId: string): Solution {
     return new Solution(
       this.ehfs,
-      this.shof,
       answerIsExclusive,
       correctAnswer,
-      this.shof.createDefault(
+      SubtitledHtml.createDefault(
         explanationHtml, explanationId));
   }
 }

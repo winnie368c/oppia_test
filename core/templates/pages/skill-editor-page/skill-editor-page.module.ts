@@ -16,45 +16,100 @@
  * @fileoverview Module for the skill editor page.
  */
 
-import 'core-js/es7/reflect';
-import 'zone.js';
-
-import 'angular-ui-sortable';
-import uiValidate from 'angular-ui-validate';
-import 'third-party-imports/ng-audio.import';
-import 'third-party-imports/ui-codemirror.import';
-import 'third-party-imports/ui-tree.import';
-
-angular.module('oppia', [
-  require('angular-cookies'), 'headroom', 'ngAnimate',
-  'ngAudio', 'ngMaterial', 'ngSanitize', 'ngTouch', 'pascalprecht.translate',
-  'toastr', 'ui.bootstrap', 'ui.codemirror', 'ui.sortable', 'ui.tree',
-  uiValidate
-]);
-
 import { APP_INITIALIZER, NgModule, StaticProvider } from '@angular/core';
-import { BrowserModule } from '@angular/platform-browser';
+import { BrowserModule, HAMMER_GESTURE_CONFIG } from '@angular/platform-browser';
+import { DragDropModule } from '@angular/cdk/drag-drop';
 import { downgradeComponent } from '@angular/upgrade/static';
 import { HttpClientModule } from '@angular/common/http';
 import { HTTP_INTERCEPTORS } from '@angular/common/http';
+import { RouterModule } from '@angular/router';
+import { APP_BASE_HREF } from '@angular/common';
+
 import { RequestInterceptor } from 'services/request-interceptor.service';
 import { SharedComponentsModule } from 'components/shared-component.module';
 import { OppiaAngularRootComponent } from
   'components/oppia-angular-root.component';
+import { InteractionExtensionsModule } from 'interactions/interactions.module';
+import { SkillEditorNavbarBreadcrumbComponent } from 'pages/skill-editor-page/navbar/skill-editor-navbar-breadcrumb.component';
 import { platformFeatureInitFactory, PlatformFeatureService } from
   'services/platform-feature.service';
+import { DeleteMisconceptionModalComponent } from './modal-templates/delete-misconception-modal.component';
+import { SkillDescriptionEditorComponent } from './editor-tab/skill-description-editor/skill-description-editor.component';
+import { MyHammerConfig, toastrConfig } from 'pages/oppia-root/app.module';
+import { SkillPrerequisiteSkillsEditorComponent } from './editor-tab/skill-prerequisite-skills-editor/skill-prerequisite-skills-editor.component';
+import { WorkedExampleEditorComponent } from './editor-tab/skill-concept-card-editor/worked-example-editor.component';
+import { MisconceptionEditorComponent } from './editor-tab/skill-misconceptions-editor/misconception-editor.component';
+import { DeleteWorkedExampleComponent } from './modal-templates/delete-worked-example-modal.component';
+import { AddWorkedExampleModalComponent } from './modal-templates/add-worked-example.component';
+import { SkillRubricsEditorComponent } from './editor-tab/skill-rubrics-editor/skill-rubrics-editor.component';
+import { AddMisconceptionModalComponent } from './modal-templates/add-misconception-modal.component';
+import { SkillEditorSaveModalComponent } from './modal-templates/skill-editor-save-modal.component';
+import { SkillMisconceptionsEditorComponent } from './editor-tab/skill-misconceptions-editor/skill-misconceptions-editor.component';
+import { SkillPreviewModalComponent } from './editor-tab/skill-preview-modal.component';
+import { SkillConceptCardEditorComponent } from './editor-tab/skill-concept-card-editor/skill-concept-card-editor.component';
+import { SmartRouterModule } from 'hybrid-router-module-provider';
+import { AppErrorHandlerProvider } from 'pages/oppia-root/app-error-handler';
+import { SkillEditorNavabarComponent } from './navbar/skill-editor-navbar.component';
+import { SkillQuestionsTabComponent } from './questions-tab/skill-questions-tab.component';
+import { SkillPreviewTabComponent } from './skill-preview-tab/skill-preview-tab.component';
+import { SkillEditorMainTabComponent } from './editor-tab/skill-editor-main-tab.component';
+import { SkillEditorPageComponent } from './skill-editor-page.component';
 
 @NgModule({
   imports: [
     BrowserModule,
+    BrowserAnimationsModule,
+    DragDropModule,
     HttpClientModule,
-    SharedComponentsModule
+    InteractionExtensionsModule,
+    // TODO(#13443): Remove smart router module provider once all pages are
+    // migrated to angular router.
+    SmartRouterModule,
+    RouterModule.forRoot([]),
+    SharedComponentsModule,
+    ToastrModule.forRoot(toastrConfig)
   ],
   declarations: [
-    OppiaAngularRootComponent
+    DeleteMisconceptionModalComponent,
+    SkillConceptCardEditorComponent,
+    SkillEditorNavabarComponent,
+    SkillEditorNavbarBreadcrumbComponent,
+    SkillDescriptionEditorComponent,
+    SkillPrerequisiteSkillsEditorComponent,
+    SkillPreviewModalComponent,
+    SkillEditorSaveModalComponent,
+    WorkedExampleEditorComponent,
+    MisconceptionEditorComponent,
+    AddWorkedExampleModalComponent,
+    DeleteWorkedExampleComponent,
+    SkillRubricsEditorComponent,
+    AddMisconceptionModalComponent,
+    SkillMisconceptionsEditorComponent,
+    SkillQuestionsTabComponent,
+    SkillPreviewTabComponent,
+    SkillEditorMainTabComponent,
+    SkillEditorPageComponent
   ],
   entryComponents: [
-    OppiaAngularRootComponent
+    DeleteMisconceptionModalComponent,
+    SkillConceptCardEditorComponent,
+    SkillEditorNavabarComponent,
+    SkillEditorNavbarBreadcrumbComponent,
+    SkillDescriptionEditorComponent,
+    SkillPrerequisiteSkillsEditorComponent,
+    SkillPreviewModalComponent,
+    SkillEditorSaveModalComponent,
+    WorkedExampleEditorComponent,
+    MisconceptionEditorComponent,
+    AddWorkedExampleModalComponent,
+    DeleteWorkedExampleComponent,
+    SkillRubricsEditorComponent,
+    AddMisconceptionModalComponent,
+    SkillMisconceptionsEditorComponent,
+    SkillQuestionsTabComponent,
+    SkillPreviewTabComponent,
+    SkillEditorMainTabComponent,
+    SkillEditorPageComponent
   ],
   providers: [
     {
@@ -67,6 +122,15 @@ import { platformFeatureInitFactory, PlatformFeatureService } from
       useFactory: platformFeatureInitFactory,
       deps: [PlatformFeatureService],
       multi: true
+    },
+    {
+      provide: HAMMER_GESTURE_CONFIG,
+      useClass: MyHammerConfig
+    },
+    AppErrorHandlerProvider,
+    {
+      provide: APP_BASE_HREF,
+      useValue: '/'
     }
   ]
 })
@@ -77,12 +141,14 @@ class SkillEditorPageModule {
 
 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
 import { downgradeModule } from '@angular/upgrade/static';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { ToastrModule } from 'ngx-toastr';
 
-const bootstrapFn = (extraProviders: StaticProvider[]) => {
+const bootstrapFnAsync = async(extraProviders: StaticProvider[]) => {
   const platformRef = platformBrowserDynamic(extraProviders);
   return platformRef.bootstrapModule(SkillEditorPageModule);
 };
-const downgradedModule = downgradeModule(bootstrapFn);
+const downgradedModule = downgradeModule(bootstrapFnAsync);
 
 declare var angular: ng.IAngularStatic;
 

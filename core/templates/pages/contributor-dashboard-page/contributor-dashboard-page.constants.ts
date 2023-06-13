@@ -16,29 +16,52 @@
  * @fileoverview Constants for the creator dashboard page.
  */
 
+interface TabDetails {
+  ariaLabel: string;
+  tabName: string;
+  description: string;
+  customizationOptions: string[];
+  enabled: boolean;
+}
+
+export interface ContributorDashboardTabsDetails {
+  myContributionTab: TabDetails;
+  submitQuestionTab: TabDetails;
+  translateTextTab: TabDetails;
+}
+
 export const ContributorDashboardConstants = {
   CONTRIBUTOR_DASHBOARD_TABS_DETAILS: {
     myContributionTab: {
       ariaLabel: 'Check your contributions.',
       tabName: 'My Contributions',
       description: '',
-      customizationOptions: []
+      customizationOptions: [],
+      enabled: true
     },
     submitQuestionTab: {
       ariaLabel: 'See opportunities for adding new questions.',
       tabName: 'Submit Question',
       description: 'Submit a question for students to answer while ' +
         'practicing that skill.',
-      customizationOptions: ['sort']
+      customizationOptions: ['sort'],
+      enabled: false
     },
     translateTextTab: {
       ariaLabel: 'See opportunities for translation.',
       tabName: 'Translate Text',
       description: 'Translate the lesson text to help non-English speakers ' +
         'follow the lessons.',
-      customizationOptions: ['language', 'sort']
+      customizationOptions: ['language', 'topic', 'sort'],
+      enabled: true
     }
   },
 
-  DEFAULT_OPPORTUNITY_LANGUAGE_CODE: 'hi'
+  // The text to display for a submitted suggestion if its corresponding
+  // opportunity was deleted.
+  CORRESPONDING_DELETED_OPPORTUNITY_TEXT: '[The corresponding opportunity ' +
+    'has been deleted.]',
+
+  DEFAULT_OPPORTUNITY_LANGUAGE_CODE: 'hi',
+  DEFAULT_OPPORTUNITY_TOPIC_NAME: 'All'
 } as const;

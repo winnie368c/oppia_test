@@ -23,28 +23,27 @@ import { downgradeInjectable } from '@angular/upgrade/static';
 
 import { AppConstants } from 'app.constants';
 import { AlertsService } from 'services/alerts.service';
+import { HumanReadableContributorsSummary } from 'domain/summary/creator-exploration-summary.model';
 import { ValidatorsService } from 'services/validators.service';
 
 export interface ExplorationSummaryBackendDict {
-  'summaries': [{
-    'category': string,
-    'community_owned': boolean,
-    'human_readable_contributors_summary': (
-      HumanReadableContributorSummaryBackendDict)
-    'id': string,
-    'language_code': string,
-    'num_views': number,
-    'objective': string,
-    'status': string,
-    'tags': [],
-    'thumbnail_bg_color': string,
-    'thumbnail_icon_url': string,
-    'title': string
-  }]
+  'summaries': ExplorationSummaryDict[];
 }
 
-interface HumanReadableContributorSummaryBackendDict {
-  'num_commits': number
+export interface ExplorationSummaryDict {
+  'category': string;
+  'community_owned': boolean;
+  'human_readable_contributors_summary': (
+    HumanReadableContributorsSummary);
+  'id': string;
+  'language_code': string;
+  'num_views': number;
+  'objective': string;
+  'status': string;
+  'tags': [];
+  'thumbnail_bg_color': string;
+  'thumbnail_icon_url': string;
+  'title': string;
 }
 
 @Injectable({
@@ -59,10 +58,8 @@ export class ExplorationSummaryBackendApiService {
   private _fetchExpSummaries(
       explorationIds: string[],
       includePrivateExplorations: boolean,
-      successCallback: (
-        value?: ExplorationSummaryBackendDict |
-        Promise<ExplorationSummaryBackendDict>) => void,
-      errorCallback: (reason?: string | string[]) => void): void {
+      successCallback: (value: ExplorationSummaryBackendDict) => void,
+      errorCallback: (reason: string | null[]) => void): void {
     if (!explorationIds.every(expId =>
       this.validatorsService.isValidExplorationId(expId, true))) {
       this.alertsService.addWarning('Please enter a valid exploration ID.');
@@ -75,13 +72,15 @@ export class ExplorationSummaryBackendApiService {
     }
     const explorationSummaryDataUrl =
     AppConstants.EXPLORATION_SUMMARY_DATA_URL_TEMPLATE;
-    this.httpClient.get(explorationSummaryDataUrl, {
-      params: {
-        stringified_exp_ids: JSON.stringify(explorationIds),
-        include_private_explorations: JSON.stringify(
-          includePrivateExplorations)
+    this.httpClient.get<ExplorationSummaryBackendDict>(
+      explorationSummaryDataUrl, {
+        params: {
+          stringified_exp_ids: JSON.stringify(explorationIds),
+          include_private_explorations: JSON.stringify(
+            includePrivateExplorations)
+        }
       }
-    }).toPromise().then((summaries: ExplorationSummaryBackendDict) => {
+    ).toPromise().then((summaries: ExplorationSummaryBackendDict) => {
       if (summaries === null) {
         const summariesError = (
           'Summaries fetched are null for explorationIds: ' + explorationIds
@@ -94,14 +93,14 @@ export class ExplorationSummaryBackendApiService {
     });
   }
 
-  loadPublicAndPrivateExplorationSummaries(
+  async loadPublicAndPrivateExplorationSummariesAsync(
       explorationIds: string[]): Promise<ExplorationSummaryBackendDict> {
     return new Promise((resolve, reject) => {
       this._fetchExpSummaries(explorationIds, true, resolve, reject);
     });
   }
 
-  loadPublicExplorationSummaries(
+  async loadPublicExplorationSummariesAsync(
       explorationIds: string[]): Promise<ExplorationSummaryBackendDict> {
     return new Promise((resolve, reject) => {
       this._fetchExpSummaries(explorationIds, false, resolve, reject);

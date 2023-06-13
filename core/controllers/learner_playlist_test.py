@@ -14,20 +14,16 @@
 
 """Tests for the learner playlist."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
-from constants import constants
+from core import feconf
+from core.constants import constants
 from core.domain import learner_playlist_services
 from core.domain import learner_progress_services
 from core.tests import test_utils
-import feconf
-import python_utils
 
 
 class LearnerPlaylistHandlerTests(test_utils.GenericTestBase):
-    OWNER_EMAIL = 'owner@example.com'
-    OWNER_USERNAME = 'owner'
 
     EXP_ID_1 = 'exp_id_1'
     EXP_TITLE_1 = 'exp title 1'
@@ -46,8 +42,8 @@ class LearnerPlaylistHandlerTests(test_utils.GenericTestBase):
     COL_ID_4 = 'col_id_4'
     COL_TITLE_4 = 'col title 4'
 
-    def setUp(self):
-        super(LearnerPlaylistHandlerTests, self).setUp()
+    def setUp(self) -> None:
+        super().setUp()
         self.signup(self.OWNER_EMAIL, self.OWNER_USERNAME)
         self.signup(self.VIEWER_EMAIL, self.VIEWER_USERNAME)
 
@@ -73,7 +69,7 @@ class LearnerPlaylistHandlerTests(test_utils.GenericTestBase):
         self.save_new_default_collection(
             self.COL_ID_4, self.viewer_id, title=self.COL_TITLE_4)
 
-    def test_add_exploration_to_learner_playlist(self):
+    def test_add_exploration_to_learner_playlist(self) -> None:
         self.login(self.VIEWER_EMAIL)
         csrf_token = self.get_new_csrf_token()
 
@@ -148,8 +144,7 @@ class LearnerPlaylistHandlerTests(test_utils.GenericTestBase):
         # learner playlist.
         # Add feconf.MAX_LEARNER_PLAYLIST_ACTIVITY_COUNT - 2 activities to reach
         # the maximum limit.
-        for exp_id in python_utils.RANGE(
-                5, feconf.MAX_LEARNER_PLAYLIST_ACTIVITY_COUNT + 3):
+        for exp_id in range(5, feconf.MAX_LEARNER_PLAYLIST_ACTIVITY_COUNT + 3):
             self.post_json(
                 '%s/%s/%s' % (
                     feconf.LEARNER_PLAYLIST_DATA_URL,
@@ -164,14 +159,13 @@ class LearnerPlaylistHandlerTests(test_utils.GenericTestBase):
                 feconf.LEARNER_PLAYLIST_DATA_URL,
                 constants.ACTIVITY_TYPE_EXPLORATION,
                 'exp_id_%s' %
-                python_utils.UNICODE(
-                    feconf.MAX_LEARNER_PLAYLIST_ACTIVITY_COUNT + 3)),
+                str(feconf.MAX_LEARNER_PLAYLIST_ACTIVITY_COUNT + 3)),
             {}, csrf_token=csrf_token)
         self.assertEqual(response['playlist_limit_exceeded'], True)
 
         self.logout()
 
-    def test_add_collection_to_learner_playlist(self):
+    def test_add_collection_to_learner_playlist(self) -> None:
         self.login(self.VIEWER_EMAIL)
         csrf_token = self.get_new_csrf_token()
 
@@ -247,8 +241,7 @@ class LearnerPlaylistHandlerTests(test_utils.GenericTestBase):
         # learner playlist.
         # Add feconf.MAX_LEARNER_PLAYLIST_ACTIVITY_COUNT - 2 activities to reach
         # the maximum limit.
-        for exp_id in python_utils.RANGE(
-                5, feconf.MAX_LEARNER_PLAYLIST_ACTIVITY_COUNT + 3):
+        for exp_id in range(5, feconf.MAX_LEARNER_PLAYLIST_ACTIVITY_COUNT + 3):
             response = self.post_json(
                 '%s/%s/%s' % (
                     feconf.LEARNER_PLAYLIST_DATA_URL,
@@ -263,14 +256,13 @@ class LearnerPlaylistHandlerTests(test_utils.GenericTestBase):
                 feconf.LEARNER_PLAYLIST_DATA_URL,
                 constants.ACTIVITY_TYPE_COLLECTION,
                 'exp_id_%s' %
-                python_utils.UNICODE(
-                    feconf.MAX_LEARNER_PLAYLIST_ACTIVITY_COUNT + 3)),
+                str(feconf.MAX_LEARNER_PLAYLIST_ACTIVITY_COUNT + 3)),
             {}, csrf_token=csrf_token)
         self.assertEqual(response['playlist_limit_exceeded'], True)
 
         self.logout()
 
-    def test_remove_exploration_from_learner_playlist(self):
+    def test_remove_exploration_from_learner_playlist(self) -> None:
         self.login(self.VIEWER_EMAIL)
 
         # Add explorations to the learner playlist.
@@ -312,7 +304,7 @@ class LearnerPlaylistHandlerTests(test_utils.GenericTestBase):
 
         self.logout()
 
-    def test_remove_collection_from_learner_playlist(self):
+    def test_remove_collection_from_learner_playlist(self) -> None:
         self.login(self.VIEWER_EMAIL)
 
         # Add collections to the learner playlist.

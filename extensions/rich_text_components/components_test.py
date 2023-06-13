@@ -16,30 +16,43 @@
 
 """Tests for rich text components."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import inspect
 import os
 import re
 
+from core import utils
 from core.tests import test_utils
 from extensions.rich_text_components import components
-import python_utils
+
+from typing import Any, Dict, List, Sequence, Tuple, Type, Union
+
+ValidItemTypes = Union[
+    Dict[str, str],
+    Dict[str, Dict[str, str]],
+    Dict[str, List[Dict[str, str]]],
+    Dict[str, Union[str, int, bool]]
+]
 
 
 class ComponentValidationUnitTests(test_utils.GenericTestBase):
     """Tests validation of rich text components."""
 
+    # Here we use type Any because here we are providing different types of
+    # tuples for testing purposes.
     def check_validation(
-            self, rte_component_class, valid_items,
-            invalid_items_with_error_messages):
+        self,
+        rte_component_class: Type[components.BaseRteComponent],
+        valid_items: Sequence[ValidItemTypes],
+        invalid_items_with_error_messages: List[Tuple[Any, str]]
+    ) -> None:
         """Test that values are validated correctly.
 
         Args:
             rte_component_class: object(BaseRTEComponent). The class whose
                 validate() method is to be tested.
-            valid_items: list(str). Each of these items is expected to
+            valid_items: list(*). Each of these items is expected to
                 be validated without any Exception.
             invalid_items_with_error_messages: list(str). A list of values with
                 corresponding error message. Each of these values is expected to
@@ -49,12 +62,12 @@ class ComponentValidationUnitTests(test_utils.GenericTestBase):
             rte_component_class.validate(item)
 
         for item, error_msg in invalid_items_with_error_messages:
-            with self.assertRaisesRegexp(Exception, error_msg):
+            with self.assertRaisesRegex(Exception, error_msg):
                 rte_component_class.validate(item)
 
-    def test_collapsible_validation(self):
+    def test_collapsible_validation(self) -> None:
         """Tests collapsible component validation."""
-        valid_items = [{
+        valid_items: List[Dict[str, str]] = [{
             'content-with-value': '<p>Hello</p>',
             'heading-with-value': 'Collapsible'
         }, {
@@ -82,9 +95,9 @@ class ComponentValidationUnitTests(test_utils.GenericTestBase):
             components.Collapsible, valid_items,
             invalid_items_with_error_messages)
 
-    def test_image_validation(self):
+    def test_image_validation(self) -> None:
         """Tests collapsible component validation."""
-        valid_items = [{
+        valid_items: List[Dict[str, str]] = [{
             'filepath-with-value': 'random.png',
             'alt-with-value': '1234',
             'caption-with-value': 'hello'
@@ -107,9 +120,9 @@ class ComponentValidationUnitTests(test_utils.GenericTestBase):
         self.check_validation(
             components.Image, valid_items, invalid_items_with_error_messages)
 
-    def test_link_validation(self):
+    def test_link_validation(self) -> None:
         """Tests collapsible component validation."""
-        valid_items = [{
+        valid_items: List[Dict[str, str]] = [{
             'url-with-value': 'https://link.com',
             'text-with-value': 'What is a link?'
         }, {
@@ -131,9 +144,9 @@ class ComponentValidationUnitTests(test_utils.GenericTestBase):
         self.check_validation(
             components.Link, valid_items, invalid_items_with_error_messages)
 
-    def test_math_validation(self):
+    def test_math_validation(self) -> None:
         """Tests collapsible component validation."""
-        valid_items = [{
+        valid_items: List[Dict[str, Dict[str, str]]] = [{
             'math_content-with-value': {
                 u'raw_latex': u'123456',
                 u'svg_filename': (
@@ -201,7 +214,7 @@ class ComponentValidationUnitTests(test_utils.GenericTestBase):
         self.check_validation(
             components.Math, valid_items, invalid_items_with_error_messages)
 
-    def test_skillreview_validation(self):
+    def test_skillreview_validation(self) -> None:
         """Tests skillreview component validation."""
         valid_items = [{
             'skill_id-with-value': 'skill_id',
@@ -219,7 +232,7 @@ class ComponentValidationUnitTests(test_utils.GenericTestBase):
             components.Skillreview, valid_items,
             invalid_items_with_error_messages)
 
-    def test_tabs_validation(self):
+    def test_tabs_validation(self) -> None:
         """Tests collapsible component validation."""
         valid_items = [{
             'tab_contents-with-value': [{
@@ -238,33 +251,56 @@ class ComponentValidationUnitTests(test_utils.GenericTestBase):
             }]
         }]
         invalid_items_with_error_messages = [
-            ({
-                'tab_contents-with-value': [{
-                    'content': 1234, 'title': 'hello'
-                }, {
-                    'content': '<p>oppia</p>', 'title': 'Savjet 1'
-                }]
-            }, 'Expected unicode HTML string, received 1234'),
-            ({
-                'tab_content-with-value': [{
-                    'content': '<p>hello</p>', 'title': 'hello'
-                }]
-            },
-             'Missing attributes: tab_contents-with-value, Extra attributes: '
-             'tab_content-with-value'),
-            ({
-                'tab_contents-with-value': [{
-                    'content': '<p>hello</p>', 'tab-title': 'hello'
-                }]
-            },
-             r'Missing keys: \[u\'title\'\], Extra keys: \[u\'tab-title\'\]')]
+            (
+                {
+                    'tab_contents-with-value': [{
+                        'content': 1234, 'title': 'hello'
+                    }, {
+                        'content': '<p>oppia</p>', 'title': 'Savjet 1'
+                    }]
+                },
+                'Expected unicode HTML string, received 1234'
+            ),
+            (
+                {
+                    'tab_content-with-value': [{
+                        'content': '<p>hello</p>', 'title': 'hello'
+                    }]
+                },
+                 'Missing attributes: tab_contents-with-value, '
+                 'Extra attributes: tab_content-with-value'
+            ),
+            (
+                {
+                    'tab_contents-with-value': [{
+                        'content': '<p>hello</p>', 'tab-title': 'hello'
+                    }]
+                },
+                re.escape(
+                    'Missing keys: [\'title\'], Extra keys: [\'tab-title\']')
+            ),
+            (
+                {
+                    'tab_contents-with-value': [{
+                        'content': (
+                            '<oppia-noninteractive-collapsible content-with-value=' # pylint: disable=line-too-long
+                            '"&amp;quot;&amp;lt;p&amp;gt;Hello&amp;lt;/p&amp;gt;&amp;' # pylint: disable=line-too-long
+                            'quot;" heading-with-value="&amp;quot;SubCollapsible&amp;' # pylint: disable=line-too-long
+                            'quot;"></oppia-noninteractive-collapsible><p>&nbsp;</p>' # pylint: disable=line-too-long
+                        ),
+                        'title': 'Collapsible'
+                    }]
+                },
+                'Nested tabs and collapsible'
+            )
+        ]
 
         self.check_validation(
             components.Tabs, valid_items, invalid_items_with_error_messages)
 
-    def test_video_validation(self):
+    def test_video_validation(self) -> None:
         """Tests collapsible component validation."""
-        valid_items = [{
+        valid_items: List[Dict[str, Union[str, int, bool]]] = [{
             'video_id-with-value': 'abcdefghijk',
             'start-with-value': 0,
             'end-with-value': 10,
@@ -298,44 +334,19 @@ class ComponentValidationUnitTests(test_utils.GenericTestBase):
         self.check_validation(
             components.Video, valid_items, invalid_items_with_error_messages)
 
-    def test_svg_diagram_validation(self):
-        """Tests svg diagram component validation."""
-        valid_items = [{
-            'svg_filename-with-value': 'random.svg',
-            'alt-with-value': '1234'
-        }, {
-            'svg_filename-with-value': 'xyz.svg',
-            'alt-with-value': 'hello'
-        }]
-        invalid_items_with_error_messages = [
-            ({
-                'svg_filename-with-value': 'random.png',
-                'alt-with-value': 'abc'
-            }, 'Invalid filename'),
-            ({
-                'svg_filename-with-value': 'xyz.svg.svg',
-                'alt-with-value': 'hello'
-            }, 'Invalid filename'),
-            ({
-                'svg_filename-with-value': 'xyz.png.svg',
-                'alt-with-value': 'hello'
-            }, 'Invalid filename')]
-
-        self.check_validation(
-            components.Svgdiagram, valid_items,
-            invalid_items_with_error_messages)
-
 
 class ComponentDefinitionTests(test_utils.GenericTestBase):
     """Tests definition of rich text components."""
 
-    def test_component_definition(self):
+    def test_component_definition(self) -> None:
         """Test that all components are defined."""
         rich_text_components_dir = (
             os.path.join(os.curdir, 'extensions', 'rich_text_components'))
-        actual_components = [name for name in os.listdir(
-            rich_text_components_dir) if os.path.isdir(os.path.join(
-                rich_text_components_dir, name))]
+        actual_components = [
+            name for name in os.listdir(rich_text_components_dir)
+            if name != '__pycache__' and
+               os.path.isdir(os.path.join(rich_text_components_dir, name))
+        ]
         defined_components = []
         for name, obj in inspect.getmembers(components):
             if inspect.isclass(obj):
@@ -347,16 +358,18 @@ class ComponentDefinitionTests(test_utils.GenericTestBase):
 class ComponentE2eTests(test_utils.GenericTestBase):
     """Tests that all components have their e2e test files defined."""
 
-    def test_component_e2e_tests(self):
+    def test_component_e2e_tests(self) -> None:
         """Tests that an e2e test is defined for all rich text components."""
         test_file = os.path.join(
-            'extensions', 'rich_text_components', 'protractor.js')
+            'extensions', 'rich_text_components', 'webdriverio.js')
         rich_text_components_dir = (
             os.path.join(os.curdir, 'extensions', 'rich_text_components'))
-        actual_components = [name for name in os.listdir(
-            rich_text_components_dir) if os.path.isdir(os.path.join(
-                rich_text_components_dir, name))]
-        with python_utils.open_file(test_file, 'r') as f:
+        actual_components = [
+            name for name in os.listdir(rich_text_components_dir)
+            if name != '__pycache__' and
+               os.path.isdir(os.path.join(rich_text_components_dir, name))
+        ]
+        with utils.open_file(test_file, 'r') as f:
             text = f.read()
             # Replace all spaces and new lines with empty space.
             text = re.sub(r' ', r'', text)

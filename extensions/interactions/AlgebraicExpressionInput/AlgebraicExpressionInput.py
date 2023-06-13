@@ -16,33 +16,46 @@
 
 """Python configuration for AlgebraicExpressionInput interaction."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 from extensions.interactions import base
+
+from typing import List
+
+MYPY = False
+if MYPY:  # pragma: no cover
+    from extensions import domain
 
 
 class AlgebraicExpressionInput(base.BaseInteraction):
     """Interaction for algebraic expression input."""
 
-    name = 'Algebraic Expression Input'
-    description = 'Allows learners to enter algebraic expressions.'
-    display_mode = base.DISPLAY_MODE_INLINE
-    is_trainable = False
-    _dependency_ids = ['guppy', 'nerdamer']
-    answer_type = 'AlgebraicExpression'
-    can_have_solution = True
-    show_generic_submit_button = True
+    name: str = 'Algebraic Expression Input'
+    description: str = 'Allows learners to enter algebraic expressions.'
+    display_mode: str = base.DISPLAY_MODE_INLINE
+    is_trainable: bool = False
+    _dependency_ids: List[str] = ['guppy', 'nerdamer']
+    answer_type: str = 'AlgebraicExpression'
+    can_have_solution: bool = True
+    show_generic_submit_button: bool = True
 
-    _customization_arg_specs = [{
-        'name': 'customOskLetters',
+    _customization_arg_specs: List[domain.CustomizationArgSpecsDict] = [{
+        'name': 'allowedVariables',
         'description': (
             'Shortcut variables that the learner can access in the on-screen '
             'keyboard. (The order of these variables will be reflected in the '
             'learner\'s keyboard)'),
         'schema': {
             'type': 'custom',
-            'obj_type': 'CustomOskLetters',
+            'obj_type': 'AllowedVariables',
         },
         'default_value': []
+    }, {
+        'name': 'useFractionForDivision',
+        'description': (
+            'Represent division using fractions (rather than ÷).'),
+        'schema': {
+            'type': 'bool'
+        },
+        'default_value': False
     }]

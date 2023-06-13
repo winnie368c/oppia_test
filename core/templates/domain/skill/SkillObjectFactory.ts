@@ -33,14 +33,14 @@ export interface SkillBackendDict {
 import { downgradeInjectable } from '@angular/upgrade/static';
 import { Injectable } from '@angular/core';
 
-import { ConceptCardObjectFactory, ConceptCard, ConceptCardBackendDict } from
-  'domain/skill/ConceptCardObjectFactory';
+import { ConceptCard, ConceptCardBackendDict } from
+  'domain/skill/concept-card.model';
 import { MisconceptionObjectFactory, Misconception, MisconceptionBackendDict }
   from 'domain/skill/MisconceptionObjectFactory';
-import { RubricObjectFactory, Rubric, RubricBackendDict } from
-  'domain/skill/RubricObjectFactory';
-import { ValidatorsService } from 'services/validators.service.ts';
-import constants from 'assets/constants';
+import { Rubric, RubricBackendDict } from
+  'domain/skill/rubric.model';
+import { ValidatorsService } from 'services/validators.service';
+import { AppConstants } from 'app.constants';
 
 export class Skill {
   _id: string;
@@ -51,16 +51,23 @@ export class Skill {
   _languageCode: string;
   _version: number;
   _nextMisconceptionId: number;
-  _supersedingSkillId: string | null;
+  _supersedingSkillId: string;
   _allQuestionsMerged: boolean;
   _prerequisiteSkillIds: string[];
-  SKILL_DIFFICULTIES: readonly string[] = constants.SKILL_DIFFICULTIES;
+  SKILL_DIFFICULTIES: readonly string[] = AppConstants.SKILL_DIFFICULTIES;
 
   constructor(
-      id: string, description: string, misconceptions: Misconception[],
-      rubrics: Rubric[], conceptCard: ConceptCard, languageCode: string,
-      version: number, nextMisconceptionId: number, supersedingSkillId: string,
-      allQuestionsMerged: boolean, prerequisiteSkillIds: string[]) {
+      id: string,
+      description: string,
+      misconceptions: Misconception[],
+      rubrics: Rubric[],
+      conceptCard: ConceptCard,
+      languageCode: string,
+      version: number,
+      nextMisconceptionId: number,
+      supersedingSkillId: string,
+      allQuestionsMerged: boolean,
+      prerequisiteSkillIds: string[]) {
     this._id = id;
     this._allQuestionsMerged = allQuestionsMerged;
     this._conceptCard = conceptCard;
@@ -73,6 +80,7 @@ export class Skill {
     this._supersedingSkillId = supersedingSkillId;
     this._prerequisiteSkillIds = prerequisiteSkillIds;
   }
+
   copyFromSkill(skill: Skill): void {
     this._id = skill.getId();
     this._description = skill.getDescription();
@@ -86,6 +94,7 @@ export class Skill {
     this._allQuestionsMerged = skill.getAllQuestionsMerged();
     this._prerequisiteSkillIds = skill.getPrerequisiteSkillIds();
   }
+
   getId(): string {
     return this._id;
   }
@@ -123,7 +132,7 @@ export class Skill {
   }
 
   getRubrics(): Rubric[] {
-    return this._rubrics.slice();
+    return this._rubrics;
   }
 
   appendMisconception(newMisconception: Misconception): void {
@@ -144,8 +153,8 @@ export class Skill {
     return this._nextMisconceptionId;
   }
 
-  getIncrementedMisconceptionId(id: string): number {
-    return (parseInt(id) + 1);
+  getIncrementedMisconceptionId(id: number): number {
+    return (id + 1);
   }
 
   getSupersedingSkillId(): string {
@@ -156,7 +165,7 @@ export class Skill {
     return this._allQuestionsMerged;
   }
 
-  findMisconceptionById(id: string): Misconception {
+  findMisconceptionById(id: number): Misconception {
     for (var idx in this._misconceptions) {
       if (this._misconceptions[idx].getId() === id) {
         return this._misconceptions[idx];
@@ -165,7 +174,7 @@ export class Skill {
     throw new Error('Could not find misconception with ID: ' + id);
   }
 
-  deleteMisconception(id: string): void {
+  deleteMisconception(id: number): void {
     this._misconceptions.forEach((misc: Misconception) => {
       if (misc.getId() === id) {
         this._misconceptions.splice(this._misconceptions.indexOf(misc), 1);
@@ -183,10 +192,13 @@ export class Skill {
         return this._rubrics[idx].getExplanations();
       }
     }
-    return null;
+    throw new Error(
+      'Unable to get explanation: The given difficulty does ' +
+      'not match any difficulty in the rubrcs'
+    );
   }
 
-  getMisconceptionId(index: number): string {
+  getMisconceptionId(index: number): number {
     return this._misconceptions[index].getId();
   }
 
@@ -200,8 +212,7 @@ export class Skill {
         return;
       }
     }
-    const rubricObjectFactory = new RubricObjectFactory();
-    this._rubrics.push(rubricObjectFactory.create(difficulty, explanations));
+    this._rubrics.push(Rubric.create(difficulty, explanations));
   }
 
   toBackendDict(): SkillBackendDict {
@@ -224,9 +235,10 @@ export class Skill {
       prerequisite_skill_ids: this._prerequisiteSkillIds
     };
   }
+
   getValidationIssues(): string[] {
     var issues = [];
-    if (this.getConceptCard().getExplanation().getHtml() === '') {
+    if (this.getConceptCard().getExplanation().html === '') {
       issues.push(
         'There should be review material in the concept card.');
     }
@@ -244,16 +256,8 @@ export class Skill {
 })
 export class SkillObjectFactory {
   constructor(
-    private conceptCardObjectFactory: ConceptCardObjectFactory,
     private misconceptionObjectFactory: MisconceptionObjectFactory,
-    private rubricObjectFactory: RubricObjectFactory,
     private validatorService: ValidatorsService) {
-  }
-  createInterstitialSkill(): Skill {
-    return new Skill(
-      null, 'Skill description loading',
-      [], [], this.conceptCardObjectFactory.createInterstitialConceptCard(),
-      'en', 1, 0, null, false, []);
   }
 
   hasValidDescription(description: string): boolean {
@@ -269,7 +273,7 @@ export class SkillObjectFactory {
       this.generateMisconceptionsFromBackendDict(
         skillBackendDict.misconceptions),
       this.generateRubricsFromBackendDict(skillBackendDict.rubrics),
-      this.conceptCardObjectFactory.createFromBackendDict(
+      ConceptCard.createFromBackendDict(
         skillBackendDict.skill_contents),
       skillBackendDict.language_code,
       skillBackendDict.version,
@@ -290,7 +294,7 @@ export class SkillObjectFactory {
   generateRubricsFromBackendDict(
       rubricBackendDicts: RubricBackendDict[]): Rubric[] {
     return rubricBackendDicts.map((rubricBackendDict) => {
-      return this.rubricObjectFactory.createFromBackendDict(rubricBackendDict);
+      return Rubric.createFromBackendDict(rubricBackendDict);
     });
   }
 }

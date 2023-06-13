@@ -18,41 +18,82 @@
 
 import { PageTitleService } from 'services/page-title.service';
 import { TestBed } from '@angular/core/testing';
-import { Title } from '@angular/platform-browser';
+import { Title, Meta } from '@angular/platform-browser';
 
 describe('Page title service', () => {
   let pts: PageTitleService;
   let titleService: Title;
+  let metaTagService: Meta;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [PageTitleService, Title]
+      providers: [PageTitleService, Title, Meta]
     });
-    titleService = TestBed.get(Title);
-    pts = TestBed.get(PageTitleService);
+    titleService = TestBed.inject(Title);
+    metaTagService = TestBed.inject(Meta);
+    pts = TestBed.inject(PageTitleService);
   });
 
   it('should correctly set the page title', () => {
-    pts.setPageTitle('First Title');
+    pts.setDocumentTitle('First Title');
     expect(titleService.getTitle()).toEqual('First Title');
 
-    pts.setPageTitle('Second Title');
+    pts.setDocumentTitle('Second Title');
     expect(titleService.getTitle()).toEqual('Second Title');
   });
 
-  it('should correctly set the page title for mobile view', () => {
-    pts.setPageTitleForMobileView('First Title');
-    expect(pts.getPageTitleForMobileView()).toEqual('First Title');
+  it('should correctly get the page title', () => {
+    titleService.setTitle('First Title');
+    expect(pts.getDocumentTitle()).toEqual('First Title');
 
-    pts.setPageTitleForMobileView('Second Title');
-    expect(pts.getPageTitleForMobileView()).toEqual('Second Title');
+    titleService.setTitle('Second Title');
+    expect(pts.getDocumentTitle()).toEqual('Second Title');
+  });
+
+  it('should correctly set the page title for mobile view', () => {
+    pts.setNavbarTitleForMobileView('First Title');
+    expect(pts.getNavbarTitleForMobileView()).toEqual('First Title');
+
+    pts.setNavbarTitleForMobileView('Second Title');
+    expect(pts.getNavbarTitleForMobileView()).toEqual('Second Title');
   });
 
   it('should correctly set the page subtitle for mobile view', () => {
-    pts.setPageSubtitleForMobileView('First Subtitle');
-    expect(pts.getPageSubtitleForMobileView()).toEqual('First Subtitle');
+    pts.setNavbarSubtitleForMobileView('First Subtitle');
+    expect(pts.getNavbarSubtitleForMobileView()).toEqual('First Subtitle');
 
-    pts.setPageSubtitleForMobileView('Second Subtitle');
-    expect(pts.getPageSubtitleForMobileView()).toEqual('Second Subtitle');
+    pts.setNavbarSubtitleForMobileView('Second Subtitle');
+    expect(pts.getNavbarSubtitleForMobileView()).toEqual('Second Subtitle');
+  });
+
+  it('should correctly update the description meta tags', () => {
+    let updateTagSpy = spyOn(metaTagService, 'updateTag').and.callThrough();
+    pts.updateMetaTag('description_text');
+
+    expect(updateTagSpy).toHaveBeenCalledTimes(3);
+    expect(updateTagSpy).toHaveBeenCalledWith({
+      name: 'description',
+      content: 'description_text'
+    });
+    expect(updateTagSpy).toHaveBeenCalledWith({
+      itemprop: 'description',
+      content: 'description_text'
+    });
+    expect(updateTagSpy).toHaveBeenCalledWith({
+      property: 'og:description',
+      content: 'description_text'
+    });
+  });
+
+  it('should correctly add meta tag', () => {
+    let metaTagContent = {
+      name: 'keywords',
+      content: 'blog, oppia, maths',
+    };
+    spyOn(metaTagService, 'addTag').and.callThrough();
+
+    pts.addMetaTag(metaTagContent);
+
+    expect(metaTagService.addTag).toHaveBeenCalledWith(metaTagContent);
   });
 });

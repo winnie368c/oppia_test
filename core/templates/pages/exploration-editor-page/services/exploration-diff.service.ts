@@ -22,30 +22,30 @@ import { Injectable } from '@angular/core';
 import cloneDeep from 'lodash/cloneDeep';
 import isEqual from 'lodash/isEqual';
 
-import INTERACTION_SPECS from 'pages/interaction-specs.constants.ajs';
+import { InteractionSpecsConstants, InteractionSpecsKey } from 'pages/interaction-specs.constants';
 
 import {
-  AddStateNameChangeList,
-  ExplorationChangeList,
-  RenameStateChangeList,
-  EditStatePropertyChangeList
+  ExplorationChangeAddState,
+  ExplorationChange,
+  ExplorationChangeRenameState,
+  ExplorationChangeEditStateProperty
 } from 'domain/exploration/exploration-draft.model';
 import { StateObjectsDict } from 'domain/exploration/StatesObjectFactory';
 
-interface ExplorationGraphChangeList {
-  changeList: ExplorationChangeList[];
+export interface ExplorationGraphChangeList {
+  changeList: ExplorationChange[];
   directionForwards: boolean;
 }
 
-interface StateData {
+export interface StateData {
   [stateName: string]: {
     newestStateName: string;
     originalStateName: string;
     stateProperty: string;
-  }
+  };
 }
 
-interface StateIds {
+export interface StateIds {
   [stateName: string]: number;
 }
 
@@ -54,7 +54,7 @@ interface StateIdsAndData {
   stateData: StateData;
 }
 
-interface ProcessedStateIdsAndData {
+export interface ProcessedStateIdsAndData {
   nodes: StateData;
   links: StateLink[];
   originalStateIds: StateIds;
@@ -65,10 +65,15 @@ interface ProcessedStateIdsAndData {
 interface AdjMatrix {
   [state1: number]: {
     [state2: number]: boolean;
-  }
+  };
 }
 
-interface StateLink {
+interface ResultInterface {
+  stateIds: StateIds;
+  stateData: StateData;
+}
+
+export interface StateLink {
   source: number;
   target: number;
   linkProperty: string;
@@ -88,6 +93,7 @@ export class ExplorationDiffService {
   _resetMaxId(): void {
     this._maxId = 0;
   }
+
   _generateNewId(): number {
     this._maxId++;
     return this._maxId;
@@ -95,7 +101,7 @@ export class ExplorationDiffService {
 
   _generateInitialStateIdsAndData(
       statesDict: StateObjectsDict): StateIdsAndData {
-    let result = {
+    let result: ResultInterface = {
       stateIds: {},
       stateData: {}
     };
@@ -149,14 +155,18 @@ export class ExplorationDiffService {
       let oldStateIsTerminal = false;
       let newStateIsTerminal = false;
       if (oldState) {
-        oldStateIsTerminal = (
-          oldState.interaction.id &&
-            INTERACTION_SPECS[oldState.interaction.id].is_terminal);
+        let interactionId = oldState.interaction.id as InteractionSpecsKey;
+        const interactionSpec = (
+          InteractionSpecsConstants.INTERACTION_SPECS[interactionId]);
+        oldStateIsTerminal = Boolean(
+          oldState.interaction.id && interactionSpec.is_terminal);
       }
       if (newState) {
-        newStateIsTerminal = (
-          newState.interaction.id &&
-            INTERACTION_SPECS[newState.interaction.id].is_terminal);
+        let interactionId = newState.interaction.id as InteractionSpecsKey;
+        const interactionSpec = (
+          InteractionSpecsConstants.INTERACTION_SPECS[interactionId]);
+        newStateIsTerminal = Boolean(
+          newState.interaction.id && interactionSpec.is_terminal);
       }
       if (oldStateIsTerminal || newStateIsTerminal) {
         finalStateIds.push(stateId);
@@ -205,69 +215,79 @@ export class ExplorationDiffService {
       let changeList = changeListDatum.changeList;
       let directionForwards = changeListDatum.directionForwards;
       changeList.forEach(change => {
+        let explorationChangeAddState = change as ExplorationChangeAddState;
+
         if ((directionForwards && change.cmd === 'add_state') ||
             (!directionForwards && change.cmd === 'delete_state')) {
-          if (!stateIds.hasOwnProperty(
-            (<AddStateNameChangeList> change).state_name)) {
+          if (!stateIds.hasOwnProperty(explorationChangeAddState.state_name)) {
             let newId = this._generateNewId();
-            stateIds[(<AddStateNameChangeList> change).state_name] = newId;
+            stateIds[(change as ExplorationChangeAddState).state_name] = newId;
           }
           let currentStateId = (
-            stateIds[(<AddStateNameChangeList> change).state_name]);
+            stateIds[explorationChangeAddState.state_name]);
           if (stateData.hasOwnProperty(currentStateId) &&
               stateData[currentStateId].stateProperty ===
               this.STATE_PROPERTY_DELETED) {
             stateData[currentStateId].stateProperty =
                 this.STATE_PROPERTY_CHANGED;
             stateData[currentStateId].newestStateName = (
-              <AddStateNameChangeList> change).state_name;
+              explorationChangeAddState).state_name;
           } else {
             stateData[currentStateId] = {
-              newestStateName: (<AddStateNameChangeList> change).state_name,
-              originalStateName: (<AddStateNameChangeList> change).state_name,
+              newestStateName: (change as ExplorationChangeAddState).state_name,
+              originalStateName: (
+                explorationChangeAddState).state_name,
               stateProperty: this.STATE_PROPERTY_ADDED
             };
           }
         } else if ((directionForwards && change.cmd === 'delete_state') ||
             (!directionForwards && change.cmd === 'add_state')) {
           if (stateData[stateIds[(
-            <AddStateNameChangeList> change).state_name]].stateProperty ===
+            explorationChangeAddState).state_name]].stateProperty ===
               this.STATE_PROPERTY_ADDED) {
             stateData[stateIds[(
-              <AddStateNameChangeList> change).state_name]].stateProperty = (
+              explorationChangeAddState).state_name]].stateProperty = (
               this.STATE_PROPERTY_CHANGED);
           } else {
             stateData[stateIds[(
-              <AddStateNameChangeList> change).state_name]].stateProperty = (
+              explorationChangeAddState).state_name]].stateProperty = (
               this.STATE_PROPERTY_DELETED);
           }
         } else if (change.cmd === 'rename_state') {
           let newStateName = null;
           let oldStateName = null;
           if (directionForwards) {
-            newStateName = (<RenameStateChangeList> change).new_state_name;
-            oldStateName = (<RenameStateChangeList> change).old_state_name;
+            newStateName = (
+              change as ExplorationChangeRenameState).new_state_name;
+            oldStateName = (
+              change as ExplorationChangeRenameState).old_state_name;
           } else {
-            newStateName = (<RenameStateChangeList> change).old_state_name;
-            oldStateName = (<RenameStateChangeList> change).new_state_name;
+            newStateName = (
+              change as ExplorationChangeRenameState).old_state_name;
+            oldStateName = (
+              change as ExplorationChangeRenameState).new_state_name;
           }
           stateIds[newStateName] = stateIds[oldStateName];
           delete stateIds[oldStateName];
           stateData[stateIds[newStateName]].newestStateName = newStateName;
         } else if (change.cmd === 'edit_state_property') {
           if (stateData[stateIds[(
-            <EditStatePropertyChangeList> change).state_name]]
+            change as ExplorationChangeEditStateProperty).state_name]]
             .stateProperty ===
               this.STATE_PROPERTY_UNCHANGED) {
             stateData[stateIds[(
-              <EditStatePropertyChangeList> change).state_name]]
+              change as ExplorationChangeEditStateProperty).state_name]]
               .stateProperty = (
                 this.STATE_PROPERTY_CHANGED);
           }
         } else if (
           change.cmd !== 'migrate_states_schema_to_latest_version' &&
-            change.cmd !== 'AUTO_revert_version_number' &&
-            change.cmd !== 'edit_exploration_property') {
+          change.cmd !== 'AUTO_revert_version_number' &&
+          change.cmd !== 'edit_exploration_property' &&
+          change.cmd !== 'add_written_translation' &&
+          change.cmd !== 'mark_translations_needs_update' &&
+          change.cmd !== 'remove_translations'
+        ) {
           throw new Error('Invalid change command: ' + change.cmd);
         }
       });
@@ -292,7 +312,7 @@ export class ExplorationDiffService {
   _getAdjMatrix(
       states: StateObjectsDict,
       stateIds: StateIds, maxId: number): AdjMatrix {
-    let adjMatrix = {};
+    let adjMatrix: AdjMatrix = {};
     for (let stateId = 1; stateId <= maxId; stateId++) {
       adjMatrix[stateId] = {};
     }

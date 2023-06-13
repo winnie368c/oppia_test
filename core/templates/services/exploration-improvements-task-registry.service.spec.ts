@@ -18,8 +18,8 @@
 
 import { TestBed } from '@angular/core/testing';
 
-import { AnswerStatsObjectFactory, AnswerStatsBackendDict } from
-  'domain/exploration/AnswerStatsObjectFactory';
+import { AnswerStats, AnswerStatsBackendDict } from
+  'domain/exploration/answer-stats.model';
 import {
   ExplorationTask,
   ExplorationTaskType,
@@ -58,7 +58,6 @@ import { ExplorationImprovementsTaskRegistryService } from
 describe('Exploration improvements task registrar service', () => {
   let taskRegistryService: ExplorationImprovementsTaskRegistryService;
 
-  let answerStatsObjectFactory: AnswerStatsObjectFactory;
   let playthroughIssueObjectFactory: PlaythroughIssueObjectFactory;
   let statesObjectFactory: StatesObjectFactory;
 
@@ -83,7 +82,6 @@ describe('Exploration improvements task registrar service', () => {
     taskRegistryService = (
       TestBed.get(ExplorationImprovementsTaskRegistryService));
 
-    answerStatsObjectFactory = TestBed.get(AnswerStatsObjectFactory);
     playthroughIssueObjectFactory = TestBed.get(PlaythroughIssueObjectFactory);
     statesObjectFactory = TestBed.get(StatesObjectFactory);
 
@@ -112,10 +110,14 @@ describe('Exploration improvements task registrar service', () => {
               unicode_str: ''
             }
           },
-          rows: { value: 1 }
+          rows: { value: 1 },
+          catchMisspellings: {
+            value: false
+          }
         },
         default_outcome: {
           dest: 'new state',
+          dest_if_really_stuck: null,
           feedback: {
             content_id: 'default_outcome',
             html: ''
@@ -136,15 +138,10 @@ describe('Exploration improvements task registrar service', () => {
         },
         id: 'TextInput'
       },
-      next_content_id_index: 0,
+      linked_skill_id: null,
       param_changes: [],
       solicit_answer_details: false,
-      written_translations: {
-        translations_mapping: {
-          content: {},
-          default_outcome: {}
-        }
-      },
+      card_is_checkpoint: false
     };
 
     stateStatsBackendDict = {
@@ -222,7 +219,6 @@ describe('Exploration improvements task registrar service', () => {
       issue_description: '20% of learners dropped at this state',
       status: 'open',
       resolver_username: null,
-      resolver_profile_picture_data_url: null,
       resolved_on_msecs: null,
     };
 
@@ -235,7 +231,7 @@ describe('Exploration improvements task registrar service', () => {
 
   const makeTask = (
     <T extends ExplorationTask = ExplorationTask>(dict = taskBackendDict) => {
-      return <T> ExplorationTaskModel.createFromBackendDict(dict);
+      return ExplorationTaskModel.createFromBackendDict(dict) as T;
     });
   const makeStates = (map = statesBackendDict) => {
     return statesObjectFactory.createFromBackendDict(map);
@@ -244,19 +240,22 @@ describe('Exploration improvements task registrar service', () => {
     return ExplorationStats.createFromBackendDict(dict);
   };
   const makeAnswerStats = (dict = answerStatsBackendDict) => {
-    return answerStatsObjectFactory.createFromBackendDict(dict);
+    return AnswerStats.createFromBackendDict(dict);
   };
   const makeCstPlaythroughIssue = (dict = cstPlaythroughIssueBackendDict) => {
-    return <CyclicStateTransitionsPlaythroughIssue> (
-      playthroughIssueObjectFactory.createFromBackendDict(dict));
+    return (
+      playthroughIssueObjectFactory.createFromBackendDict(dict)
+    ) as CyclicStateTransitionsPlaythroughIssue;
   };
   const makeEqPlaythroughIssue = (dict = eqPlaythroughIssueBackendDict) => {
-    return <EarlyQuitPlaythroughIssue> (
-      playthroughIssueObjectFactory.createFromBackendDict(dict));
+    return (
+      playthroughIssueObjectFactory.createFromBackendDict(dict)
+    ) as EarlyQuitPlaythroughIssue;
   };
   const makeMisPlaythroughIssue = (dict = misPlaythroughIssueBackendDict) => {
-    return <MultipleIncorrectSubmissionsPlaythroughIssue> (
-      playthroughIssueObjectFactory.createFromBackendDict(dict));
+    return (
+      playthroughIssueObjectFactory.createFromBackendDict(dict)) as
+       MultipleIncorrectSubmissionsPlaythroughIssue;
   };
 
   it('should initialize successfully using default test values', () => {
@@ -310,7 +309,7 @@ describe('Exploration improvements task registrar service', () => {
     it('should throw if a resolved task type targets an unknown state', () => {
       delete statesBackendDict.End;
       const resolvedTaskTypesByStateName = new Map([
-        ['End', <ExplorationTaskType[]> ['high_bounce_rate']]
+        ['End', ['high_bounce_rate'] as ExplorationTaskType[]]
       ]);
       expect(
         () => taskRegistryService.initialize(
@@ -407,7 +406,7 @@ describe('Exploration improvements task registrar service', () => {
       taskBackendDict.target_id = 'Introduction';
       taskBackendDict.task_type = 'high_bounce_rate';
       const resolvedTaskTypesByStateName = new Map([
-        ['Introduction', <ExplorationTaskType[]> ['high_bounce_rate']]
+        ['Introduction', ['high_bounce_rate'] as ExplorationTaskType[]]
       ]);
       expect(
         () => taskRegistryService.initialize(
@@ -422,7 +421,8 @@ describe('Exploration improvements task registrar service', () => {
       'same state', () => {
       const resolvedTaskTypesByStateName = new Map([
         ['Introduction',
-          <ExplorationTaskType[]> ['high_bounce_rate', 'high_bounce_rate']],
+          ['high_bounce_rate', 'high_bounce_rate'] as ExplorationTaskType[]
+        ],
       ]);
       expect(
         () => taskRegistryService.initialize(

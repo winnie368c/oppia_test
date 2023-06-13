@@ -16,40 +16,39 @@
 
 """Lint checks for python files."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import os
-import re
 import subprocess
 
-import python_utils
+from typing import Final, List, Tuple
 
+from . import linter_utils
 from .. import common
 from .. import concurrent_task_utils
 
+STYLELINT_CONFIG: Final = os.path.join('.stylelintrc')
 
-class ThirdPartyCSSLintChecksManager(python_utils.OBJECT):
+
+class ThirdPartyCSSLintChecksManager(linter_utils.BaseLinter):
     """Manages all the third party Python linting functions."""
 
-    def __init__(self, config_path, files_to_lint):
+    def __init__(self, files_to_lint: List[str]) -> None:
         """Constructs a ThirdPartyCSSLintChecksManager object.
 
         Args:
-            config_path: str. Path to the configuration file.
             files_to_lint: list(str). A list of filepaths to lint.
         """
-        super(ThirdPartyCSSLintChecksManager, self).__init__()
-        self.config_path = config_path
+        super().__init__()
         self.files_to_lint = files_to_lint
 
     @property
-    def all_filepaths(self):
+    def all_filepaths(self) -> List[str]:
         """Return all filepaths."""
         return self.files_to_lint
 
     @staticmethod
-    def _get_trimmed_error_output(css_lint_output):
+    def _get_trimmed_error_output(css_lint_output: str) -> str:
         """Remove extra bits from stylelint error messages.
 
         Args:
@@ -58,74 +57,56 @@ class ThirdPartyCSSLintChecksManager(python_utils.OBJECT):
         Returns:
             str. A string with the trimmed error messages.
         """
-        trimmed_error_messages = []
-        # We need to extract messages from the list and split them line by
-        # line so we can loop through them.
-        css_output_lines = css_lint_output.split('\n')
-        for line in css_output_lines:
-            # Stylelint messages starts with line numbers and then a
-            # "x"(\u2716) and a message-id in the end. We are capturing these
-            # and then replacing them with empty string('').
-            if re.search(r'^\d+:\d+', line.lstrip()):
-                # Replacing message-id with an empty string('').
-                line = re.sub(r'(\w+-*)+$', '', line)
-                unicode_x = re.search(r'\u2716', line).group(0)
-                error_message = line.replace(unicode_x, '', 1)
-            else:
-                error_message = line
-            trimmed_error_messages.append(error_message)
-        return '\n'.join(trimmed_error_messages) + '\n'
+        return '%s\n' % css_lint_output
 
-    def lint_css_files(self):
+    def lint_css_files(self) -> concurrent_task_utils.TaskResult:
         """Prints a list of lint errors in the given list of CSS files.
 
         Returns:
             TaskResult. A TaskResult object representing the result of the lint
             check.
+
+        Raises:
+            Exception. The start.py file not executed.
         """
         node_path = os.path.join(common.NODE_PATH, 'bin', 'node')
         stylelint_path = os.path.join(
             'node_modules', 'stylelint', 'bin', 'stylelint.js')
         if not os.path.exists(stylelint_path):
             raise Exception(
-                'ERROR    Please run start.sh first to install node-eslint '
+                'ERROR    Please run start.py first to install node-eslint '
                 'or node-stylelint and its dependencies.')
-        files_to_lint = self.all_filepaths
-        num_files_with_errors = 0
+
         failed = False
         stripped_error_messages = []
         full_error_messages = []
         name = 'Stylelint'
 
         stylelint_cmd_args = [
-            node_path, stylelint_path, '--config=' + self.config_path]
-        result_list = []
-        for _, filepath in enumerate(files_to_lint):
-            proc_args = stylelint_cmd_args + [filepath]
-            proc = subprocess.Popen(
-                proc_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            node_path, stylelint_path, '--config=' + STYLELINT_CONFIG]
+        proc_args = stylelint_cmd_args + self.all_filepaths
+        proc = subprocess.Popen(
+            proc_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            encoded_linter_stdout, encoded_linter_stderr = proc.communicate()
-            linter_stdout = encoded_linter_stdout.decode(encoding='utf-8')
-            linter_stderr = encoded_linter_stderr.decode(encoding='utf-8')
-            if linter_stderr:
-                raise Exception(linter_stderr)
+        encoded_linter_stdout, encoded_linter_stderr = proc.communicate()
+        # Standard and error output is in bytes, we need to decode the line to
+        # print it.
+        linter_stdout = encoded_linter_stdout.decode('utf-8')
+        linter_stderr = encoded_linter_stderr.decode('utf-8')
 
-            if linter_stdout:
-                num_files_with_errors += 1
-                result_list.append(linter_stdout)
+        if linter_stderr:
+            raise Exception(linter_stderr)
 
-        if num_files_with_errors:
-            for result in result_list:
-                full_error_messages.append(result)
-                stripped_error_messages.append(
-                    self._get_trimmed_error_output(result))
+        if linter_stdout:
+            full_error_messages.append(linter_stdout)
+            stripped_error_messages.append(
+                self._get_trimmed_error_output(linter_stdout))
             failed = True
 
         return concurrent_task_utils.TaskResult(
             name, failed, stripped_error_messages, full_error_messages)
 
-    def perform_all_lint_checks(self):
+    def perform_all_lint_checks(self) -> List[concurrent_task_utils.TaskResult]:
         """Perform all the lint checks and returns the messages returned by all
         the checks.
 
@@ -142,18 +123,16 @@ class ThirdPartyCSSLintChecksManager(python_utils.OBJECT):
         return [self.lint_css_files()]
 
 
-def get_linters(config_path, files_to_lint):
+def get_linters(
+    files_to_lint: List[str]
+) -> Tuple[None, ThirdPartyCSSLintChecksManager]:
     """Creates ThirdPartyCSSLintChecksManager and returns it.
 
     Args:
-        config_path: str. Path to the configuration file.
         files_to_lint: list(str). A list of filepaths to lint.
 
     Returns:
         tuple(None, ThirdPartyCSSLintChecksManager). A 2-tuple of custom and
         third_party linter objects.
     """
-    third_party_linter = ThirdPartyCSSLintChecksManager(
-        config_path, files_to_lint)
-
-    return None, third_party_linter
+    return None, ThirdPartyCSSLintChecksManager(files_to_lint)

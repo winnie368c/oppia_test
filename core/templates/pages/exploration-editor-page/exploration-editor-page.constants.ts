@@ -37,6 +37,10 @@ export const ExplorationEditorPageConstants = {
   // Constant for audio recording time limit.
   RECORDING_TIME_LIMIT: 300,
 
+  HINT_CHARACTER_LIMIT: 500,
+
+  NEW_LINE_REGEX: /(\n)(\s\n)*/g,
+
   IMPROVE_TYPE_INCOMPLETE: 'incomplete',
 
   DEFAULT_AUDIO_LANGUAGE: 'en',
@@ -46,9 +50,6 @@ export const ExplorationEditorPageConstants = {
 
   INFO_MESSAGE_SOLUTION_IS_INVALID_FOR_CURRENT_RULE:
     'The current solution is no longer valid.',
-
-  ACTION_ACCEPT_SUGGESTION: 'accept',
-  ACTION_REJECT_SUGGESTION: 'reject',
 
   COMPONENT_NAME_DEFAULT_OUTCOME: 'default_outcome',
 

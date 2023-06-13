@@ -16,6 +16,20 @@
  * @fileoverview Scripts for the practice session.
  */
 
+import 'core-js/es7/reflect';
+import 'zone.js';
+
+import uiValidate from 'angular-ui-validate';
+import 'third-party-imports/ui-tree.import';
+
+angular.module('oppia', [
+  require('angular-cookies'), 'ngAnimate',
+  'ngMaterial', 'ngSanitize', 'ngTouch', 'pascalprecht.translate',
+  'ui.bootstrap', 'ui.tree', uiValidate
+]);
+
+require('Polyfills.ts');
+
 // The module needs to be loaded directly after jquery since it defines the
 // main module the elements are attached to.
 require('pages/practice-session-page/practice-session-page.module.ts');

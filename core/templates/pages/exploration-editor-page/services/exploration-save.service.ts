@@ -1,4 +1,4 @@
-// Copyright 2016 The Oppia Authors. All Rights Reserved.
+// Copyright 2021 The Oppia Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,431 +16,393 @@
  * @fileoverview Service for exploration saving & publication functionality.
  */
 
-import { EventEmitter } from '@angular/core';
+import { Injectable, EventEmitter } from '@angular/core';
+import { downgradeInjectable } from '@angular/upgrade/static';
+import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
+import { AppConstants } from 'app.constants';
+import { PostPublishModalComponent } from 'pages/exploration-editor-page/modal-templates/post-publish-modal.component';
+import { ExplorationPublishModalComponent } from 'pages/exploration-editor-page/modal-templates/exploration-publish-modal.component';
+import { EditorReloadingModalComponent } from 'pages/exploration-editor-page/modal-templates/editor-reloading-modal.component';
+import { ConfirmDiscardChangesModalComponent } from 'pages/exploration-editor-page/modal-templates/confirm-discard-changes-modal.component';
+import { ExplorationMetadataModalComponent } from '../modal-templates/exploration-metadata-modal.component';
+import { ExplorationSaveModalComponent } from '../modal-templates/exploration-save-modal.component';
+import { AlertsService } from 'services/alerts.service';
+import { EditabilityService } from 'services/editability.service';
+import { ExternalSaveService } from 'services/external-save.service';
+import { SiteAnalyticsService } from 'services/site-analytics.service';
+import { AutosaveInfoModalsService } from './autosave-info-modals.service';
+import { ChangeListService } from './change-list.service';
+import { ExplorationCategoryService } from './exploration-category.service';
+import { ExplorationDataService } from './exploration-data.service';
+import { ExplorationDiffService } from './exploration-diff.service';
+import { ExplorationInitStateNameService } from './exploration-init-state-name.service';
+import { ExplorationLanguageCodeService } from './exploration-language-code.service';
+import { ExplorationObjectiveService } from './exploration-objective.service';
+import { ExplorationRightsService } from './exploration-rights.service';
+import { ExplorationStatesService } from './exploration-states.service';
+import { ExplorationTagsService } from './exploration-tags.service';
+import { ExplorationTitleService } from './exploration-title.service';
+import { ExplorationWarningsService } from './exploration-warnings.service';
+import { RouterService } from './router.service';
+import { StatesObjectFactory } from 'domain/exploration/StatesObjectFactory';
+import { WindowRef } from 'services/contextual/window-ref.service';
+import { LoggerService } from 'services/contextual/logger.service';
+import { HttpErrorResponse } from '@angular/common/http';
+import { ParamChange } from 'domain/exploration/ParamChangeObjectFactory';
+import { DiffNodeData } from 'components/version-diff-visualization/version-diff-visualization.component';
 
-require(
-  'components/common-layout-directives/common-elements/' +
-  'confirm-or-cancel-modal.controller.ts');
-require(
-  'components/common-layout-directives/common-elements/' +
-  'loading-dots.component.ts');
-require(
-  'components/common-layout-directives/common-elements/' +
-  'sharing-links.component.ts');
-require(
-  'pages/exploration-editor-page/modal-templates/' +
-  'editor-reloading-modal.controller.ts');
-require(
-  'pages/exploration-editor-page/modal-templates/' +
-  'exploration-metadata-modal.controller');
-require(
-  'pages/exploration-editor-page/modal-templates/' +
-  'exploration-save-modal.controller');
-require(
-  'pages/exploration-editor-page/modal-templates/' +
-  'post-publish-modal.controller.ts');
+@Injectable({
+  providedIn: 'root'
+})
+export class ExplorationSaveService {
+  // Whether or not a save action is currently in progress
+  // (request has been sent to backend but no reply received yet).
+  saveIsInProgress: boolean = false;
 
-require('domain/exploration/StatesObjectFactory.ts');
-require('domain/utilities/url-interpolation.service.ts');
-require(
-  'pages/exploration-editor-page/services/autosave-info-modals.service.ts');
-require('pages/exploration-editor-page/services/change-list.service.ts');
-require(
-  'pages/exploration-editor-page/services/exploration-category.service.ts');
-require('pages/exploration-editor-page/services/exploration-data.service.ts');
-require('pages/exploration-editor-page/services/exploration-diff.service.ts');
-require(
-  'pages/exploration-editor-page/services/' +
-  'exploration-init-state-name.service.ts');
-require(
-  'pages/exploration-editor-page/services/' +
-  'exploration-language-code.service.ts');
-require(
-  'pages/exploration-editor-page/services/exploration-objective.service.ts');
-require('pages/exploration-editor-page/services/exploration-rights.service.ts');
-require('pages/exploration-editor-page/services/exploration-states.service.ts');
-require('pages/exploration-editor-page/services/exploration-tags.service.ts');
-require('pages/exploration-editor-page/services/exploration-title.service.ts');
-require(
-  'pages/exploration-editor-page/services/exploration-warnings.service.ts');
-require('pages/exploration-editor-page/services/router.service.ts');
-require('services/alerts.service.ts');
-require('services/context.service.ts');
-require('services/site-analytics.service.ts');
-require('services/stateful/focus-manager.service.ts');
-require('services/external-save.service.ts');
+  // This flag is used to ensure only one save exploration modal can be open
+  // at any one time.
+  modalIsOpen: boolean = false;
 
-angular.module('oppia').factory('ExplorationSaveService', [
-  '$log', '$q', '$timeout', '$uibModal', '$window',
-  'AlertsService', 'AutosaveInfoModalsService', 'ChangeListService',
-  'ExplorationCategoryService', 'ExplorationDataService',
-  'ExplorationDiffService', 'ExplorationInitStateNameService',
-  'ExplorationLanguageCodeService', 'ExplorationObjectiveService',
-  'ExplorationRightsService', 'ExplorationStatesService',
-  'ExplorationTagsService', 'ExplorationTitleService',
-  'ExplorationWarningsService', 'ExternalSaveService',
-  'FocusManagerService', 'RouterService',
-  'SiteAnalyticsService', 'StatesObjectFactory', 'UrlInterpolationService',
-  'DEFAULT_LANGUAGE_CODE',
-  function(
-      $log, $q, $timeout, $uibModal, $window,
-      AlertsService, AutosaveInfoModalsService, ChangeListService,
-      ExplorationCategoryService, ExplorationDataService,
-      ExplorationDiffService, ExplorationInitStateNameService,
-      ExplorationLanguageCodeService, ExplorationObjectiveService,
-      ExplorationRightsService, ExplorationStatesService,
-      ExplorationTagsService, ExplorationTitleService,
-      ExplorationWarningsService, ExternalSaveService,
-      FocusManagerService, RouterService,
-      SiteAnalyticsService, StatesObjectFactory, UrlInterpolationService,
-      DEFAULT_LANGUAGE_CODE) {
-    // Whether or not a save action is currently in progress
-    // (request has been sent to backend but no reply received yet).
-    var saveIsInProgress = false;
+  // This property is initialized using private methods and we need to do
+  // non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  diffData!: DiffNodeData;
+  _initExplorationPageEventEmitter = new EventEmitter();
 
-    // This flag is used to ensure only one save exploration modal can be open
-    // at any one time.
-    var modalIsOpen = false;
+  constructor(
+    private alertsService: AlertsService,
+    private autosaveInfoModalsService: AutosaveInfoModalsService,
+    private changeListService: ChangeListService,
+    private editabilityService: EditabilityService,
+    private explorationCategoryService: ExplorationCategoryService,
+    private explorationDataService: ExplorationDataService,
+    private explorationDiffService: ExplorationDiffService,
+    private explorationInitStateNameService: ExplorationInitStateNameService,
+    private explorationLanguageCodeService: ExplorationLanguageCodeService,
+    private explorationObjectiveService: ExplorationObjectiveService,
+    private explorationRightsService: ExplorationRightsService,
+    private explorationStatesService: ExplorationStatesService,
+    private explorationTagsService: ExplorationTagsService,
+    private explorationTitleService: ExplorationTitleService,
+    private explorationWarningsService: ExplorationWarningsService,
+    private externalSaveService: ExternalSaveService,
+    private logger: LoggerService,
+    private ngbModal: NgbModal,
+    private routerService: RouterService,
+    private siteAnalyticsService: SiteAnalyticsService,
+    private statesObjectFactory: StatesObjectFactory,
+    private windowRef: WindowRef,
+  ) { }
 
-    var diffData = null;
+  showCongratulatorySharingModal(): void {
+    this.ngbModal.open(PostPublishModalComponent, {
+      backdrop: true
+    }).result.then(() => { }, () => {
+      // Note to developers:
+      // This callback is triggered when the Cancel button is clicked.
+      // No further action is needed.
+    });
+  }
 
-    var _initExplorationPageEventEmitter = new EventEmitter();
-
-    var isAdditionalMetadataNeeded = function() {
-      return (
-        !ExplorationTitleService.savedMemento ||
-        !ExplorationObjectiveService.savedMemento ||
-        !ExplorationCategoryService.savedMemento ||
-        ExplorationLanguageCodeService.savedMemento ===
-          DEFAULT_LANGUAGE_CODE ||
-        ExplorationTagsService.savedMemento.length === 0);
-    };
-
-    var showCongratulatorySharingModal = function() {
-      return $uibModal.open({
-        templateUrl: UrlInterpolationService.getDirectiveTemplateUrl(
-          '/pages/exploration-editor-page/modal-templates/' +
-          'post-publish-modal.template.html'),
-        backdrop: true,
-        controller: 'PostPublishModalController'
-      }).result.then(function() {}, function() {
-        // Note to developers:
-        // This callback is triggered when the Cancel button is clicked.
-        // No further action is needed.
-      });
-    };
-
-    var openPublishExplorationModal = function(
-        onStartSaveCallback, onSaveDoneCallback) {
-      // This is resolved when modal is closed.
-      var whenModalClosed = $q.defer();
-
-      $uibModal.open({
-        templateUrl: UrlInterpolationService.getDirectiveTemplateUrl(
-          '/pages/exploration-editor-page/modal-templates/' +
-          'exploration-publish-modal.template.html'),
+  openPublishExplorationModal(
+      onStartSaveCallback: Function,
+      onSaveDoneCallback: Function): Promise<void> {
+    // This is resolved when modal is closed.
+    return new Promise((resolve, reject) => {
+      this.ngbModal.open(ExplorationPublishModalComponent, {
         backdrop: 'static',
-        controller: 'ConfirmOrCancelModalController'
-      }).result.then(function() {
+      }).result.then(() => {
         if (onStartSaveCallback) {
           onStartSaveCallback();
         }
-
-        ExplorationRightsService.publish().then(
-          function() {
+        this.explorationRightsService.publish().then(
+          () => {
             if (onSaveDoneCallback) {
               onSaveDoneCallback();
             }
 
-            showCongratulatorySharingModal();
-            SiteAnalyticsService.registerPublishExplorationEvent(
-              ExplorationDataService.explorationId);
-            whenModalClosed.resolve();
+            this.showCongratulatorySharingModal();
+            this.siteAnalyticsService.registerPublishExplorationEvent(
+              this.explorationDataService.explorationId);
+            resolve();
           });
-      }, function() {
-        AlertsService.clearWarnings();
-        whenModalClosed.resolve();
+      }, () => {
+        this.alertsService.clearWarnings();
+        resolve();
       });
+    });
+  }
 
-      return whenModalClosed.promise;
-    };
+  saveDraftToBackend(commitMessage: string): Promise<void> {
+    // Resolved when save is done
+    // (regardless of success or failure of the operation).
+    return new Promise((resolve, reject) => {
+      const changeList = this.changeListService.getChangeList();
 
-    var saveDraftToBackend = function(commitMessage) {
-      // Resolved when save is done
-      // (regardless of success or failure of the operation).
-      var whenSavingDone = $q.defer();
-
-      var changeList = ChangeListService.getChangeList();
-
-      if (ExplorationRightsService.isPrivate()) {
-        SiteAnalyticsService.registerCommitChangesToPrivateExplorationEvent(
-          ExplorationDataService.explorationId);
+      if (this.explorationRightsService.isPrivate()) {
+        this.siteAnalyticsService
+          .registerCommitChangesToPrivateExplorationEvent(
+            this.explorationDataService.explorationId);
       } else {
-        SiteAnalyticsService.registerCommitChangesToPublicExplorationEvent(
-          ExplorationDataService.explorationId);
+        this.siteAnalyticsService.registerCommitChangesToPublicExplorationEvent(
+          this.explorationDataService.explorationId);
       }
 
-      if (ExplorationWarningsService.countWarnings() === 0) {
-        SiteAnalyticsService.registerSavePlayableExplorationEvent(
-          ExplorationDataService.explorationId);
+      if (this.explorationWarningsService.countWarnings() === 0) {
+        this.siteAnalyticsService.registerSavePlayableExplorationEvent(
+          this.explorationDataService.explorationId);
       }
-      saveIsInProgress = true;
+      this.saveIsInProgress = true;
+      this.editabilityService.markNotEditable();
 
-      ExplorationDataService.save(
+      this.explorationDataService.save(
         changeList, commitMessage,
-        function(isDraftVersionValid, draftChanges) {
+        (isDraftVersionValid, draftChanges) => {
           if (isDraftVersionValid === false &&
-              draftChanges !== null &&
-              draftChanges.length > 0) {
-            AutosaveInfoModalsService.showVersionMismatchModal(changeList);
+          draftChanges !== null &&
+          draftChanges.length > 0) {
+            this.autosaveInfoModalsService.showVersionMismatchModal(
+              changeList);
             return;
           }
-          $log.info('Changes to this exploration were saved successfully.');
-          ChangeListService.discardAllChanges();
-          _initExplorationPageEventEmitter.emit();
-          RouterService.onRefreshVersionHistory.emit({
-            forceRefresh: true
+
+          this.logger.info(
+            'Changes to this exploration were saved successfully.');
+
+          this.changeListService.discardAllChanges().then(() => {
+            this._initExplorationPageEventEmitter.emit();
+            this.routerService.onRefreshVersionHistory.emit({
+              forceRefresh: true
+            });
+            this.alertsService.addSuccessMessage('Changes saved.', 5000);
+            this.saveIsInProgress = false;
+            this.editabilityService.markEditable();
+            resolve();
+          }, () => {
+            this.editabilityService.markEditable();
+            resolve();
           });
-          AlertsService.addSuccessMessage('Changes saved.');
-          saveIsInProgress = false;
-          whenSavingDone.resolve();
-        }, function() {
-          saveIsInProgress = false;
-          whenSavingDone.resolve();
+        // The type of error 'e' is unknown because anything can be throw
+        // in TypeScript. We need to make sure to check the type of 'e'.
+        }, (errorResponse: unknown) => {
+          this.saveIsInProgress = false;
+          resolve();
+          this.editabilityService.markEditable();
+          let httpErrorResponse = errorResponse as HttpErrorResponse;
+          const errorMessage = httpErrorResponse.error.error;
+          this.alertsService.addWarning(
+            'Error! Changes could not be saved - ' + errorMessage);
         }
       );
-      return whenSavingDone.promise;
-    };
+    });
+  }
 
-    return {
-      isExplorationSaveable: function() {
-        return (
-          ChangeListService.isExplorationLockedForEditing() &&
-          !saveIsInProgress && (
-            (
-              ExplorationRightsService.isPrivate() &&
-              !ExplorationWarningsService.hasCriticalWarnings()) ||
-            (
-              !ExplorationRightsService.isPrivate() &&
-              ExplorationWarningsService.countWarnings() === 0)
-          )
-        );
-      },
+  isAdditionalMetadataNeeded(): boolean {
+    return (
+      !this.explorationTitleService.savedMemento ||
+      !this.explorationObjectiveService.savedMemento ||
+      !this.explorationCategoryService.savedMemento ||
+      this.explorationLanguageCodeService.savedMemento ===
+      AppConstants.DEFAULT_LANGUAGE_CODE ||
+      (this.explorationTagsService.savedMemento as ParamChange[]).length === 0);
+  }
 
-      discardChanges: function() {
-        $uibModal.open({
-          templateUrl: UrlInterpolationService.getDirectiveTemplateUrl(
-            '/pages/exploration-editor-page/modal-templates/' +
-            'confirm-discard-changes-modal.template.html'),
-          backdrop: 'static',
-          keyboard: false,
-          controller: 'ConfirmOrCancelModalController'
-        }).result.then(function() {
-          AlertsService.clearWarnings();
-          ExternalSaveService.onExternalSave.emit();
+  async saveChangesAsync(
+      onStartLoadingCallback: Function,
+      onEndLoadingCallback: Function
+  ): Promise<void> {
+    // This is marked as resolved after modal is closed, so we can change
+    // controller 'saveIsInProgress' back to false.
+    return new Promise((resolve, reject) => {
+      this.routerService.savePendingChanges();
+      if (!this.explorationRightsService.isPrivate() &&
+      this.explorationWarningsService.countWarnings() > 0) {
+      // If the exploration is not private, warnings should be fixed before
+      // it can be saved.
+        this.alertsService.addWarning(
+          this.explorationWarningsService.getWarnings()[0] as string);
+        return;
+      }
 
-          $uibModal.open({
-            templateUrl: UrlInterpolationService.getDirectiveTemplateUrl(
-              '/pages/exploration-editor-page/modal-templates/' +
-              'editor-reloading-modal.template.html'),
-            backdrop: 'static',
-            keyboard: false,
-            controller: 'EditorReloadingModalController',
-            windowClass: 'oppia-loading-modal'
-          }).result.then(() => {}, () => {
-            // Note to developers:
-            // This callback is triggered when the Cancel button is clicked.
-            // No further action is needed.
-          });
+      this.explorationDataService.getLastSavedDataAsync().then((data) => {
+        const oldStates = this.statesObjectFactory.createFromBackendDict(
+          data.states).getStateObjects();
+        const newStates = this.explorationStatesService.getStates()
+          .getStateObjects();
+        const diffGraphData = this.explorationDiffService.getDiffGraphData(
+          oldStates, newStates, [{
+            changeList: this.changeListService.getChangeList(),
+            directionForwards: true
+          }]);
 
-          ChangeListService.discardAllChanges();
-          AlertsService.addSuccessMessage('Changes discarded.');
-          _initExplorationPageEventEmitter.emit();
+        this.diffData = {
+          nodes: diffGraphData.nodes,
+          links: diffGraphData.links,
+          finalStateIds: diffGraphData.finalStateIds,
+          v1InitStateId: diffGraphData.originalStateIds[data.init_state_name],
+          v2InitStateId: diffGraphData.stateIds[
+          this.explorationInitStateNameService.displayed as string],
+          v1States: oldStates,
+          v2States: newStates
+        };
 
-          // The reload is necessary because, otherwise, the
-          // exploration-with-draft-changes will be reloaded
-          // (since it is already cached in ExplorationDataService).
-          $window.location.reload();
-        }, function() {
-          // Note to developers:
-          // This callback is triggered when the Cancel button is clicked.
-          // No further action is needed.
-        });
-      },
+        // TODO(wxy): After diff supports exploration metadata, add a check
+        // to exit if changes cancel each other out.
 
-      showPublishExplorationModal: function(
-          onStartLoadingCallback, onEndLoadingCallback) {
-        // This is resolved after publishing modals are closed,
-        // so we can remove the loading-dots.
-        var whenModalsClosed = $q.defer();
+        this.alertsService.clearWarnings();
 
-        SiteAnalyticsService.registerOpenPublishExplorationModalEvent(
-          ExplorationDataService.explorationId);
-        AlertsService.clearWarnings();
-
-        // If the metadata has not yet been specified, open the pre-publication
-        // 'add exploration metadata' modal.
-        if (isAdditionalMetadataNeeded()) {
-          var modalInstance = $uibModal.open({
-            templateUrl: UrlInterpolationService.getDirectiveTemplateUrl(
-              '/pages/exploration-editor-page/modal-templates/' +
-              'exploration-metadata-modal.template.html'),
-            backdrop: 'static',
-            controller: 'ExplorationMetadataModalController'
-          });
-
-          modalInstance.opened.then(function() {
-            // Toggle loading dots off after modal is opened.
-            if (onEndLoadingCallback) {
-              onEndLoadingCallback();
-            }
-          });
-
-          modalInstance.result.then(function(metadataList) {
-            if (metadataList.length > 0) {
-              var commitMessage = (
-                'Add metadata: ' + metadataList.join(', ') + '.');
-
-              if (onStartLoadingCallback) {
-                onStartLoadingCallback();
-              }
-
-              saveDraftToBackend(commitMessage).then(function() {
-                if (onEndLoadingCallback) {
-                  onEndLoadingCallback();
-                }
-                openPublishExplorationModal(
-                  onStartLoadingCallback, onEndLoadingCallback)
-                  .then(function() {
-                    whenModalsClosed.resolve();
-                  });
-              });
-            } else {
-              openPublishExplorationModal(
-                onStartLoadingCallback, onEndLoadingCallback)
-                .then(function() {
-                  whenModalsClosed.resolve();
-                });
-            }
-          }, function() {
-            whenModalsClosed.resolve();
-            ExplorationTitleService.restoreFromMemento();
-            ExplorationObjectiveService.restoreFromMemento();
-            ExplorationCategoryService.restoreFromMemento();
-            ExplorationLanguageCodeService.restoreFromMemento();
-            ExplorationTagsService.restoreFromMemento();
-            AlertsService.clearWarnings();
-          });
-        } else {
-          // No further metadata is needed. Open the publish modal immediately.
-          openPublishExplorationModal(
-            onStartLoadingCallback, onEndLoadingCallback)
-            .then(function() {
-              whenModalsClosed.resolve();
-            });
-        }
-        return whenModalsClosed.promise;
-      },
-
-      saveChanges: function(onStartLoadingCallback, onEndLoadingCallback) {
-        // This is marked as resolved after modal is closed, so we can change
-        // controller 'saveIsInProgress' back to false.
-        var whenModalClosed = $q.defer();
-
-        RouterService.savePendingChanges();
-
-        if (!ExplorationRightsService.isPrivate() &&
-            ExplorationWarningsService.countWarnings() > 0) {
-          // If the exploration is not private, warnings should be fixed before
-          // it can be saved.
-          AlertsService.addWarning(ExplorationWarningsService.getWarnings()[0]);
+        // If the modal is open, do not open another one.
+        if (this.modalIsOpen) {
           return;
         }
 
-        ExplorationDataService.getLastSavedData().then(function(data) {
-          var oldStates = StatesObjectFactory.createFromBackendDict(
-            data.states).getStateObjects();
-          var newStates = ExplorationStatesService.getStates()
-            .getStateObjects();
-          var diffGraphData = ExplorationDiffService.getDiffGraphData(
-            oldStates, newStates, [{
-              changeList: ChangeListService.getChangeList(),
-              directionForwards: true
-            }]);
-          diffData = {
-            nodes: diffGraphData.nodes,
-            links: diffGraphData.links,
-            finalStateIds: diffGraphData.finalStateIds,
-            v1InitStateId: diffGraphData.originalStateIds[data.init_state_name],
-            v2InitStateId: diffGraphData.stateIds[
-              ExplorationInitStateNameService.displayed],
-            v1States: oldStates,
-            v2States: newStates
-          };
+        let modalInstance = this.ngbModal.open(ExplorationSaveModalComponent, {
+          backdrop: 'static',
+          windowClass: 'oppia-save-exploration-modal',
+        });
 
-          // TODO(wxy): After diff supports exploration metadata, add a check
-          // to exit if changes cancel each other out.
+        modalInstance.componentInstance.isExplorationPrivate = (
+          this.explorationRightsService.isPrivate());
+        modalInstance.componentInstance.diffData = this.diffData;
 
-          AlertsService.clearWarnings();
+        // Modal is Opened.
+        this.modalIsOpen = true;
 
-          // If the modal is open, do not open another one.
-          if (modalIsOpen) {
-            return;
+        modalInstance.result.then((commitMessage) => {
+          this.modalIsOpen = false;
+
+          // Toggle loading dots back on for loading from backend.
+          if (onStartLoadingCallback) {
+            onStartLoadingCallback();
           }
 
-          var modalInstance = $uibModal.open({
-            templateUrl: UrlInterpolationService.getDirectiveTemplateUrl(
-              '/pages/exploration-editor-page/modal-templates/' +
-              'exploration-save-modal.template.html'),
-            backdrop: true,
-            resolve: {
-              isExplorationPrivate: function() {
-                return ExplorationRightsService.isPrivate();
-              },
-              diffData: diffData
-            },
-            windowClass: 'oppia-save-exploration-modal',
-            controller: 'ExplorationSaveModalController'
+          this.saveDraftToBackend(commitMessage).then(() => {
+            resolve();
+          });
+        }, () => {
+          this.alertsService.clearWarnings();
+          this.modalIsOpen = false;
+          resolve();
+        });
+      });
+    });
+  }
+
+  get onInitExplorationPage(): EventEmitter<void> {
+    return this._initExplorationPageEventEmitter;
+  }
+
+  showPublishExplorationModal(
+      onStartLoadingCallback: Function,
+      onEndLoadingCallback: Function): Promise<void> {
+    // This is resolved after publishing modals are closed,
+    // so we can remove the loading-dots.
+    return new Promise((resolve, reject) => {
+      this.siteAnalyticsService.registerOpenPublishExplorationModalEvent(
+        this.explorationDataService.explorationId);
+      this.alertsService.clearWarnings();
+
+      // If the metadata has not yet been specified, open the pre-publication
+      // 'add exploration metadata' modal.
+      if (this.isAdditionalMetadataNeeded()) {
+        const modalInstance = this.ngbModal.open(
+          ExplorationMetadataModalComponent, {
+            backdrop: 'static',
           });
 
-          // Modal is Opened.
-          modalIsOpen = true;
+        modalInstance.result.then((metadataList) => {
+          if (metadataList.length > 0) {
+            const commitMessage = (
+              'Add metadata: ' + metadataList.join(', ') + '.');
 
-          modalInstance.opened.then(function() {
-            // Toggle loading dots off after modal is opened.
-            if (onEndLoadingCallback) {
-              onEndLoadingCallback();
-            }
-            // The $timeout seems to be needed
-            // in order to give the modal time to render.
-            $timeout(function() {
-              FocusManagerService.setFocus('saveChangesModalOpened');
-            });
-          });
-
-          modalInstance.result.then(function(commitMessage) {
-            modalIsOpen = false;
-
-            // Toggle loading dots back on for loading from backend.
             if (onStartLoadingCallback) {
               onStartLoadingCallback();
             }
 
-            saveDraftToBackend(commitMessage).then(function() {
-              whenModalClosed.resolve();
+            this.saveDraftToBackend(commitMessage).then(() => {
+              if (onEndLoadingCallback) {
+                onEndLoadingCallback();
+              }
+              this.openPublishExplorationModal(
+                onStartLoadingCallback, onEndLoadingCallback)
+                .then(() => {
+                  resolve();
+                });
             });
-          }, function() {
-            AlertsService.clearWarnings();
-            modalIsOpen = false;
-            whenModalClosed.resolve();
-          });
+          } else {
+            this.openPublishExplorationModal(
+              onStartLoadingCallback, onEndLoadingCallback)
+              .then(() => {
+                resolve();
+              });
+          }
+        }, () => {
+          resolve();
+          this.explorationTitleService.restoreFromMemento();
+          this.explorationObjectiveService.restoreFromMemento();
+          this.explorationCategoryService.restoreFromMemento();
+          this.explorationLanguageCodeService.restoreFromMemento();
+          this.explorationTagsService.restoreFromMemento();
+          this.alertsService.clearWarnings();
         });
-        return whenModalClosed.promise;
-      },
-
-      get onInitExplorationPage() {
-        return _initExplorationPageEventEmitter;
+      } else {
+        // No further metadata is needed. Open the publish modal immediately.
+        this.openPublishExplorationModal(
+          onStartLoadingCallback, onEndLoadingCallback)
+          .then(() => {
+            resolve();
+          });
       }
-    };
+    });
   }
-]);
+
+  isExplorationSaveable(): boolean {
+    return (
+      this.changeListService.isExplorationLockedForEditing() &&
+      !this.saveIsInProgress && (
+        (
+          this.explorationRightsService.isPrivate() &&
+          !this.explorationWarningsService.hasCriticalWarnings()) ||
+        (
+          !this.explorationRightsService.isPrivate() &&
+          this.explorationWarningsService.countWarnings() === 0)
+      )
+    );
+  }
+
+  discardChanges(): void {
+    this.ngbModal.open(ConfirmDiscardChangesModalComponent, {
+      backdrop: 'static',
+    }).result.then(() => {
+      this.alertsService.clearWarnings();
+      this.externalSaveService.onExternalSave.emit();
+
+      this.ngbModal.open(EditorReloadingModalComponent, {
+        backdrop: 'static',
+        keyboard: false,
+        windowClass: 'oppia-loading-modal'
+      }).result.then(() => { }, () => {
+        // Note to developers:
+        // This callback is triggered when the Cancel button is clicked.
+        // No further action is needed.
+      });
+
+      this.changeListService.discardAllChanges().then(() => {
+        this.alertsService.addSuccessMessage('Changes discarded.');
+        this._initExplorationPageEventEmitter.emit();
+
+        // The reload is necessary because, otherwise, the
+        // exploration-with-draft-changes will be reloaded
+        // (since it is already cached in ExplorationDataService).
+        this.windowRef.nativeWindow.location.reload();
+      });
+    }, () => {
+      // Note to developers:
+      // This callback is triggered when the Cancel button is clicked.
+      // No further action is needed.
+    });
+  }
+}
+
+angular.module('oppia').factory(
+  'ExplorationSaveService', downgradeInjectable(ExplorationSaveService));

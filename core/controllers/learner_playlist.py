@@ -14,22 +14,66 @@
 
 """Controllers for the learner playlist."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
-from constants import constants
+from core.constants import constants
 from core.controllers import acl_decorators
 from core.controllers import base
 from core.domain import learner_playlist_services
 from core.domain import learner_progress_services
 
+from typing import Dict, Optional, TypedDict
 
-class LearnerPlaylistHandler(base.BaseHandler):
+
+class LearnerPlaylistHandlerNormalizedPayloadDict(TypedDict):
+    """Dict representation of LearnerPlaylistHandler's
+    normalized_request dictionary.
+    """
+
+    index: Optional[int]
+
+
+class LearnerPlaylistHandler(
+    base.BaseHandler[
+        LearnerPlaylistHandlerNormalizedPayloadDict,
+        Dict[str, str]
+    ]
+):
     """Handles operations related to the learner playlist."""
 
+    URL_PATH_ARGS_SCHEMAS = {
+        'activity_type': {
+            'schema': {
+                'type': 'basestring',
+                'choices': [
+                    constants.ACTIVITY_TYPE_EXPLORATION,
+                    constants.ACTIVITY_TYPE_COLLECTION
+                ]
+            }
+        },
+        'activity_id': {
+            'schema': {
+                'type': 'basestring'
+            }
+        }
+    }
+    HANDLER_ARGS_SCHEMAS = {
+        'POST': {
+            'index': {
+                'schema': {
+                    'type': 'int'
+                },
+                'default_value': None
+            }
+        },
+        'DELETE': {}
+    }
+
     @acl_decorators.can_access_learner_dashboard
-    def post(self, activity_type, activity_id):
-        position_to_be_inserted_in = self.payload.get('index')
+    def post(self, activity_type: str, activity_id: str) -> None:
+        assert self.user_id is not None
+        assert self.normalized_payload is not None
+        position_to_be_inserted_in = self.normalized_payload.get('index')
 
         belongs_to_completed_or_incomplete_list = False
         playlist_limit_exceeded = False
@@ -64,7 +108,8 @@ class LearnerPlaylistHandler(base.BaseHandler):
         self.render_json(self.values)
 
     @acl_decorators.can_access_learner_dashboard
-    def delete(self, activity_type, activity_id):
+    def delete(self, activity_type: str, activity_id: str) -> None:
+        assert self.user_id is not None
         if activity_type == constants.ACTIVITY_TYPE_EXPLORATION:
             learner_playlist_services.remove_exploration_from_learner_playlist(
                 self.user_id, activity_id)

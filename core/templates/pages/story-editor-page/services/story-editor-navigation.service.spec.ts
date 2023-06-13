@@ -23,11 +23,12 @@ import { StoryEditorNavigationService } from
 import { WindowRef } from 'services/contextual/window-ref.service';
 
 describe('Story editor navigation service', () => {
-  let windowRef: WindowRef = null;
-  let sens: StoryEditorNavigationService = null;
+  let windowRef: WindowRef;
+  let sens: StoryEditorNavigationService;
   let sampleHash = '/chapter_editor/node_1';
   let pathname = '/chapter_editor';
-  let mockLocation = null;
+  let mockLocation:
+   Pick<Location, 'hash' | 'href' | 'origin' | 'pathname' | 'search'>;
   let origin = 'http://sample.com';
 
   beforeEach(() => {
@@ -65,8 +66,8 @@ describe('Story editor navigation service', () => {
 
   it('should return true if current tab is chapter editor tab', function() {
     spyOnProperty(windowRef, 'nativeWindow').and.callFake(() => ({
-      location: mockLocation
-    }));
+      location: mockLocation as Location
+    } as Window));
     expect(sens.checkIfPresentInChapterEditor()).toEqual(true);
 
     mockLocation.hash = 'story/';
@@ -77,8 +78,8 @@ describe('Story editor navigation service', () => {
   it('should return false if the active tab is not chapter editor tab',
     function() {
       spyOnProperty(windowRef, 'nativeWindow').and.callFake(() => ({
-        location: mockLocation
-      }));
+        location: mockLocation as Location
+      } as Window));
       expect(sens.checkIfPresentInChapterEditor()).toEqual(true);
 
       mockLocation.hash = 'story/';
@@ -89,8 +90,8 @@ describe('Story editor navigation service', () => {
   it('should return true if url is in story preview', function() {
     mockLocation.hash = '/story_preview/';
     spyOnProperty(windowRef, 'nativeWindow').and.callFake(() => ({
-      location: mockLocation
-    }));
+      location: mockLocation as Location
+    } as Window));
     expect(sens.checkIfPresentInStoryPreviewTab()).toEqual(true);
 
     mockLocation.hash = '/chapter_editor/';

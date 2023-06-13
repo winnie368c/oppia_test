@@ -22,51 +22,39 @@ in start, then adding the same import statement in a test function
 (as done in this file) creates a conflict.
 """
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
-import os
 import subprocess
 import sys
 
 from core.tests import test_utils
 
+from typing import List
+
 
 class InstallThirdPartyLibsImportTests(test_utils.GenericTestBase):
     """Tests import of install third party libs."""
 
-    def setUp(self):
-        super(InstallThirdPartyLibsImportTests, self).setUp()
-        self.commands = []
-        def mock_popen_error_call(unused_cmd_tokens, *args, **kwargs): # pylint: disable=unused-argument
-            class Ret(test_utils.GenericTestBase):
-                """Return object that gives user-prefix error."""
+    def test_import_with_missing_packages(self) -> None:
+        commands: List[List[str]] = []
+        def mock_run(
+            cmd_tokens: List[str], *_args: str, **_kwargs: str
+        ) -> None:
+            commands.append(cmd_tokens)
+        run_swap = self.swap(subprocess, 'run', mock_run)
 
-                def __init__(self):  # pylint: disable=super-init-not-called
-                    self.returncode = 1
-                def communicate(self):
-                    """Return user-prefix error as stderr."""
-                    return '', 'can\'t combine user with prefix'
-            return Ret()
-        def mock_check_call(cmd_tokens):
-            self.commands.extend(cmd_tokens)
-        self.Popen_swap = self.swap(
-            subprocess, 'Popen', mock_popen_error_call)
-        self.check_call_swap = self.swap(
-            subprocess, 'check_call', mock_check_call)
-
-    def test_import_with_missing_packages(self):
-        def mock_exists(unused_path):
-            return False
-        exists_swap = self.swap(os.path, 'exists', mock_exists)
-        with self.Popen_swap, self.check_call_swap, exists_swap:
-            from scripts import install_third_party_libs # pylint: disable=unused-variable
-        self.assertEqual(
-            self.commands, [
-                sys.executable, '-m', 'pip', 'install', 'pyyaml==5.1.2',
-                '--target', '../oppia_tools/pyyaml-5.1.2',
-                '--user', '--prefix=', '--system',
-                sys.executable, '-m', 'pip', 'install',
-                'future==0.18.2', '--target',
-                'third_party/python_libs',
-                '--user', '--prefix=', '--system'])
+        with run_swap:
+            from scripts import install_third_party_libs  # isort:skip pylint: disable=unused-import,line-too-long
+        expected_commands = [
+            [sys.executable, '-m', 'pip', 'install', version_string]
+            for version_string in (
+                'pip==22.1.1', 'pip-tools==6.6.2', 'setuptools==58.5.3')
+        ]
+        expected_commands += [
+            [
+                'pip-compile', '--no-emit-index-url', 'requirements_dev.in',
+                '--output-file', 'requirements_dev.txt',
+            ],
+            ['pip-sync', 'requirements_dev.txt'],
+        ]
+        self.assertEqual(commands, expected_commands)

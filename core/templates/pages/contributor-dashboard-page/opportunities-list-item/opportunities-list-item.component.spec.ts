@@ -16,71 +16,191 @@
  * @fileoverview Unit tests for opportunitiesListItem.
  */
 
-describe('Opportunities List Item Component', function() {
-  var ctrl = null;
-  var $scope = null;
+import { ComponentFixture, fakeAsync, TestBed } from '@angular/core/testing';
+import { LazyLoadingComponent } from 'components/common-layout-directives/common-elements/lazy-loading.component';
+import { NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
+import { WrapTextWithEllipsisPipe } from 'filters/string-utility-filters/wrap-text-with-ellipsis.pipe';
+import { of } from 'rxjs';
+import { WindowDimensionsService } from 'services/contextual/window-dimensions.service';
 
-  beforeEach(angular.mock.module('oppia'));
+import { ExplorationOpportunity, OpportunitiesListItemComponent } from './opportunities-list-item.component';
+import { ContributorDashboardConstants } from 'pages/contributor-dashboard-page/contributor-dashboard-page.constants';
 
-  describe('when opportunity is provided', function() {
-    beforeEach(angular.mock.inject(function($injector, $componentController) {
-      var $rootScope = $injector.get('$rootScope');
+class MockWindowDimensionsService {
+  getResizeEvent() {
+    return of(new Event('resize'));
+  }
 
-      $scope = $rootScope.$new();
-      ctrl = $componentController('opportunitiesListItem', {
-        $scope: $scope,
-      }, {
-        opportunity: {
-          labelText: 'Label text',
-          labelColor: '#fff',
-          progressPercentage: 50
-        },
-        onClickActionButton: () => jasmine.createSpy('click', () => {}),
-        labelRequired: true,
-        progressBarRequired: true,
-        opportunityHeadingTruncationLength: 35
-      });
-      ctrl.$onInit();
-    }));
+  getWidth(): number {
+    // Screen width of iPhone 12 Pro (to simulate a mobile viewport).
+    return 390;
+  }
+}
+
+describe('Opportunities List Item Component', () => {
+  let component: OpportunitiesListItemComponent;
+  let fixture: ComponentFixture<OpportunitiesListItemComponent>;
+  let windowDimensionsService: MockWindowDimensionsService;
+
+  beforeEach(fakeAsync(() => {
+    TestBed.configureTestingModule({
+      imports: [
+        NgbTooltipModule
+      ],
+      declarations: [
+        OpportunitiesListItemComponent,
+        LazyLoadingComponent,
+        WrapTextWithEllipsisPipe
+      ],
+      providers: [
+        {
+          provide: WindowDimensionsService,
+          useClass: MockWindowDimensionsService
+        }
+      ],
+    }).compileComponents().then(() => {
+      fixture = TestBed.createComponent(
+        OpportunitiesListItemComponent);
+      component = fixture.componentInstance;
+    });
+  }));
+
+  describe('when opportunity is provided', () => {
+    beforeEach(() => {
+      component.opportunity = {
+        id: '1',
+        labelText: 'Label text',
+        labelColor: '#fff',
+        progressPercentage: 50,
+        inReviewCount: 20,
+        totalCount: 50,
+        translationsCount: 0
+      };
+      component.clickActionButton.emit =
+        () => jasmine.createSpy('click', () => {});
+      component.labelRequired = true;
+      component.progressBarRequired = true;
+      component.opportunityHeadingTruncationLength = 35;
+      windowDimensionsService = TestBed.inject(WindowDimensionsService);
+      fixture.detectChanges();
+      component.ngOnInit();
+    });
 
     it('should initialize $scope properties after controller is initialized',
-      function() {
-        expect(ctrl.opportunityDataIsLoading).toBe(false);
-        expect(ctrl.labelText).toBe('Label text');
-        expect(ctrl.labelStyle).toEqual({
+      () => {
+        const windowResizeSpy = spyOn(
+          windowDimensionsService, 'getResizeEvent').and.callThrough();
+
+        component.ngOnInit();
+        fixture.detectChanges();
+
+        expect(component.opportunityDataIsLoading).toBe(false);
+        expect(component.labelText).toBe('Label text');
+        expect(component.labelStyle).toEqual({
           'background-color': '#fff'
         });
-        expect(ctrl.opportunityHeadingTruncationLength).toBe(35);
-        expect(ctrl.progressPercentage).toBe('50%');
-        expect(ctrl.progressBarStyle).toEqual({
+        expect(component.opportunityHeadingTruncationLength).toBe(35);
+        expect(component.progressPercentage).toBe('50%');
+        expect(component.progressBarStyle).toEqual({
           width: '50%'
         });
+        expect(component.correspondingOpportunityDeleted).toBe(false);
+        expect(windowResizeSpy).toHaveBeenCalled();
+        expect(component.resizeSubscription).not.toBe(undefined);
+        expect(component.onMobile).toBeTrue();
       });
+
+    describe('when opportunity subheading corresponds to deleted ' +
+      'opportunity', () => {
+      beforeEach(() => {
+        let opportunity = component.opportunity as ExplorationOpportunity;
+        opportunity.subheading = (
+          ContributorDashboardConstants
+            .CORRESPONDING_DELETED_OPPORTUNITY_TEXT);
+        fixture.detectChanges();
+        component.ngOnInit();
+      });
+
+      it('should initialize correspondingOpportunityDeleted to true',
+        () => {
+          expect(component.correspondingOpportunityDeleted).toBe(true);
+        });
+    });
   });
 
-  describe('when opportunity is not provided', function() {
-    beforeEach(angular.mock.inject(function($injector, $componentController) {
-      var $rootScope = $injector.get('$rootScope');
-
-      $scope = $rootScope.$new();
-      ctrl = $componentController('opportunitiesListItem', {
-        $scope: $scope,
-      }, {
-        opportunity: null,
-        onClickActionButton: () => jasmine.createSpy('click', () => {}),
-        labelRequired: true,
-        progressBarRequired: true,
-        opportunityHeadingTruncationLength: null
-      });
-      ctrl.$onInit();
-    }));
+  describe('when a translation opportunity is provided', () => {
+    beforeEach(() => {
+      component.opportunity = {
+        id: '1',
+        labelText: 'Label text',
+        labelColor: '#fff',
+        progressPercentage: 50,
+        inReviewCount: 20,
+        totalCount: 50,
+        translationsCount: 25
+      };
+      component.opportunityType = 'translation';
+      component.clickActionButton.emit =
+        () => jasmine.createSpy('click', () => {});
+      component.labelRequired = true;
+      component.progressBarRequired = true;
+      component.opportunityHeadingTruncationLength = 35;
+      fixture.detectChanges();
+      component.ngOnInit();
+    });
 
     it('should initialize $scope properties after controller is initialized',
-      function() {
-        expect(ctrl.opportunityDataIsLoading).toBe(true);
-        expect(ctrl.labelText).toBe(undefined);
-        expect(ctrl.labelStyle).toBe(undefined);
-        expect(ctrl.opportunityHeadingTruncationLength).toBe(35);
+      () => {
+        expect(component.opportunityDataIsLoading).toBe(false);
+        expect(component.labelText).toBe('Label text');
+        expect(component.labelStyle).toEqual({
+          'background-color': '#fff'
+        });
+        expect(component.opportunityHeadingTruncationLength).toBe(35);
+        expect(component.progressPercentage).toBe('50%');
+        expect(component.correspondingOpportunityDeleted).toBe(false);
+        expect(component.translationProgressBar).toBe(true);
+        expect(component.cardsAvailable).toEqual(5);
+      });
+
+    describe('when opportunity subheading corresponds to deleted ' +
+      'opportunity', () => {
+      beforeEach(() => {
+        let opportunity = component.opportunity as ExplorationOpportunity;
+        opportunity.subheading = (
+          ContributorDashboardConstants
+            .CORRESPONDING_DELETED_OPPORTUNITY_TEXT);
+        fixture.detectChanges();
+        component.ngOnInit();
+      });
+
+      it('should initialize correspondingOpportunityDeleted to true',
+        () => {
+          expect(component.correspondingOpportunityDeleted).toBe(true);
+        });
+    });
+  });
+
+  describe('when opportunity is not provided', () => {
+    beforeEach(() => {
+      component.opportunityType = '';
+      component.clickActionButton.emit =
+        () => jasmine.createSpy('click', () => {});
+      component.labelRequired = true;
+      component.progressBarRequired = true;
+      component.opportunityHeadingTruncationLength = 0;
+      component.opportunityType = '';
+      fixture.detectChanges();
+      component.ngOnInit();
+    });
+
+    it('should initialize $scope properties after controller is initialized',
+      () => {
+        expect(component.opportunityDataIsLoading).toBeTrue();
+        expect(component.labelText).toBeUndefined();
+        expect(component.labelStyle).toBeUndefined();
+        expect(component.opportunityHeadingTruncationLength).toBe(40);
+        expect(component.correspondingOpportunityDeleted).toBeFalse();
       });
   });
 });

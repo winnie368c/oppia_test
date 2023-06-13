@@ -18,24 +18,40 @@
 to release summary file.
 """
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
+import argparse
 import os
 import re
 
-import python_utils
-from scripts import common
+from typing import Dict, Final, List, Optional
 
-GIT_CMD_DIFF_NAMES_ONLY_FORMAT_STRING = 'git diff --name-only %s %s'
-GIT_CMD_SHOW_FORMAT_STRING = 'git show %s:feconf.py'
-VERSION_RE_FORMAT_STRING = r'%s\s*=\s*(\d+|\.)+'
-FECONF_SCHEMA_VERSION_CONSTANT_NAMES = [
+# TODO(#15567): The order can be fixed after Literal in utils.py is loaded
+# from typing instead of typing_extensions, this will be possible after
+# we migrate to Python 3.8.
+from scripts import common  # isort:skip  # pylint: disable=wrong-import-position
+from core import utils  # isort:skip  # pylint: disable=wrong-import-position
+
+GIT_CMD_DIFF_NAMES_ONLY_FORMAT_STRING: Final = 'git diff --name-only %s %s'
+GIT_CMD_SHOW_FORMAT_STRING: Final = 'git show %s:core/feconf.py'
+VERSION_RE_FORMAT_STRING: Final = r'%s\s*=\s*(\d+|\.)+'
+FECONF_SCHEMA_VERSION_CONSTANT_NAMES: Final = [
     'CURRENT_STATE_SCHEMA_VERSION', 'CURRENT_COLLECTION_SCHEMA_VERSION']
-FECONF_FILEPATH = os.path.join('', 'feconf.py')
+FECONF_FILEPATH: Final = os.path.join('core', 'feconf.py')
 
 
-def get_changed_schema_version_constant_names(release_tag_to_diff_against):
+_PARSER: Final = argparse.ArgumentParser()
+_PARSER.add_argument(
+    '--release_tag',
+    required=True,
+    type=str,
+    help='The release tag from which to fetch the changes.'
+)
+
+
+def get_changed_schema_version_constant_names(
+    release_tag_to_diff_against: str
+) -> List[str]:
     """Returns a list of schema version constant names in feconf that have
     changed since the release against which diff is being checked.
 
@@ -48,7 +64,7 @@ def get_changed_schema_version_constant_names(release_tag_to_diff_against):
     changed_version_constants_in_feconf = []
     git_show_cmd = (GIT_CMD_SHOW_FORMAT_STRING % release_tag_to_diff_against)
     old_feconf = common.run_cmd(git_show_cmd.split(' '))
-    with python_utils.open_file(FECONF_FILEPATH, 'r') as feconf_file:
+    with utils.open_file(FECONF_FILEPATH, 'r') as feconf_file:
         new_feconf = feconf_file.read()
     for version_constant in FECONF_SCHEMA_VERSION_CONSTANT_NAMES:
         old_version = re.findall(
@@ -60,7 +76,9 @@ def get_changed_schema_version_constant_names(release_tag_to_diff_against):
     return changed_version_constants_in_feconf
 
 
-def _get_changed_filenames_since_tag(release_tag_to_diff_against):
+def _get_changed_filenames_since_tag(
+    release_tag_to_diff_against: str
+) -> List[str]:
     """Get names of changed files from git since a given release.
 
     Args:
@@ -76,7 +94,9 @@ def _get_changed_filenames_since_tag(release_tag_to_diff_against):
     return common.run_cmd(diff_cmd.split(' ')).splitlines()
 
 
-def get_setup_scripts_changes_status(release_tag_to_diff_against):
+def get_setup_scripts_changes_status(
+    release_tag_to_diff_against: str
+) -> Dict[str, bool]:
     """Returns a dict of setup script filepaths with a status of whether
     they have changed or not since the release against which diff is
     being checked.
@@ -101,7 +121,9 @@ def get_setup_scripts_changes_status(release_tag_to_diff_against):
     return changes_dict
 
 
-def get_changed_storage_models_filenames(release_tag_to_diff_against):
+def get_changed_storage_models_filenames(
+    release_tag_to_diff_against: str
+) -> List[str]:
     """Returns a list of filepaths in core/storage whose contents have
     changed since the release against which diff is being checked.
 
@@ -118,7 +140,7 @@ def get_changed_storage_models_filenames(release_tag_to_diff_against):
         if model_filename.startswith('core/storage')]
 
 
-def get_changes(release_tag_to_diff_against):
+def get_changes(release_tag_to_diff_against: str) -> List[str]:
     """Collects changes in storage models, setup scripts and feconf
     since the release tag passed in arguments.
 
@@ -157,3 +179,16 @@ def get_changes(release_tag_to_diff_against):
             changes.append('* %s\n' % item)
 
     return changes
+
+
+def main(args: Optional[List[str]] = None) -> None:
+    """Main method for fetching repo specific changes."""
+    options = _PARSER.parse_args(args=args)
+    changes = get_changes(options.release_tag)
+    print('\n'.join(changes))
+
+
+# The 'no coverage' pragma is used as this line is un-testable. This is because
+# it will only be called when deploy.py is used as a script.
+if __name__ == '__main__':  # pragma: no cover
+    main()

@@ -29,14 +29,38 @@ sudo apt-get update
 sudo apt-get install curl
 sudo apt-get install git
 sudo apt-get install openjdk-8-jre
-sudo apt-get install python-setuptools
-sudo apt-get install python-dev
-sudo apt-get install python-pip
+sudo apt-get install python3-setuptools
+sudo apt-get install python3-dev
+sudo apt-get install python3-pip
 sudo apt-get install unzip
-sudo apt-get install python-yaml
-# This is only done to address an
-#     "ImportError: No module named functools_lru_cache"
-# error. See the Troubleshooting page for details:
-#    https://github.com/oppia/oppia/wiki/Troubleshooting
+sudo apt-get install python3-yaml
 sudo apt-get install python-matplotlib
-sudo pip install --upgrade pip
+sudo apt-get install python3-matplotlib
+pip install --upgrade pip==21.2.3
+
+# Prerequirements for pyenv.
+sudo apt-get install make
+sudo apt-get install build-essential
+sudo apt-get install libssl-dev
+sudo apt-get install zlib1g-dev
+sudo apt-get install libbz2-dev
+sudo apt-get install libreadline-dev
+sudo apt-get install libsqlite3-dev
+sudo apt-get install wget
+sudo apt-get install llvm
+sudo apt-get install libncursesw5-dev
+sudo apt-get install xz-utils
+sudo apt-get install tk-dev
+sudo apt-get install libxml2-dev
+sudo apt-get install libxmlsec1-dev
+sudo apt-get install libffi-dev
+sudo apt-get install liblzma-dev
+
+# Check if the Python 2 is available and if so install it. This is needed
+# because the dev_appserver requires Python 2 to work. See Google Cloud docs:
+# https://cloud.google.com/appengine/docs/standard/python3/testing-and-deploying-your-app#local-dev-server
+NUMBER_OF_LINES=$(sudo apt list python2 | wc -l)
+if [ $NUMBER_OF_LINES -eq 2 ];
+then
+  sudo apt-get install python2
+fi

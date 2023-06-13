@@ -14,71 +14,130 @@
 
 """Controllers related to Oppia improvement tasks."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import datetime
 
+from core import feconf
+from core.constants import constants
 from core.controllers import acl_decorators
 from core.controllers import base
+from core.controllers import domain_objects_validator
 from core.domain import config_domain
 from core.domain import exp_fetchers
 from core.domain import improvements_domain
 from core.domain import improvements_services
-from core.platform import models
-import feconf
+from core.domain import user_services
 
-(improvements_models,) = (
-    models.Registry.import_models([models.NAMES.improvements]))
+from typing import Dict, List, Optional, TypedDict
 
 
-class ExplorationImprovementsHandler(base.BaseHandler):
+def get_task_dict_with_username_and_profile_picture(
+    task_entry: improvements_domain.TaskEntry
+) -> improvements_domain.TaskEntryDict:
+    """Returns a task entry dict with the username and profile picture
+    URL inserted.
+
+    Args:
+        task_entry: improvements_domain.TaskEntry. The TaskEntry domain object
+            whose dict is to be returned.
+
+    Returns:
+        TaskEntryDict. TaskEntry dict with username and profile picture
+        URL of the task resolver inserted.
+    """
+
+    task_entry_dict = task_entry.to_dict()
+    if task_entry.resolver_id:
+        resolver_settings = user_services.get_user_settings(
+            task_entry.resolver_id, strict=True)
+        task_entry_dict['resolver_username'] = (
+            resolver_settings.username)
+    return task_entry_dict
+
+
+class ExplorationImprovementsHandlerNormalizedPayloadDict(TypedDict):
+    """Dict representation of ExplorationImprovementsHandler's
+    normalized_Payload dictionary.
+    """
+
+    task_entries: List[improvements_domain.TaskEntryDict]
+
+
+class ExplorationImprovementsHandler(
+    base.BaseHandler[
+        ExplorationImprovementsHandlerNormalizedPayloadDict,
+        Dict[str, str]
+    ]
+):
     """Handles operations related to managing exploration improvement tasks.
 
     NOTE: Only exploration creators and editors can interface with tasks.
     """
 
     GET_HANDLER_ERROR_RETURN_TYPE = feconf.HANDLER_TYPE_JSON
+    URL_PATH_ARGS_SCHEMAS = {
+        'exploration_id': {
+            'schema': {
+                'type': 'basestring',
+                'validators': [{
+                    'id': 'is_regex_matched',
+                    'regex_pattern': constants.ENTITY_ID_REGEX
+                }]
+            }
+        }
+    }
+    HANDLER_ARGS_SCHEMAS = {
+        'GET': {},
+        'POST': {
+            'task_entries': {
+                'schema': {
+                    'type': 'list',
+                    'items': {
+                        'type': 'object_dict',
+                        'validation_method': (
+                            domain_objects_validator.validate_task_entries
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     @acl_decorators.can_edit_exploration
-    def get(self, exploration_id):
+    def get(self, exploration_id: str) -> None:
         open_tasks, resolved_task_types_by_state_name = (
             improvements_services.fetch_exploration_tasks(
                 exp_fetchers.get_exploration_by_id(exploration_id)))
         self.render_json({
-            'open_tasks': [t.to_dict() for t in open_tasks],
+            'open_tasks': [
+                get_task_dict_with_username_and_profile_picture(
+                    task
+                ) for task in open_tasks
+            ],
             'resolved_task_types_by_state_name': (
                 resolved_task_types_by_state_name),
         })
 
     @acl_decorators.can_edit_exploration
-    def post(self, exploration_id):
-        task_entries = self.payload.get('task_entries', None)
-        if task_entries is None:
-            raise self.InvalidInputException('No task_entries provided')
+    def post(self, exploration_id: str) -> None:
+        assert self.normalized_payload is not None
+        task_entries = self.normalized_payload['task_entries']
         task_entries_to_put = []
         for task_entry in task_entries:
-            entity_version = task_entry.get('entity_version', None)
-            if entity_version is None:
-                raise self.InvalidInputException('No entity_version provided')
-            task_type = task_entry.get('task_type', None)
-            if task_type is None:
-                raise self.InvalidInputException('No task_type provided')
-            target_id = task_entry.get('target_id', None)
-            if target_id is None:
-                raise self.InvalidInputException('No target_id provided')
-            status = task_entry.get('status', None)
-            if status is None:
-                raise self.InvalidInputException('No status provided')
+            entity_version = task_entry['entity_version']
+            task_type = task_entry['task_type']
+            target_id = task_entry['target_id']
+            status = task_entry['status']
             # The issue_description is allowed to be None.
             issue_description = task_entry.get('issue_description', None)
             task_entries_to_put.append(
                 improvements_domain.TaskEntry(
-                    improvements_models.TASK_ENTITY_TYPE_EXPLORATION,
+                    constants.TASK_ENTITY_TYPE_EXPLORATION,
                     exploration_id,
                     entity_version,
                     task_type,
-                    improvements_models.TASK_TARGET_TYPE_STATE,
+                    constants.TASK_TARGET_TYPE_STATE,
                     target_id,
                     issue_description,
                     status,
@@ -88,17 +147,52 @@ class ExplorationImprovementsHandler(base.BaseHandler):
         self.render_json({})
 
 
-class ExplorationImprovementsHistoryHandler(base.BaseHandler):
+class ExplorationImprovementsHistoryHandlerNormalizedRequestDict(TypedDict):
+    """Dict representation of ExplorationImprovementsHistoryHandler's
+    normalized_Request dictionary.
+    """
+
+    cursor: Optional[str]
+
+
+class ExplorationImprovementsHistoryHandler(
+    base.BaseHandler[
+        Dict[str, str],
+        ExplorationImprovementsHistoryHandlerNormalizedRequestDict
+    ]
+):
     """Handles fetching the history of resolved exploration tasks.
 
     NOTE: Only exploration creators and editors can interface with tasks.
     """
 
     GET_HANDLER_ERROR_RETURN_TYPE = feconf.HANDLER_TYPE_JSON
+    URL_PATH_ARGS_SCHEMAS = {
+        'exploration_id': {
+            'schema': {
+                'type': 'basestring',
+                'validators': [{
+                    'id': 'is_regex_matched',
+                    'regex_pattern': constants.ENTITY_ID_REGEX
+                }]
+            }
+        }
+    }
+    HANDLER_ARGS_SCHEMAS = {
+        'GET': {
+            'cursor': {
+                'schema': {
+                    'type': 'basestring'
+                },
+                'default_value': None
+            }
+        }
+    }
 
     @acl_decorators.can_edit_exploration
-    def get(self, exploration_id):
-        urlsafe_start_cursor = self.request.get('cursor', None)
+    def get(self, exploration_id: str) -> None:
+        assert self.normalized_request is not None
+        urlsafe_start_cursor = self.normalized_request.get('cursor')
 
         results, new_urlsafe_start_cursor, more = (
             improvements_services.fetch_exploration_task_history_page(
@@ -106,19 +200,37 @@ class ExplorationImprovementsHistoryHandler(base.BaseHandler):
                 urlsafe_start_cursor=urlsafe_start_cursor))
 
         self.render_json({
-            'results': [t.to_dict() for t in results],
+            'results': [
+                get_task_dict_with_username_and_profile_picture(
+                    task
+                ) for task in results
+            ],
             'cursor': new_urlsafe_start_cursor,
             'more': more,
         })
 
 
-class ExplorationImprovementsConfigHandler(base.BaseHandler):
+class ExplorationImprovementsConfigHandler(
+    base.BaseHandler[Dict[str, str], Dict[str, str]]
+):
     """Handles fetching the configuration of exploration tasks."""
 
     GET_HANDLER_ERROR_RETURN_TYPE = feconf.HANDLER_TYPE_JSON
+    URL_PATH_ARGS_SCHEMAS = {
+        'exploration_id': {
+            'schema': {
+                'type': 'basestring',
+                'validators': [{
+                    'id': 'is_regex_matched',
+                    'regex_pattern': constants.ENTITY_ID_REGEX
+                }]
+            }
+        }
+    }
+    HANDLER_ARGS_SCHEMAS: Dict[str, Dict[str, str]] = {'GET': {}}
 
     @acl_decorators.can_edit_exploration
-    def get(self, exploration_id):
+    def get(self, exploration_id: str) -> None:
         self.render_json({
             'exploration_id': exploration_id,
             'exploration_version': (

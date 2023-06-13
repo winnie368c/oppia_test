@@ -17,21 +17,18 @@
  */
 
 import { fakeAsync, flushMicrotasks, TestBed } from '@angular/core/testing';
-import { HttpClientTestingModule, HttpTestingController } from
-  '@angular/common/http/testing';
+import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 
 import { CsrfTokenService } from 'services/csrf-token.service';
-import { SkillMasteryBackendApiService } from
-  'domain/skill/skill-mastery-backend-api.service';
-import { SkillMastery } from
-  './skill-mastery.model';
+import { SkillMasteryBackendApiService, SkillMasteryBackendResponse } from 'domain/skill/skill-mastery-backend-api.service';
+import { SkillMastery } from './skill-mastery.model';
 
 describe('Skill mastery backend API service', () => {
-  let skillMasteryBackendApiService: SkillMasteryBackendApiService = null;
-  let csrfService: CsrfTokenService = null;
-  let masteryPerSkillMapping: {[key: string]: number} = null;
-  let sampleResponse = null;
-  let sampleReturnedObject: SkillMastery = null;
+  let skillMasteryBackendApiService: SkillMasteryBackendApiService;
+  let csrfService: CsrfTokenService;
+  let masteryPerSkillMapping: Record<string, number>;
+  let sampleResponse: SkillMasteryBackendResponse;
+  let sampleReturnedObject: SkillMastery;
   let httpTestingController: HttpTestingController;
 
   beforeEach(() => {
@@ -40,11 +37,12 @@ describe('Skill mastery backend API service', () => {
       providers: [SkillMasteryBackendApiService]
     });
 
-    skillMasteryBackendApiService = TestBed.get(SkillMasteryBackendApiService);
-    csrfService = TestBed.get(CsrfTokenService);
-    httpTestingController = TestBed.get(HttpTestingController);
+    skillMasteryBackendApiService =
+      TestBed.inject(SkillMasteryBackendApiService);
+    csrfService = TestBed.inject(CsrfTokenService);
+    httpTestingController = TestBed.inject(HttpTestingController);
 
-    spyOn(csrfService, 'getTokenAsync').and.callFake(function() {
+    spyOn(csrfService, 'getTokenAsync').and.callFake(async function() {
       return Promise.resolve('sample-csrf-token');
     });
 
@@ -69,9 +67,10 @@ describe('Skill mastery backend API service', () => {
     fakeAsync(() => {
       let successHandler = jasmine.createSpy('success');
       let failHandler = jasmine.createSpy('fail');
+      let skillIds = ['skillId1', 'skillId2'];
 
       let requestUrl = '/skill_mastery_handler/data' +
-        '?comma_separated_skill_ids=skillId1,skillId2';
+        '?selected_skill_ids=' + encodeURI(JSON.stringify(skillIds));
 
       skillMasteryBackendApiService.fetchSkillMasteryDegreesAsync(
         ['skillId1', 'skillId2']).then(successHandler, failHandler);
@@ -91,9 +90,10 @@ describe('Skill mastery backend API service', () => {
     fakeAsync(() => {
       let successHandler = jasmine.createSpy('success');
       let failHandler = jasmine.createSpy('fail');
+      let skillIds = ['skillId1', 'skillId2'];
 
       let requestUrl = '/skill_mastery_handler/data' +
-        '?comma_separated_skill_ids=skillId1,skillId2';
+        '?selected_skill_ids=' + encodeURI(JSON.stringify(skillIds));
 
       skillMasteryBackendApiService.fetchSkillMasteryDegreesAsync(
         ['skillId1', 'skillId2']).then(successHandler, failHandler);

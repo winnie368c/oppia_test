@@ -22,12 +22,10 @@ import { TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
 
 import { SearchExplorationsBackendApiService } from
   'domain/collection/search-explorations-backend-api.service';
-
-import { ExplorationMetadata } from
-  'domain/exploration/exploration-metadata.model';
+import { ExplorationSearchResult } from 'domain/exploration/exploration-search-result.model';
 
 describe('Exploration search backend API service', () => {
-  let SearchExplorationsService: SearchExplorationsBackendApiService = null;
+  let SearchExplorationsService: SearchExplorationsBackendApiService;
   let httpTestingController: HttpTestingController;
 
   beforeEach(() => {
@@ -50,7 +48,7 @@ describe('Exploration search backend API service', () => {
       let failHandler = jasmine.createSpy('fail');
       let query = escape(btoa('three'));
 
-      SearchExplorationsService.fetchExplorations('three')
+      SearchExplorationsService.fetchExplorationsAsync('three')
         .then(successHandler, failHandler);
       let req = httpTestingController.expectOne(
         '/exploration/metadata_search?q=' + query);
@@ -84,12 +82,12 @@ describe('Exploration search backend API service', () => {
         }]
       };
 
-      var explorationMetadataObjects = (
+      var explorationSearchResultObjects = (
         searchResults.collection_node_metadata_list.map(
-          explorationMetadataBackendDict => ExplorationMetadata
-            .createFromBackendDict(explorationMetadataBackendDict)));
+          explorationSearchResultBackendDict => ExplorationSearchResult
+            .createFromBackendDict(explorationSearchResultBackendDict)));
 
-      SearchExplorationsService.fetchExplorations('count')
+      SearchExplorationsService.fetchExplorationsAsync('count')
         .then(successHandler, failHandler);
       let req = httpTestingController.expectOne(
         '/exploration/metadata_search?q=' + query);
@@ -97,7 +95,8 @@ describe('Exploration search backend API service', () => {
 
       flushMicrotasks();
 
-      expect(successHandler).toHaveBeenCalledWith(explorationMetadataObjects);
+      expect(successHandler).toHaveBeenCalledWith(
+        explorationSearchResultObjects);
       expect(failHandler).not.toHaveBeenCalled();
     })
   );
@@ -108,7 +107,7 @@ describe('Exploration search backend API service', () => {
       let failHandler = jasmine.createSpy('fail');
       let query = escape(btoa('oppia'));
 
-      SearchExplorationsService.fetchExplorations('oppia')
+      SearchExplorationsService.fetchExplorationsAsync('oppia')
         .then(successHandler, failHandler);
       let req = httpTestingController.expectOne(
         '/exploration/metadata_search?q=' + query);

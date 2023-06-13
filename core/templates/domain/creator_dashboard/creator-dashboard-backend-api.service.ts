@@ -41,20 +41,18 @@ import {
 import {
   SuggestionBackendDict,
   Suggestion,
-  SuggestionObjectFactory
-} from 'domain/suggestion/SuggestionObjectFactory';
+} from 'domain/suggestion/suggestion.model';
 import {
   ProfileSummary,
   SubscriberSummaryBackendDict,
 } from 'domain/user/profile-summary.model';
 import {
-  SuggestionThread,
-  SuggestionThreadObjectFactory
-} from 'domain/suggestion/SuggestionThreadObjectFactory';
+  SuggestionThread
+} from 'domain/suggestion/suggestion-thread-object.model';
 import {
-  TopicSummary,
-  TopicSummaryBackendDict
-} from 'domain/topic/topic-summary.model';
+  CreatorTopicSummary,
+  CreatorTopicSummaryBackendDict
+} from 'domain/topic/creator-topic-summary.model';
 import { LoggerService } from 'services/contextual/logger.service';
 import { SuggestionsService } from
   'services/suggestions.service';
@@ -70,12 +68,13 @@ interface CreatorDashboardDataBackendDict {
   'suggestions_to_review_list': SuggestionBackendDict[];
   'explorations_list': CreatorExplorationSummaryBackendDict[];
   'collections_list': CollectionSummaryBackendDict[];
-  'topic_summary_dicts': TopicSummaryBackendDict[];
+  'topic_summary_dicts': CreatorTopicSummaryBackendDict[];
 }
 
-interface CreatorDashboardData {
+export interface CreatorDashboardData {
   dashboardStats: CreatorDashboardStats;
-  lastWeekStats: CreatorDashboardStats;
+  // 'lastWeekStats' is null for a new creator.
+  lastWeekStats: CreatorDashboardStats | null;
   displayPreference: 'card' | 'list';
   subscribersList: ProfileSummary[];
   threadsForCreatedSuggestionsList: FeedbackThread[];
@@ -86,7 +85,7 @@ interface CreatorDashboardData {
   suggestionThreadsToReviewList: SuggestionThread[];
   explorationsList: CreatorExplorationSummary[];
   collectionsList: CollectionSummary[];
-  topicSummaries: TopicSummary[];
+  topicSummaries: CreatorTopicSummary[];
 }
 
 @Injectable({
@@ -96,8 +95,6 @@ export class CreatorDashboardBackendApiService {
   constructor(
     private http: HttpClient,
     private feedbackThreadObjectFactory: FeedbackThreadObjectFactory,
-    private suggestionObjectFactory: SuggestionObjectFactory,
-    private suggestionThreadObjectFactory: SuggestionThreadObjectFactory,
     private suggestionsService: SuggestionsService,
     private loggerService: LoggerService) {}
 
@@ -119,7 +116,7 @@ export class CreatorDashboardBackendApiService {
         var threadDict = feedbackDicts[i];
         if (threadDict.thread_id === suggestionThreadId) {
           var suggestionThread = (
-            this.suggestionThreadObjectFactory.createFromBackendDicts(
+            SuggestionThread.createFromBackendDicts(
               threadDict, suggestionDicts[j]));
           suggestionThreads.push(suggestionThread);
         }
@@ -129,61 +126,70 @@ export class CreatorDashboardBackendApiService {
     return suggestionThreads;
   }
 
-  _fetchDashboardData(): Promise<CreatorDashboardData> {
-    return this.http.get<CreatorDashboardDataBackendDict>(
-      '/creatordashboardhandler/data').toPromise().then(dashboardData => {
-      return {
-        dashboardStats: CreatorDashboardStats
-          .createFromBackendDict(dashboardData.dashboard_stats),
-        // Because lastWeekStats may be null.
-        lastWeekStats: dashboardData.last_week_stats ? (
+  async _fetchDashboardDataAsync(): Promise<CreatorDashboardData> {
+    return new Promise((resolve, reject) => {
+      this.http.get<CreatorDashboardDataBackendDict>(
+        '/creatordashboardhandler/data').toPromise().then(
+        dashboardData => {
+          resolve({
+            dashboardStats: CreatorDashboardStats
+              .createFromBackendDict(dashboardData.dashboard_stats),
+            // Because lastWeekStats may be null.
+            lastWeekStats: dashboardData.last_week_stats ? (
           CreatorDashboardStats
             .createFromBackendDict(dashboardData.last_week_stats)) : null,
-        displayPreference: dashboardData.display_preference,
-        subscribersList: dashboardData.subscribers_list.map(
-          subscriber => ProfileSummary
-            .createFromSubscriberBackendDict(subscriber)),
-        threadsForCreatedSuggestionsList: (
-          dashboardData.threads_for_created_suggestions_list.map(
-            feedbackThread => this.feedbackThreadObjectFactory
-              .createFromBackendDict(feedbackThread))),
-        threadsForSuggestionsToReviewList: (
-          dashboardData.threads_for_suggestions_to_review_list.map(
-            feedbackThread => this.feedbackThreadObjectFactory
-              .createFromBackendDict(feedbackThread))),
-        createdSuggestionsList: (
-          dashboardData.created_suggestions_list.map(
-            suggestionDict => this.suggestionObjectFactory
-              .createFromBackendDict(suggestionDict))),
-        suggestionsToReviewList: (
-          dashboardData.suggestions_to_review_list.map(
-            suggestionDict => this.suggestionObjectFactory
-              .createFromBackendDict(suggestionDict))),
-        createdSuggestionThreadsList: this._getSuggestionThreads(
-          dashboardData.threads_for_created_suggestions_list,
-          dashboardData.created_suggestions_list),
-        suggestionThreadsToReviewList: this._getSuggestionThreads(
-          dashboardData.threads_for_suggestions_to_review_list,
-          dashboardData.suggestions_to_review_list),
-        explorationsList: dashboardData.explorations_list.map(
-          expSummary => CreatorExplorationSummary
-            .createFromBackendDict(expSummary)),
-        collectionsList: dashboardData.collections_list.map(
-          collectionSummary => CollectionSummary
-            .createFromBackendDict(collectionSummary)),
-        topicSummaries: (
+            displayPreference: dashboardData.display_preference,
+            subscribersList: dashboardData.subscribers_list.map(
+              subscriber => ProfileSummary
+                .createFromSubscriberBackendDict(subscriber)),
+            threadsForCreatedSuggestionsList: (
+              dashboardData.threads_for_created_suggestions_list.map(
+                feedbackThread => this.feedbackThreadObjectFactory
+                  .createFromBackendDict(feedbackThread))),
+            threadsForSuggestionsToReviewList: (
+              dashboardData.threads_for_suggestions_to_review_list.map(
+                feedbackThread => this.feedbackThreadObjectFactory
+                  .createFromBackendDict(feedbackThread))),
+            createdSuggestionsList: (
+              dashboardData.created_suggestions_list.map(
+                suggestionDict => Suggestion.createFromBackendDict(
+                  suggestionDict))),
+            suggestionsToReviewList: (
+              dashboardData.suggestions_to_review_list.map(
+                suggestionDict => Suggestion.createFromBackendDict(
+                  suggestionDict))),
+            createdSuggestionThreadsList: this._getSuggestionThreads(
+              dashboardData.threads_for_created_suggestions_list,
+              dashboardData.created_suggestions_list),
+            suggestionThreadsToReviewList: this._getSuggestionThreads(
+              dashboardData.threads_for_suggestions_to_review_list,
+              dashboardData.suggestions_to_review_list),
+            explorationsList: dashboardData.explorations_list.map(
+              expSummary => CreatorExplorationSummary
+                .createFromBackendDict(expSummary)),
+            collectionsList: dashboardData.collections_list.map(
+              collectionSummary => CollectionSummary
+                .createFromBackendDict(collectionSummary)),
+            topicSummaries: (
           dashboardData.topic_summary_dicts ? (
             dashboardData.topic_summary_dicts.map(
-              topicSummaryDict => TopicSummary.createFromBackendDict(
-                topicSummaryDict))) : null)
-      };
-    }, errorResponse => {
-      throw new Error(errorResponse.error.error);
+              topicSummaryDict => CreatorTopicSummary.createFromBackendDict(
+                topicSummaryDict))) : [])
+          });
+        }, errorResponse => {
+          reject(errorResponse.error.error);
+        });
     });
   }
 
-  fetchDashboardData(): Promise<CreatorDashboardData> {
-    return this._fetchDashboardData();
+  async fetchDashboardDataAsync(): Promise<CreatorDashboardData> {
+    return this._fetchDashboardDataAsync();
+  }
+
+  async postExplorationViewAsync(newViewType: string): Promise<void> {
+    return this.http.post<void>('/creatordashboardhandler/data', {
+      display_preference: newViewType
+    }).toPromise();
   }
 }
 

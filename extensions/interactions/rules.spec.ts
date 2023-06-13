@@ -21,7 +21,6 @@
 import { CodeNormalizerService } from 'services/code-normalizer.service';
 import { GraphUtilsService } from
   'interactions/GraphInput/directives/graph-utils.service';
-import { FractionObjectFactory } from 'domain/objects/FractionObjectFactory';
 import { UnitsObjectFactory } from 'domain/objects/UnitsObjectFactory';
 import { SetInputRulesService } from
   'interactions/SetInput/directives/set-input-rules.service';
@@ -29,8 +28,6 @@ import { NumericInputRulesService } from
   'interactions/NumericInput/directives/numeric-input-rules.service';
 import { InteractiveMapRulesService } from
   'interactions/InteractiveMap/directives/interactive-map-rules.service';
-import { LogicProofRulesService } from
-  'interactions/LogicProof/directives/logic-proof-rules.service';
 import { MusicNotesInputRulesService } from
   'interactions/MusicNotesInput/directives/music-notes-input-rules.service';
 import { AlgebraicExpressionInputRulesService } from 'interactions/AlgebraicExpressionInput/directives/algebraic-expression-input-rules.service';
@@ -40,9 +37,9 @@ import { ItemSelectionInputRulesService } from 'interactions/ItemSelectionInput/
 import { MathEquationInputRulesService } from
   'interactions/MathEquationInput/directives/math-equation-input-rules.service';
 import { NumberWithUnitsRulesService } from
-  'interactions/NumberWithUnits/directives/number-with-units-rules.service.ts';
+  'interactions/NumberWithUnits/directives/number-with-units-rules.service';
 import { NumberWithUnitsObjectFactory } from
-  'domain/objects/NumberWithUnitsObjectFactory.ts';
+  'domain/objects/NumberWithUnitsObjectFactory';
 import { NumericExpressionInputRulesService } from 'interactions/NumericExpressionInput/directives/numeric-expression-input-rules.service';
 import { FractionInputRulesService } from
   'interactions/FractionInput/directives/fraction-input-rules.service';
@@ -53,6 +50,7 @@ import { UtilsService } from 'services/utils.service';
 import { UpgradedServices } from 'services/UpgradedServices';
 import { ImageClickAnswer } from './answer-defs';
 import { ImageClickRuleInputs } from './rule-input-defs';
+import { MathInteractionsService } from 'services/math-interactions.service';
 // ^^^ This block is to be removed.
 
 describe('Rule spec services', function() {
@@ -67,11 +65,13 @@ describe('Rule spec services', function() {
     $provide.value('CodeNormalizerService', new CodeNormalizerService());
     $provide.value('CodeNormalizerService', new CodeNormalizerService());
     $provide.value('GraphUtilsService', new GraphUtilsService());
-    $provide.value('FractionObjectFactory', new FractionObjectFactory());
     $provide.value('SetInputRulesService', new SetInputRulesService());
     $provide.value(
       'AlgebraicExpressionInputRulesService',
-      new AlgebraicExpressionInputRulesService());
+      new AlgebraicExpressionInputRulesService(
+        new MathInteractionsService(),
+        new NumericExpressionInputRulesService()
+      ));
     $provide.value(
       'RatioExpressionInputRulesService',
       new RatioExpressionInputRulesService());
@@ -79,13 +79,16 @@ describe('Rule spec services', function() {
       'DragAndDropSortInputRulesService',
       new DragAndDropSortInputRulesService());
     $provide.value(
-      'MathEquationInputRulesService', new MathEquationInputRulesService());
+      'MathEquationInputRulesService', new MathEquationInputRulesService(
+        new AlgebraicExpressionInputRulesService(
+          new MathInteractionsService(),
+          new NumericExpressionInputRulesService()
+        )));
     $provide.value(
       'MultipleChoiceInputRulesService', new MultipleChoiceInputRulesService());
     $provide.value('NumericInputRulesService', new NumericInputRulesService());
     $provide.value(
       'InteractiveMapRulesService', new InteractiveMapRulesService());
-    $provide.value('LogicProofRulesService', new LogicProofRulesService());
     $provide.value(
       'MusicNotesInputRulesService', new MusicNotesInputRulesService(
         new UtilsService()));
@@ -94,14 +97,14 @@ describe('Rule spec services', function() {
     $provide.value(
       'NumberWithUnitsRulesService', new NumberWithUnitsRulesService(
         new NumberWithUnitsObjectFactory(
-          new UnitsObjectFactory(), new FractionObjectFactory(),
+          new UnitsObjectFactory(),
         ), new UtilsService()));
     $provide.value(
       'NumericExpressionInputRulesService',
       new NumericExpressionInputRulesService());
     $provide.value(
       'FractionInputRulesService', new FractionInputRulesService(
-        new FractionObjectFactory(), new UtilsService()));
+        new UtilsService()));
     $provide.value(
       'GraphInputRulesService', new GraphInputRulesService(
         new GraphUtilsService(), new UtilsService()));

@@ -19,7 +19,7 @@
 import { Injectable } from '@angular/core';
 import { downgradeInjectable } from '@angular/upgrade/static';
 
-import { StoryContents } from 'domain/story/StoryContentsObjectFactory';
+import { StoryContents } from 'domain/story/story-contents-object.model';
 
 @Injectable({
   providedIn: 'root'
@@ -32,20 +32,36 @@ export class StoryValidationService {
    */
   validatePrerequisiteSkillsInStoryContents(
       topicRelevantSkills: string[], storyContents: StoryContents): string[] {
-    let issues = [];
+    let issues: string[] = [];
     let nodeIds = storyContents.getNodeIds();
     let nodes = storyContents.getNodes();
     // Variable nodesQueue stores the pending nodes to visit in a queue form.
     let nodesQueue = [];
     let nodeIsVisited = new Array(nodeIds.length).fill(false);
-    let startingNode = nodes[storyContents.getNodeIndex(
-      storyContents.getInitialNodeId())];
+    const _initialNodeId = storyContents.getInitialNodeId();
+    if (_initialNodeId === null) {
+      throw new Error('Starting Node does not exist');
+    }
+    let startingNode = nodes[storyContents.getNodeIndex(_initialNodeId)];
     nodesQueue.push(startingNode.getId());
 
     // The user is assumed to have all the prerequisite skills of the
     // starting node before starting the story. Also, this list models the
     // skill IDs acquired by a learner as they progress through the story.
     var simulatedSkillIds = new Set(startingNode.getPrerequisiteSkillIds());
+
+    // Validate the prerequisite skills of the starting node.
+    startingNode.getPrerequisiteSkillIds().forEach(
+      (skillId: string) => {
+        if (
+          topicRelevantSkills.includes(skillId)) {
+          issues.push(
+            `The skill with id ${skillId} was specified as a ` +
+            `prerequisite for Chapter ${startingNode.getTitle()} but ` +
+            'was not taught in any chapter before it.');
+        }
+      }
+    );
 
     // The following loop employs a Breadth First Search from the given
     // starting node and makes sure that the user has acquired all the

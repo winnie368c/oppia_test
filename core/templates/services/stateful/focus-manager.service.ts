@@ -25,28 +25,32 @@ import { downgradeInjectable } from '@angular/upgrade/static';
 import { AppConstants } from 'app.constants';
 import { IdGenerationService } from 'services/id-generation.service';
 import { DeviceInfoService } from 'services/contextual/device-info.service';
-
+import { WindowRef } from 'services/contextual/window-ref.service';
 @Injectable({
   providedIn: 'root'
 })
 export class FocusManagerService {
-  private nextLabelToFocusOn: string = null;
+  // This property can be undefined but not null because we need to emit it.
+  private nextLabelToFocusOn: string | undefined;
   private focusEventEmitter: EventEmitter<string> = new EventEmitter();
+  private _schemaBasedListEditorIsActive: boolean = false;
 
   constructor(
       private deviceInfoService: DeviceInfoService,
-      private idGenerationService: IdGenerationService) {}
+      private idGenerationService: IdGenerationService,
+      private windowRef: WindowRef = new WindowRef(),
+  ) {}
 
   clearFocus(): void {
     this.setFocus(AppConstants.LABEL_FOR_CLEARING_FOCUS);
   }
 
   setFocus(name: string): void {
-    if (this.nextLabelToFocusOn === null) {
+    if (this.nextLabelToFocusOn === undefined) {
       this.nextLabelToFocusOn = name;
       setTimeout(() => {
         this.focusEventEmitter.emit(this.nextLabelToFocusOn);
-        this.nextLabelToFocusOn = null;
+        this.nextLabelToFocusOn = undefined;
       });
     }
   }
@@ -59,6 +63,21 @@ export class FocusManagerService {
 
   generateFocusLabel(): string {
     return this.idGenerationService.generateNewId();
+  }
+
+  set schemaBasedListEditorIsActive(listEditorIsActive: boolean) {
+    this._schemaBasedListEditorIsActive = listEditorIsActive;
+  }
+
+  setFocusWithoutScroll(name: string): void {
+    this.setFocus(name);
+    // We do not want to scroll back to top of the page when schema based list
+    // editor is being used due to autofocus in subsequent input fields.
+    if (!this._schemaBasedListEditorIsActive) {
+      setTimeout(() => {
+        this.windowRef.nativeWindow.scrollTo(0, 0);
+      }, 5);
+    }
   }
 
   get onFocus(): EventEmitter<string> {

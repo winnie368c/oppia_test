@@ -17,7 +17,7 @@
  * assets from Google Cloud Storage.
  */
 
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { downgradeInjectable } from '@angular/upgrade/static';
 
@@ -26,6 +26,7 @@ import { AudioFile } from 'domain/utilities/audio-file.model';
 import { FileDownloadRequest } from 'domain/utilities/file-download-request.model';
 import { ImageFile } from 'domain/utilities/image-file.model';
 import { UrlInterpolationService } from 'domain/utilities/url-interpolation.service';
+import { Observable } from 'rxjs';
 import { CsrfTokenService } from 'services/csrf-token.service';
 
 interface SaveAudioResponse {
@@ -41,6 +42,8 @@ interface SaveImageResponse {
   providedIn: 'root'
 })
 export class AssetsBackendApiService {
+  public readonly profileImagePngUrlTemplate: string;
+  public readonly profileImageWebpUrlTemplate: string;
   private readonly downloadUrlTemplate: string;
 
   /** List of audio files that have been requested but have not returned. */
@@ -54,27 +57,33 @@ export class AssetsBackendApiService {
       private csrfTokenService: CsrfTokenService,
       private http: HttpClient,
       private urlInterpolationService: UrlInterpolationService) {
-    if (!AssetsBackendApiService.DEV_MODE &&
-        !AssetsBackendApiService.GCS_RESOURCE_BUCKET_NAME) {
-      throw new Error('GCS_RESOURCE_BUCKET_NAME is not set in prod.');
+    let urlPrefix = '/assetsdevhandler';
+    if (!AssetsBackendApiService.EMULATOR_MODE) {
+      urlPrefix = (
+        'https://storage.googleapis.com/' +
+        AssetsBackendApiService.GCS_RESOURCE_BUCKET_NAME
+      );
     }
-    const urlPrefix = AssetsBackendApiService.DEV_MODE ? '/assetsdevhandler' : (
-      'https://storage.googleapis.com/' +
-      AssetsBackendApiService.GCS_RESOURCE_BUCKET_NAME);
     this.downloadUrlTemplate = (
       urlPrefix + '/<entity_type>/<entity_id>/assets/<asset_type>/<filename>');
+    this.profileImagePngUrlTemplate = (
+      urlPrefix + '/user/<username>/assets/profile_picture.png');
+    this.profileImageWebpUrlTemplate = (
+      urlPrefix + '/user/<username>/assets/profile_picture.webp');
   }
 
-  static get DEV_MODE(): boolean {
-    return AppConstants.DEV_MODE;
+  static get EMULATOR_MODE(): boolean {
+    return AppConstants.EMULATOR_MODE;
   }
+
   static get GCS_RESOURCE_BUCKET_NAME(): string {
     return AppConstants.GCS_RESOURCE_BUCKET_NAME;
   }
 
   async loadAudio(explorationId: string, filename: string): Promise<AudioFile> {
-    if (this.isCached(filename)) {
-      return new AudioFile(filename, this.assetsCache.get(filename));
+    let data = this.assetsCache.get(filename);
+    if (this.isCached(filename) && data !== undefined) {
+      return new AudioFile(filename, data);
     }
     return this.fetchFile(
       AppConstants.ENTITY_TYPE.EXPLORATION, explorationId, filename,
@@ -84,8 +93,9 @@ export class AssetsBackendApiService {
   async loadImage(
       entityType: string, entityId: string,
       filename: string): Promise<ImageFile> {
-    if (this.isCached(filename)) {
-      return new ImageFile(filename, this.assetsCache.get(filename));
+    let data = this.assetsCache.get(filename);
+    if (this.isCached(filename) && data !== undefined) {
+      return new ImageFile(filename, data);
     }
     return this.fetchFile(
       entityType, entityId, filename, AppConstants.ASSET_TYPE_IMAGE);
@@ -101,8 +111,15 @@ export class AssetsBackendApiService {
     try {
       return await this.http.post<SaveAudioResponse>(
         this.getAudioUploadUrl(explorationId), form).toPromise();
-    } catch (reason) {
-      return Promise.reject(reason.error);
+    // We use unknown type because we are unsure of the type of error
+    // that was thrown. Since the catch block cannot identify the
+    // specific type of error, we are unable to further optimise the
+    // code by introducing more types of errors.
+    } catch (error: unknown) {
+      if (error instanceof HttpErrorResponse) {
+        return Promise.reject(error.error);
+      }
+      throw error;
     }
   }
 
@@ -117,9 +134,35 @@ export class AssetsBackendApiService {
     try {
       return await this.http.post<SaveImageResponse>(
         this.getImageUploadUrl(entityType, entityId), form).toPromise();
-    } catch (reason) {
-      return Promise.reject(reason.error);
+    // We use unknown type because we are unsure of the type of error
+    // that was thrown. Since the catch block cannot identify the
+    // specific type of error, we are unable to further optimise the
+    // code by introducing more types of errors.
+    } catch (error: unknown) {
+      if (error instanceof HttpErrorResponse) {
+        return Promise.reject(error.error);
+      }
+      throw error;
     }
+  }
+
+  postThumbnailFile(
+      resampledFile: Blob, filename: string,
+      entityType: string, entityId: string): Observable<{filename: string}> {
+    let form = new FormData();
+    form.append('image', resampledFile);
+    form.append('payload', JSON.stringify({
+      filename: filename,
+      filename_prefix: 'thumbnail'
+    }));
+    let imageUploadUrlTemplate = '/createhandler/imageupload/' +
+    '<entity_type>/<entity_id>';
+    let thumbnailFileUrl = this.urlInterpolationService.interpolateUrl(
+      imageUploadUrlTemplate, {
+        entity_type: entityType,
+        entity_id: entityId
+      });
+    return this.http.post<{filename: string}>(thumbnailFileUrl, form);
   }
 
   isCached(filename: string): boolean {
@@ -163,13 +206,14 @@ export class AssetsBackendApiService {
   private getDownloadUrl(
       entityType: string, entityId: string, filename: string,
       assetType: string): string {
-    return this.urlInterpolationService.interpolateUrl(
+    let downloadUrl = this.urlInterpolationService.interpolateUrl(
       this.downloadUrlTemplate, {
         entity_type: entityType,
         entity_id: entityId,
         asset_type: assetType,
         filename: filename,
       });
+    return downloadUrl;
   }
 
   private getFileDownloadRequestsByAssetType(
@@ -184,8 +228,8 @@ export class AssetsBackendApiService {
   private async fetchFile(
       entityType: string, entityId: string, filename: string,
       assetType: string): Promise<AudioFile | ImageFile> {
-    let onResolve: (_: Blob) => void;
-    let onReject: () => void;
+    let onResolve!: (_: Blob) => void;
+    let onReject!: () => void;
     const blobPromise = new Promise<Blob>((resolve, reject) => {
       onResolve = resolve;
       onReject = reject;
@@ -226,16 +270,19 @@ export class AssetsBackendApiService {
   }
 
   private getAudioUploadUrl(explorationId: string): string {
-    return this.urlInterpolationService.interpolateUrl(
+    let audioUploadUrl = this.urlInterpolationService.interpolateUrl(
       AppConstants.AUDIO_UPLOAD_URL_TEMPLATE, {
         exploration_id: explorationId
       });
+    return audioUploadUrl;
   }
 
-  private getImageUploadUrl(entityType: string, entityId: string): string {
-    return this.urlInterpolationService.interpolateUrl(
+  private getImageUploadUrl(
+      entityType: string, entityId: string): string {
+    let imageUploadUrl = this.urlInterpolationService.interpolateUrl(
       AppConstants.IMAGE_UPLOAD_URL_TEMPLATE,
       { entity_type: entityType, entity_id: entityId });
+    return imageUploadUrl;
   }
 }
 

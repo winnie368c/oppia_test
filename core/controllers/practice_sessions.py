@@ -14,40 +14,111 @@
 
 """Controllers for the practice sessions page."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
+from core import feconf
+from core.constants import constants
 from core.controllers import acl_decorators
 from core.controllers import base
 from core.domain import skill_fetchers
 from core.domain import topic_fetchers
-import feconf
-import python_utils
+
+from typing import Dict, List, TypedDict
 
 
-class PracticeSessionsPage(base.BaseHandler):
+class PracticeSessionsPage(
+    base.BaseHandler[Dict[str, str], Dict[str, str]]
+):
     """Renders the practice sessions page."""
 
+    URL_PATH_ARGS_SCHEMAS = {
+        'classroom_url_fragment': constants.SCHEMA_FOR_CLASSROOM_URL_FRAGMENTS,
+        'topic_url_fragment': constants.SCHEMA_FOR_TOPIC_URL_FRAGMENTS
+    }
+    HANDLER_ARGS_SCHEMAS = {
+        'GET': {
+            'selected_subtopic_ids': {
+                'schema': {
+                    'type': 'custom',
+                    'obj_type': 'JsonEncodedInString'
+                }
+            }
+        }
+    }
+
     @acl_decorators.can_access_topic_viewer_page
-    def get(self, _):
+    def get(self, _: str) -> None:
         """Handles GET requests."""
 
         self.render_template('practice-session-page.mainpage.html')
 
+    def handle_exception(
+        self, exception: BaseException, unused_debug_mode: bool
+    ) -> None:
+        """Handles exceptions raised by this handler.
 
-class PracticeSessionsPageDataHandler(base.BaseHandler):
+        Args:
+            exception: Exception. The exception raised by the handler.
+            unused_debug_mode: bool. Whether the app is running in debug mode.
+        """
+        if isinstance(exception, self.InvalidInputException):
+            (
+                _,
+                _,
+                classroom_url_fragment,
+                topic_url_fragment,
+                _,
+                _
+            ) = self.request.path.split('/')
+            self.redirect(
+                '/learn/%s/%s/practice' % (
+                    classroom_url_fragment, topic_url_fragment
+                )
+            )
+            return
+        super().handle_exception(exception, unused_debug_mode)
+
+
+class PracticeSessionsPageDataHandlerNormalizedRequestDict(TypedDict):
+    """Dict representation of PracticeSessionsPageDataHandler's
+    normalized_request dictionary.
+    """
+
+    selected_subtopic_ids: List[int]
+
+
+class PracticeSessionsPageDataHandler(
+    base.BaseHandler[
+        Dict[str, str],
+        PracticeSessionsPageDataHandlerNormalizedRequestDict
+    ]
+):
     """Fetches relevant data for the practice sessions page."""
 
     GET_HANDLER_ERROR_RETURN_TYPE = feconf.HANDLER_TYPE_JSON
+    URL_PATH_ARGS_SCHEMAS = {
+        'classroom_url_fragment': constants.SCHEMA_FOR_CLASSROOM_URL_FRAGMENTS,
+        'topic_url_fragment': constants.SCHEMA_FOR_TOPIC_URL_FRAGMENTS
+    }
+    HANDLER_ARGS_SCHEMAS = {
+        'GET': {
+            'selected_subtopic_ids': {
+                'schema': {
+                    'type': 'custom',
+                    'obj_type': 'JsonEncodedInString'
+                }
+            }
+        }
+    }
 
     @acl_decorators.can_access_topic_viewer_page
-    def get(self, topic_name):
-
+    def get(self, topic_name: str) -> None:
+        assert self.normalized_request is not None
         # Topic cannot be None as an exception will be thrown from its decorator
         # if so.
         topic = topic_fetchers.get_topic_by_name(topic_name)
-        comma_separated_subtopic_ids = self.request.get('selected_subtopic_ids')
-        selected_subtopic_ids = comma_separated_subtopic_ids.split(',')
+        selected_subtopic_ids = (
+            self.normalized_request['selected_subtopic_ids'])
 
         selected_skill_ids = []
         for subtopic in topic.subtopics:
@@ -55,7 +126,7 @@ class PracticeSessionsPageDataHandler(base.BaseHandler):
             # passed in subtopic IDs, if they don't exist, which would be the
             # case if the creator deletes subtopics after the learner has
             # loaded the topic viewer page.
-            if python_utils.UNICODE(subtopic.id) in selected_subtopic_ids:
+            if subtopic.id in selected_subtopic_ids:
                 selected_skill_ids.extend(subtopic.skill_ids)
         try:
             skills = skill_fetchers.get_multi_skills(selected_skill_ids)

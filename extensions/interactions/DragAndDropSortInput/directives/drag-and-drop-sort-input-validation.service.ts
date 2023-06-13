@@ -29,6 +29,7 @@ import { Outcome } from
   'domain/exploration/OutcomeObjectFactory';
 
 import { AppConstants } from 'app.constants';
+import { Rule } from 'domain/exploration/rule.model';
 
 @Injectable({
   providedIn: 'root'
@@ -58,8 +59,8 @@ export class DragAndDropSortInputValidationService {
     }
 
     for (var i = 0; i < numChoices; i++) {
-      var choice = customizationArgs.choices.value[i].getHtml();
-      if (choice.trim().length === 0) {
+      var choice = customizationArgs.choices.value[i].html;
+      if (this.baseInteractionValidationServiceInstance.isHTMLEmpty(choice)) {
         areAnyChoicesEmpty = true;
       }
       if (seenChoices.indexOf(choice) !== -1) {
@@ -89,7 +90,7 @@ export class DragAndDropSortInputValidationService {
       stateName: string,
       customizationArgs: DragAndDropSortInputCustomizationArgs,
       answerGroups: AnswerGroup[], defaultOutcome: Outcome): Warning[] {
-    var warningsList = [];
+    var warningsList: Warning[] = [];
     var seenItems = [];
     var ranges = [];
     var areAnyItemsEmpty = false;
@@ -98,10 +99,10 @@ export class DragAndDropSortInputValidationService {
     warningsList = warningsList.concat(
       this.getCustomizationArgsWarnings(customizationArgs));
 
-    var checkRedundancy = function(earlierRule, laterRule) {
+    var checkRedundancy = (earlierRule: Rule, laterRule: Rule) => {
       var noOfMismatches = 0;
-      var inputs = earlierRule.inputs.x;
-      var answer = laterRule.inputs.x;
+      var inputs = earlierRule.inputs.x as string[][];
+      var answer = laterRule.inputs.x as string[][];
       for (var i = 0; i < Math.min(inputs.length, answer.length); i++) {
         for (var j = 0; j < Math.max(answer[i].length, inputs[i].length);
           j++) {
@@ -125,7 +126,7 @@ export class DragAndDropSortInputValidationService {
         var inputs = rules[j].inputs;
         var rule = rules[j];
         if (!customizationArgs.allowMultipleItemsInSamePosition.value) {
-          var xInputs = <string[][]>inputs.x;
+          var xInputs = inputs.x as string[][];
           for (var k = 0; k < xInputs.length; k++) {
             if (xInputs[k].length > 1) {
               warningsList.push({
@@ -145,14 +146,24 @@ export class DragAndDropSortInputValidationService {
         areAnyItemsDuplicated = false;
 
         let choiceValues = (
-          customizationArgs.choices.value.map(x => x.getHtml()));
+          customizationArgs.choices.value.map(x => x.html));
+        const choiceContentIdToHtml: Record<string, string> = {};
+        customizationArgs.choices.value.forEach(
+          choice => {
+            const contentId = choice.contentId;
+            if (contentId === null) {
+              throw new Error ('ContentId of choice does not exist');
+            }
+            choiceContentIdToHtml[contentId] = choice.html;
+          });
+
         switch (rule.type) {
           case 'HasElementXAtPositionY':
-            if (!choiceValues.includes(<string>inputs.x)) {
+            if (!choiceContentIdToHtml.hasOwnProperty(inputs.x as string)) {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  `Rule ${(j + 1)} from answer group ${(i + 1)} ` +
+                  `Learner answer ${(j + 1)} from Oppia response ${(i + 1)} ` +
                   'contains a choice that does not match any of ' +
                   'the choices in the customization arguments.')
               });
@@ -161,7 +172,7 @@ export class DragAndDropSortInputValidationService {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  `Rule ${(j + 1)} from answer group ${(i + 1)} ` +
+                  `Learner answer ${(j + 1)} from Oppia response ${(i + 1)} ` +
                   'refers to an invalid choice position.')
               });
             }
@@ -171,18 +182,19 @@ export class DragAndDropSortInputValidationService {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  `Rule ${(j + 1)} from answer group ${(i + 1)} ` +
+                  `Learner answer ${(j + 1)} from Oppia response ${(i + 1)} ` +
                   'will never be matched because both the selected ' +
                   'elements are same.')
               });
             }
             if (
-              !choiceValues.includes(<string>inputs.x) ||
-              !choiceValues.includes(<string>inputs.y)) {
+              !choiceContentIdToHtml.hasOwnProperty(inputs.x as string) ||
+              !choiceContentIdToHtml.hasOwnProperty(inputs.y as string)
+            ) {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  `Rule ${(j + 1)} from answer group ${(i + 1)} ` +
+                  `Learner answer ${(j + 1)} from Oppia response ${(i + 1)} ` +
                   'contains choices that do not match any of ' +
                   'the choices in the customization arguments.')
               });
@@ -190,29 +202,25 @@ export class DragAndDropSortInputValidationService {
             break;
           case 'IsEqualToOrdering':
           case 'IsEqualToOrderingWithOneItemAtIncorrectPosition':
-            var xInputs = <string[][]>inputs.x;
+            var xInputs = inputs.x as string[][];
             for (var k = 0; k < xInputs.length; k++) {
-              if (inputs.x[k].length === 0) {
+              if (xInputs[k].length === 0) {
                 areAnyItemsEmpty = true;
-              } else {
-                for (var l = 0; l < xInputs[k].length; l++) {
-                  var item = xInputs[k][l];
-                  if (item.trim().length === 0) {
-                    areAnyItemsEmpty = true;
-                  }
-                  if (seenItems.indexOf(item) !== -1) {
-                    areAnyItemsDuplicated = true;
-                  }
-                  seenItems.push(item);
+              }
+              for (var l = 0; l < xInputs[k].length; l++) {
+                const itemContentId = xInputs[k][l];
+                const item = choiceContentIdToHtml[itemContentId];
+                if (seenItems.indexOf(item) !== -1) {
+                  areAnyItemsDuplicated = true;
                 }
+                seenItems.push(item);
               }
             }
 
             if (areAnyItemsEmpty || xInputs.length === 0) {
-              var message = areAnyItemsEmpty ? 'the items are' : 'the list is';
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
-                message: `Please ensure ${message} nonempty.`
+                message: 'Please ensure the list is nonempty.'
               });
             }
 
@@ -229,7 +237,7 @@ export class DragAndDropSortInputValidationService {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  'Rule ' + (j + 1) + ' from answer group ' +
+                  'Learner answer ' + (j + 1) + ' from Oppia response ' +
                   (i + 1) + ' will never be matched because there will be ' +
                   'at least 2 elements at incorrect positions if multiple ' +
                   'elements cannot occupy the same position.')
@@ -237,14 +245,15 @@ export class DragAndDropSortInputValidationService {
             }
             var sortedCustomArgsChoices = choiceValues.sort();
             var flattenedAndSortedXInputs = (
-              xInputs.reduce((acc, val) => acc.concat(val), []).sort());
+              xInputs.reduce((acc, val) => acc.concat(val), [])
+            ).map(contentId => choiceContentIdToHtml[contentId]).sort();
             if (
               !angular.equals(
                 sortedCustomArgsChoices, flattenedAndSortedXInputs)) {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  `Rule ${(j + 1)} from answer group ${(i + 1)} ` +
+                  `Learner answer ${(j + 1)} from Oppia response ${(i + 1)} ` +
                   'options do not match customization argument choices.')
               });
             }
@@ -262,9 +271,9 @@ export class DragAndDropSortInputValidationService {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  `Rule ${(j + 1)} from answer group ${(i + 1)} ` +
+                  `Learner answer ${(j + 1)} from Oppia response ${(i + 1)} ` +
                   'will never be matched because it is made redundant by ' +
-                  `rule ${ranges[k].ruleIndex + 1} from answer group ` +
+                  `answer ${ranges[k].ruleIndex + 1} from response ` +
                   `${ranges[k].answerGroupIndex + 1}.`)
               });
             }

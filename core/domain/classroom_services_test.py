@@ -14,27 +14,27 @@
 
 """Tests for classroom services."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
-from constants import constants
+from core.constants import constants
 from core.domain import classroom_services
 from core.domain import config_services
-from core.domain import topic_services
+from core.domain import topic_fetchers
 from core.tests import test_utils
 
 
 class ClassroomServicesTests(test_utils.GenericTestBase):
     """Tests for classroom services."""
 
-    def setUp(self):
-        super(ClassroomServicesTests, self).setUp()
-        self.signup(self.ADMIN_EMAIL, self.ADMIN_USERNAME)
-        self.user_id_admin = self.get_user_id_from_email(self.ADMIN_EMAIL)
-        self.set_admins([self.ADMIN_USERNAME, self.ADMIN_USERNAME])
+    def setUp(self) -> None:
+        super().setUp()
+        self.signup(self.CURRICULUM_ADMIN_EMAIL, self.CURRICULUM_ADMIN_USERNAME)
+        self.user_id_admin = (
+            self.get_user_id_from_email(self.CURRICULUM_ADMIN_EMAIL))
+        self.set_curriculum_admins([self.CURRICULUM_ADMIN_USERNAME])
 
-    def test_can_get_classroom_by_url_fragment(self):
-        topic_id = topic_services.get_new_topic_id()
+    def test_can_get_classroom_by_url_fragment(self) -> None:
+        topic_id = topic_fetchers.get_new_topic_id()
         config_services.set_property(
             self.user_id_admin, 'classroom_pages_data', [{
                 'name': 'math',
@@ -44,16 +44,17 @@ class ClassroomServicesTests(test_utils.GenericTestBase):
                 'topic_list_intro': ''
             }])
         classroom = classroom_services.get_classroom_by_url_fragment('math')
+        assert classroom is not None
         self.assertEqual(classroom.name, 'math')
         self.assertEqual(classroom.url_fragment, 'math')
         self.assertEqual(classroom.topic_ids, [topic_id])
 
-    def test_return_none_when_classroom_cannot_be_found(self):
+    def test_return_none_when_classroom_cannot_be_found(self) -> None:
         classroom = classroom_services.get_classroom_by_url_fragment('bio')
         self.assertIsNone(classroom)
 
-    def test_get_classroom_url_fragment_for_topic_id(self):
-        topic_id = topic_services.get_new_topic_id()
+    def test_get_classroom_url_fragment_for_topic_id(self) -> None:
+        topic_id = topic_fetchers.get_new_topic_id()
         config_services.set_property(
             self.user_id_admin, 'classroom_pages_data', [{
                 'name': 'math',
@@ -67,8 +68,8 @@ class ClassroomServicesTests(test_utils.GenericTestBase):
                 topic_id))
         self.assertEqual(classroom_url_fragment, 'math-one')
 
-    def test_return_default_if_associated_classroom_is_not_found(self):
-        topic_id = topic_services.get_new_topic_id()
+    def test_return_default_if_associated_classroom_is_not_found(self) -> None:
+        topic_id = topic_fetchers.get_new_topic_id()
         config_services.set_property(
             self.user_id_admin, 'classroom_pages_data', [{
                 'name': 'math',

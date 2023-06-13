@@ -16,29 +16,32 @@
 
 """Unit tests for core.domain.stats_services."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
-import operator
 import os
 
-from core import jobs_registry
+from core import feconf
+from core import utils
 from core.domain import event_services
 from core.domain import exp_domain
 from core.domain import exp_fetchers
 from core.domain import exp_services
 from core.domain import question_services
 from core.domain import stats_domain
-from core.domain import stats_jobs_continuous
 from core.domain import stats_services
-from core.domain import taskqueue_services
+from core.domain import translation_domain
 from core.platform import models
 from core.tests import test_utils
-import feconf
-import python_utils
-import utils
 
-(stats_models,) = models.Registry.import_models([models.NAMES.statistics])
+from typing import Dict, Final, List, Optional, Tuple, Union
+
+MYPY = False
+if MYPY:  # pragma: no cover
+    from mypy_imports import datastore_services
+    from mypy_imports import stats_models
+
+(stats_models,) = models.Registry.import_models([models.Names.STATISTICS])
+datastore_services = models.Registry.import_datastore_services()
 
 
 class StatisticsServicesTests(test_utils.GenericTestBase):
@@ -46,8 +49,8 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
     module.
     """
 
-    def setUp(self):
-        super(StatisticsServicesTests, self).setUp()
+    def setUp(self) -> None:
+        super().setUp()
         self.exp_id = 'exp_id1'
         self.exp_version = 1
         self.stats_model_id = (
@@ -57,8 +60,22 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
             self.exp_id, self.exp_version, [])
         self.playthrough_id = stats_models.PlaythroughModel.create(
             'exp_id1', 1, 'EarlyQuit', {}, [])
+        self.save_new_valid_exploration(
+            self.exp_id, 'admin', title='Title 1', end_state_name='End',
+            correctness_feedback_enabled=True)
 
-    def test_get_exploration_stats_with_new_exp_id(self):
+    def test_raises_error_if_playthrough_model_fetched_with_invalid_id_and_strict(  # pylint: disable=line-too-long
+        self
+    ) -> None:
+        with self.assertRaisesRegex(
+            Exception,
+            'No PlaythroughModel exists for the playthrough_id: invalid_id'
+        ):
+            stats_services.get_playthrough_models_by_ids(
+                ['invalid_id'], strict=True
+            )
+
+    def test_get_exploration_stats_with_new_exp_id(self) -> None:
         exploration_stats = stats_services.get_exploration_stats(
             'new_exp_id', 1)
 
@@ -66,10 +83,12 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         self.assertEqual(exploration_stats.exp_id, 'new_exp_id')
         self.assertEqual(exploration_stats.state_stats_mapping, {})
 
-    def test_update_stats_method(self):
+    def test_update_stats_method(self) -> None:
         """Test the update_stats method."""
         exploration_stats = stats_services.get_exploration_stats_by_id(
             'exp_id1', 1)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         exploration_stats.state_stats_mapping = {
             'Home': stats_domain.StateStats.create_default(),
             '🙂': stats_domain.StateStats.create_default(),
@@ -78,7 +97,7 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
 
         # Pass in exploration start event to stats model created in setup
         # function.
-        aggregated_stats = {
+        aggregated_stats: stats_domain.AggregatedStatsDict = {
             'num_starts': 1,
             'num_actual_starts': 1,
             'num_completions': 1,
@@ -105,6 +124,8 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         stats_services.update_stats('exp_id1', 1, aggregated_stats)
         exploration_stats = stats_services.get_exploration_stats_by_id(
             'exp_id1', 1)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         self.assertEqual(exploration_stats.num_starts_v2, 1)
         self.assertEqual(exploration_stats.num_actual_starts_v2, 1)
         self.assertEqual(exploration_stats.num_completions_v2, 1)
@@ -145,9 +166,9 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
             exploration_stats.state_stats_mapping[
                 '🙂'].num_times_solution_viewed_v2, 1)
 
-    def test_update_stats_throws_if_model_is_missing_entirely(self):
+    def test_update_stats_throws_if_exp_version_is_not_latest(self) -> None:
         """Test the update_stats method."""
-        aggregated_stats = {
+        aggregated_stats: stats_domain.AggregatedStatsDict = {
             'num_starts': 1,
             'num_actual_starts': 1,
             'num_completions': 1,
@@ -163,19 +184,61 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
             }
         }
 
-        with self.assertRaisesRegexp(Exception, 'id="nullid.1" does not exist'):
-            stats_services.update_stats('nullid', 1, aggregated_stats)
+        exploration_stats = stats_services.get_exploration_stats_by_id(
+            'exp_id1', 2)
+        self.assertEqual(exploration_stats, None)
 
-    def test_update_stats_throws_if_model_is_missing_state_stats(self):
+        stats_services.update_stats('exp_id1', 2, aggregated_stats)
+
+        exploration_stats = stats_services.get_exploration_stats_by_id(
+            'exp_id1', 2)
+        self.assertEqual(exploration_stats, None)
+
+    def test_update_stats_throws_if_stats_model_is_missing_entirely(
+        self
+    ) -> None:
+        """Test the update_stats method."""
+        aggregated_stats: stats_domain.AggregatedStatsDict = {
+            'num_starts': 1,
+            'num_actual_starts': 1,
+            'num_completions': 1,
+            'state_stats_mapping': {
+                'Home': {
+                    'total_hit_count': 1,
+                    'first_hit_count': 1,
+                    'total_answers_count': 1,
+                    'useful_feedback_count': 1,
+                    'num_times_solution_viewed': 1,
+                    'num_completions': 1
+                },
+            }
+        }
+        stats_model = stats_models.ExplorationStatsModel.get_model('exp_id1', 1)
+        # Ruling out the possibility of None for mypy type checking.
+        assert stats_model is not None
+        stats_model.delete()
+        exploration_stats = stats_services.get_exploration_stats_by_id(
+            'exp_id1', 1)
+        self.assertEqual(exploration_stats, None)
+
+        with self.assertRaisesRegex(
+            Exception,
+            'ExplorationStatsModel id="exp_id1.1" does not exist'
+        ):
+            stats_services.update_stats('exp_id1', 1, aggregated_stats)
+
+    def test_update_stats_throws_if_model_is_missing_state_stats(self) -> None:
         """Test the update_stats method."""
         exploration_stats = stats_services.get_exploration_stats_by_id(
             'exp_id1', 1)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         exploration_stats.state_stats_mapping = {
             'Home': stats_domain.StateStats.create_default()
         }
         stats_services.save_stats_model(exploration_stats)
 
-        aggregated_stats = {
+        aggregated_stats: stats_domain.AggregatedStatsDict = {
             'num_starts': 1,
             'num_actual_starts': 1,
             'num_completions': 1,
@@ -199,20 +262,106 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
             }
         }
 
-        with self.assertRaisesRegexp(Exception, 'does not exist'):
+        with self.assertRaisesRegex(Exception, 'does not exist'):
             stats_services.update_stats('exp_id1', 1, aggregated_stats)
 
-    def test_update_stats_throws_if_model_is_using_unicode_state_name(self):
+    def test_update_stats_returns_if_state_name_is_undefined(self) -> None:
+        """Tests that the update_stats returns if a state name is undefined."""
+        # Here we use MyPy ignore because AggregatedStatsDict can only accept
+        # Dict[str, int] but for testing purpose here we are providing str for
+        # one of the value which causes MyPy to throw an error. Thus to avoid
+        # the error, we used ignore here.
+        aggregated_stats: stats_domain.AggregatedStatsDict = {
+            'num_starts': '1',  # type: ignore[typeddict-item]
+            'num_actual_starts': 1,
+            'num_completions': 1,
+            'state_stats_mapping': {
+                'undefined': {
+                    'total_hit_count': 1,
+                    'first_hit_count': 1,
+                    'total_answers_count': 1,
+                    'useful_feedback_count': 1,
+                    'num_times_solution_viewed': 1,
+                    'num_completions': 1
+                },
+            }
+        }
+
+        exploration_stats = stats_services.get_exploration_stats_by_id(
+            'exp_id1', 1)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
+        self.assertEqual(exploration_stats.state_stats_mapping, {
+            'End': stats_domain.StateStats.create_default(),
+            'Introduction': stats_domain.StateStats.create_default()
+        })
+
+        stats_services.update_stats('exp_id1', 1, aggregated_stats)
+
+        exploration_stats = stats_services.get_exploration_stats_by_id(
+            'exp_id1', 1)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
+        self.assertEqual(exploration_stats.state_stats_mapping, {
+            'End': stats_domain.StateStats.create_default(),
+            'Introduction': stats_domain.StateStats.create_default()
+        })
+
+    def test_update_stats_returns_if_aggregated_stats_type_is_invalid(
+        self
+    ) -> None:
+        """Tests that the update_stats returns if a state name is undefined."""
+        aggregated_stats: stats_domain.AggregatedStatsDict = {
+            'num_starts': 1,
+            'num_actual_starts': 1,
+            'num_completions': 1,
+            'state_stats_mapping': {
+                'undefined': {
+                    'total_hit_count': 1,
+                    'first_hit_count': 1,
+                    'total_answers_count': 1,
+                    'useful_feedback_count': 1,
+                    'num_times_solution_viewed': 1,
+                    'num_completions': 1
+                },
+            }
+        }
+
+        exploration_stats = stats_services.get_exploration_stats_by_id(
+            'exp_id1', 1)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
+        self.assertEqual(exploration_stats.state_stats_mapping, {
+            'End': stats_domain.StateStats.create_default(),
+            'Introduction': stats_domain.StateStats.create_default()
+        })
+
+        stats_services.update_stats('exp_id1', 1, aggregated_stats)
+
+        exploration_stats = stats_services.get_exploration_stats_by_id(
+            'exp_id1', 1)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
+        self.assertEqual(exploration_stats.state_stats_mapping, {
+            'End': stats_domain.StateStats.create_default(),
+            'Introduction': stats_domain.StateStats.create_default()
+        })
+
+    def test_update_stats_throws_if_model_is_using_unicode_state_name(
+        self
+    ) -> None:
         """Test the update_stats method."""
         exploration_stats = stats_services.get_exploration_stats_by_id(
             'exp_id1', 1)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         exploration_stats.state_stats_mapping = {
             'Home': stats_domain.StateStats.create_default(),
             # No stats for '🙂'.
         }
         stats_services.save_stats_model(exploration_stats)
 
-        aggregated_stats = {
+        aggregated_stats: stats_domain.AggregatedStatsDict = {
             'num_starts': 1,
             'num_actual_starts': 1,
             'num_completions': 1,
@@ -236,10 +385,10 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
             }
         }
 
-        with self.assertRaisesRegexp(Exception, 'does not exist'):
+        with self.assertRaisesRegex(Exception, 'does not exist'):
             stats_services.update_stats('exp_id1', 1, aggregated_stats)
 
-    def test_calls_to_stats_methods(self):
+    def test_calls_to_stats_methods(self) -> None:
         """Test that calls are being made to the
         get_stats_for_new_exp_version and
         get_stats_for_new_exploration methods when an exploration is
@@ -256,7 +405,7 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         test_exp_filepath = os.path.join(
             feconf.TESTS_DATA_DIR, 'string_classifier_test.yaml')
         yaml_content = utils.get_file_contents(test_exp_filepath)
-        assets_list = []
+        assets_list: List[Tuple[str, bytes]] = []
         with self.swap(
             stats_services, 'get_stats_for_new_exploration',
             stats_for_new_exploration_log):
@@ -270,9 +419,25 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         self.assertEqual(stats_for_new_exp_version_log.times_called, 0)
 
         # Update exploration by adding a state.
+        exploration = exp_fetchers.get_exploration_by_id(exp_id)
+        content_id_generator = translation_domain.ContentIdGenerator(
+            exploration.next_content_id_index
+        )
         change_list = [exp_domain.ExplorationChange({
             'cmd': 'add_state',
-            'state_name': 'New state'
+            'state_name': 'New state',
+            'content_id_for_state_content': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.CONTENT)
+            ),
+            'content_id_for_default_outcome': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.DEFAULT_OUTCOME)
+            )
+        }), exp_domain.ExplorationChange({
+            'cmd': 'edit_exploration_property',
+            'property_name': 'next_content_id_index',
+            'new_value': content_id_generator.next_content_id_index
         })]
         with self.swap(
             stats_services, 'get_stats_for_new_exp_version',
@@ -286,37 +451,55 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         self.assertEqual(stats_for_new_exploration_log.times_called, 1)
         self.assertEqual(stats_for_new_exp_version_log.times_called, 1)
 
-    def test_get_stats_for_new_exploration(self):
+    def test_get_stats_for_new_exploration(self) -> None:
         """Test the get_stats_for_new_exploration method."""
         # Create exploration object in datastore.
         exp_id = 'exp_id'
         test_exp_filepath = os.path.join(
             feconf.TESTS_DATA_DIR, 'string_classifier_test.yaml')
         yaml_content = utils.get_file_contents(test_exp_filepath)
-        assets_list = []
+        assets_list: List[Tuple[str, bytes]] = []
         exp_services.save_new_exploration_from_yaml_and_assets(
             feconf.SYSTEM_COMMITTER_ID, yaml_content, exp_id,
             assets_list)
         exploration = exp_fetchers.get_exploration_by_id(exp_id)
 
-        exploration_stats = stats_services.get_stats_for_new_exploration(
-            exploration.id, exploration.version, exploration.states)
-        stats_services.create_stats_model(exploration_stats)
+        exploration_stats_for_new_exploration = (
+            stats_services.get_stats_for_new_exploration(
+                exploration.id,
+                exploration.version,
+                list(exploration.states.keys())
+            )
+        )
+        stats_services.create_stats_model(
+            exploration_stats_for_new_exploration
+        )
 
-        exploration_stats = stats_services.get_exploration_stats_by_id(
-            exploration.id, exploration.version)
-        self.assertEqual(exploration_stats.exp_id, exp_id)
-        self.assertEqual(exploration_stats.exp_version, 1)
-        self.assertEqual(exploration_stats.num_starts_v1, 0)
-        self.assertEqual(exploration_stats.num_starts_v2, 0)
-        self.assertEqual(exploration_stats.num_actual_starts_v1, 0)
-        self.assertEqual(exploration_stats.num_actual_starts_v2, 0)
-        self.assertEqual(exploration_stats.num_completions_v1, 0)
-        self.assertEqual(exploration_stats.num_completions_v2, 0)
+        newly_created_exploration_stats = (
+            stats_services.get_exploration_stats_by_id(
+                exploration.id, exploration.version
+            )
+        )
+        # Ruling out the possibility of None for mypy type checking.
+        assert newly_created_exploration_stats is not None
+        self.assertEqual(newly_created_exploration_stats.exp_id, exp_id)
+        self.assertEqual(newly_created_exploration_stats.exp_version, 1)
+        self.assertEqual(newly_created_exploration_stats.num_starts_v1, 0)
+        self.assertEqual(newly_created_exploration_stats.num_starts_v2, 0)
         self.assertEqual(
-            list(exploration_stats.state_stats_mapping.keys()), ['Home', 'End'])
+            newly_created_exploration_stats.num_actual_starts_v1, 0
+        )
+        self.assertEqual(
+            newly_created_exploration_stats.num_actual_starts_v2, 0
+        )
+        self.assertEqual(newly_created_exploration_stats.num_completions_v1, 0)
+        self.assertEqual(newly_created_exploration_stats.num_completions_v2, 0)
+        self.assertEqual(
+            list(newly_created_exploration_stats.state_stats_mapping.keys()),
+            ['Home', 'End']
+        )
 
-    def test_revert_exploration_creates_stats(self):
+    def test_revert_exploration_creates_stats(self) -> None:
         """Test that the revert_exploration method creates stats
         for the newest exploration version.
         """
@@ -325,7 +508,7 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         test_exp_filepath = os.path.join(
             feconf.TESTS_DATA_DIR, 'string_classifier_test.yaml')
         yaml_content = utils.get_file_contents(test_exp_filepath)
-        assets_list = []
+        assets_list: List[Tuple[str, bytes]] = []
         exp_services.save_new_exploration_from_yaml_and_assets(
             feconf.SYSTEM_COMMITTER_ID, yaml_content, exp_id,
             assets_list)
@@ -334,6 +517,8 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         # Save stats for version 1.
         exploration_stats = stats_services.get_exploration_stats_by_id(
             exp_id, 1)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         exploration_stats.num_starts_v2 = 3
         exploration_stats.num_actual_starts_v2 = 2
         exploration_stats.num_completions_v2 = 1
@@ -344,6 +529,8 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
             'committer_id_v2', exploration.id, [], 'Updated')
         exploration_stats = stats_services.get_exploration_stats_by_id(
             exp_id, 2)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         exploration_stats.num_starts_v2 = 4
         exploration_stats.num_actual_starts_v2 = 3
         exploration_stats.num_completions_v2 = 2
@@ -355,19 +542,26 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         exploration_stats = stats_services.get_exploration_stats_by_id(
             exp_id, 3
         )
-        self.assertIsNotNone(exploration_stats)
+        assert exploration_stats is not None
         self.assertEqual(exploration_stats.num_starts_v2, 3)
         self.assertEqual(exploration_stats.num_actual_starts_v2, 2)
         self.assertEqual(exploration_stats.num_completions_v2, 1)
 
-    def test_get_stats_for_new_exp_version(self):
-        """Test the get_stats_for_new_exp_version method."""
+    def test_get_stats_for_new_exp_creates_new_stats(self) -> None:
+        new_stats = stats_services.get_stats_for_new_exp_version(
+            'exp_id', 1, [], None, None)
+
+        self.assertEqual(new_stats.exp_id, 'exp_id')
+        self.assertEqual(new_stats.exp_version, 1)
+        self.assertEqual(new_stats.state_stats_mapping, {})
+
+    def test_raises_error_when_both_exp_diff_and_revert_are_none(self) -> None:
         # Create exploration object in datastore.
         exp_id = 'exp_id'
         test_exp_filepath = os.path.join(
             feconf.TESTS_DATA_DIR, 'string_classifier_test.yaml')
         yaml_content = utils.get_file_contents(test_exp_filepath)
-        assets_list = []
+        assets_list: List[Tuple[str, bytes]] = []
         exp_services.save_new_exploration_from_yaml_and_assets(
             feconf.SYSTEM_COMMITTER_ID, yaml_content, exp_id,
             assets_list)
@@ -376,21 +570,110 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         # Test addition of states.
         exploration.add_states(['New state', 'New state 2'])
         exploration.version += 1
+        with self.assertRaisesRegex(
+            Exception,
+            'ExplorationVersionsDiff cannot be None when the change'
+        ):
+            stats_services.get_stats_for_new_exp_version(
+                exploration.id,
+                exploration.version,
+                list(exploration.states.keys()),
+                None,
+                None
+            )
+
+    def test_raises_error_when_both_exp_diff_and_revert_are_none_while_updating_exp_issue(  # pylint: disable=line-too-long
+        self
+    ) -> None:
+        # Create exploration object in datastore.
+        exp_id = 'exp_id'
+        test_exp_filepath = os.path.join(
+            feconf.TESTS_DATA_DIR, 'string_classifier_test.yaml')
+        yaml_content = utils.get_file_contents(test_exp_filepath)
+        assets_list: List[Tuple[str, bytes]] = []
+        exp_services.save_new_exploration_from_yaml_and_assets(
+            feconf.SYSTEM_COMMITTER_ID, yaml_content, exp_id,
+            assets_list)
+        exploration = exp_fetchers.get_exploration_by_id(exp_id)
+
+        # Test addition of states.
+        exploration.add_states(['New state', 'New state 2'])
+        exploration.version += 1
+        with self.assertRaisesRegex(
+            Exception,
+            'ExplorationVersionsDiff cannot be None when the change'
+        ):
+            stats_services.get_updated_exp_issues_models_for_new_exp_version(
+                exploration, None, None
+            )
+
+    def test_get_stats_for_new_exp_version(self) -> None:
+        """Test the get_stats_for_new_exp_version method."""
+        # Create exploration object in datastore.
+        exp_id = 'exp_id'
+        test_exp_filepath = os.path.join(
+            feconf.TESTS_DATA_DIR, 'string_classifier_test.yaml')
+        yaml_content = utils.get_file_contents(test_exp_filepath)
+        assets_list: List[Tuple[str, bytes]] = []
+        exp_services.save_new_exploration_from_yaml_and_assets(
+            feconf.SYSTEM_COMMITTER_ID, yaml_content, exp_id,
+            assets_list)
+        exploration = exp_fetchers.get_exploration_by_id(exp_id)
+        content_id_generator = translation_domain.ContentIdGenerator(
+            exploration.next_content_id_index
+        )
+
+        # Test addition of states.
+        exploration.add_states(['New state', 'New state 2'])
+        exploration.version += 1
         change_list = [exp_domain.ExplorationChange({
             'cmd': 'add_state',
             'state_name': 'New state',
+            'content_id_for_state_content': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.CONTENT)
+            ),
+            'content_id_for_default_outcome': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.DEFAULT_OUTCOME)
+            )
+        }), exp_domain.ExplorationChange({
+            'cmd': 'edit_exploration_property',
+            'property_name': 'next_content_id_index',
+            'new_value': content_id_generator.next_content_id_index
         }), exp_domain.ExplorationChange({
             'cmd': 'add_state',
-            'state_name': 'New state 2'
+            'state_name': 'New state 2',
+            'content_id_for_state_content': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.CONTENT)
+            ),
+            'content_id_for_default_outcome': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.DEFAULT_OUTCOME)
+            )
+        }), exp_domain.ExplorationChange({
+            'cmd': 'edit_exploration_property',
+            'property_name': 'next_content_id_index',
+            'new_value': content_id_generator.next_content_id_index
         })]
         exp_versions_diff = exp_domain.ExplorationVersionsDiff(change_list)
         exploration_stats = stats_services.get_stats_for_new_exp_version(
-            exploration.id, exploration.version, exploration.states,
-            exp_versions_diff, None)
+            exploration.id,
+            exploration.version,
+            list(exploration.states.keys()),
+            exp_versions_diff,
+            None
+        )
         stats_services.create_stats_model(exploration_stats)
 
-        exploration_stats = stats_services.get_exploration_stats_by_id(
-            exploration.id, exploration.version)
+        exploration_stats_with_none = (
+            stats_services.get_exploration_stats_by_id(
+                exploration.id, exploration.version
+            )
+        )
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats_with_none is not None
         self.assertEqual(exploration_stats.exp_id, exp_id)
         self.assertEqual(exploration_stats.exp_version, 2)
         self.assertEqual(exploration_stats.num_actual_starts_v2, 0)
@@ -415,15 +698,24 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         })]
         exp_versions_diff = exp_domain.ExplorationVersionsDiff(change_list)
         exploration_stats = stats_services.get_stats_for_new_exp_version(
-            exploration.id, exploration.version, exploration.states,
-            exp_versions_diff, None)
+            exploration.id,
+            exploration.version,
+            list(exploration.states.keys()),
+            exp_versions_diff,
+            None
+        )
         stats_services.create_stats_model(exploration_stats)
 
-        exploration_stats = stats_services.get_exploration_stats_by_id(
-            exploration.id, exploration.version)
-        self.assertEqual(exploration_stats.exp_version, 3)
+        exploration_stats_with_none = (
+            stats_services.get_exploration_stats_by_id(
+                exploration.id, exploration.version
+            )
+        )
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats_with_none is not None
+        self.assertEqual(exploration_stats_with_none.exp_version, 3)
         self.assertEqual(
-            set(exploration_stats.state_stats_mapping.keys()), set([
+            set(exploration_stats_with_none.state_stats_mapping.keys()), set([
                 'Home', 'End', 'Renamed state', 'New state']))
 
         # Test deletion of states.
@@ -435,15 +727,24 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         })]
         exp_versions_diff = exp_domain.ExplorationVersionsDiff(change_list)
         exploration_stats = stats_services.get_stats_for_new_exp_version(
-            exploration.id, exploration.version, exploration.states,
-            exp_versions_diff, None)
+            exploration.id,
+            exploration.version,
+            list(exploration.states.keys()),
+            exp_versions_diff,
+            None
+        )
         stats_services.create_stats_model(exploration_stats)
 
-        exploration_stats = stats_services.get_exploration_stats_by_id(
-            exploration.id, exploration.version)
-        self.assertEqual(exploration_stats.exp_version, 4)
+        exploration_stats_with_none = (
+            stats_services.get_exploration_stats_by_id(
+                exploration.id, exploration.version
+            )
+        )
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats_with_none is not None
+        self.assertEqual(exploration_stats_with_none.exp_version, 4)
         self.assertEqual(
-            set(exploration_stats.state_stats_mapping.keys()),
+            set(exploration_stats_with_none.state_stats_mapping.keys()),
             set(['Home', 'Renamed state', 'End']))
 
         # Test addition, renaming and deletion of states.
@@ -453,7 +754,19 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         exploration.version += 1
         change_list = [exp_domain.ExplorationChange({
             'cmd': 'add_state',
-            'state_name': 'New state 2'
+            'state_name': 'New state 2',
+            'content_id_for_state_content': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.CONTENT)
+            ),
+            'content_id_for_default_outcome': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.DEFAULT_OUTCOME)
+            )
+        }), exp_domain.ExplorationChange({
+            'cmd': 'edit_exploration_property',
+            'property_name': 'next_content_id_index',
+            'new_value': content_id_generator.next_content_id_index
         }), exp_domain.ExplorationChange({
             'cmd': 'rename_state',
             'old_state_name': 'New state 2',
@@ -464,15 +777,24 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         })]
         exp_versions_diff = exp_domain.ExplorationVersionsDiff(change_list)
         exploration_stats = stats_services.get_stats_for_new_exp_version(
-            exploration.id, exploration.version, exploration.states,
-            exp_versions_diff, None)
+            exploration.id,
+            exploration.version,
+            list(exploration.states.keys()),
+            exp_versions_diff,
+            None
+        )
         stats_services.create_stats_model(exploration_stats)
 
-        exploration_stats = stats_services.get_exploration_stats_by_id(
-            exploration.id, exploration.version)
-        self.assertEqual(exploration_stats.exp_version, 5)
+        exploration_stats_with_none = (
+            stats_services.get_exploration_stats_by_id(
+                exploration.id, exploration.version
+            )
+        )
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats_with_none is not None
+        self.assertEqual(exploration_stats_with_none.exp_version, 5)
         self.assertEqual(
-            set(exploration_stats.state_stats_mapping.keys()),
+            set(exploration_stats_with_none.state_stats_mapping.keys()),
             set(['Home', 'End', 'Renamed state']))
 
         # Test addition and multiple renames.
@@ -483,7 +805,20 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         change_list = [exp_domain.ExplorationChange({
             'cmd': 'add_state',
             'state_name': 'New state 2',
+            'content_id_for_state_content': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.CONTENT)
+            ),
+            'content_id_for_default_outcome': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.DEFAULT_OUTCOME)
+            )
         }), exp_domain.ExplorationChange({
+            'cmd': 'edit_exploration_property',
+            'property_name': 'next_content_id_index',
+            'new_value': content_id_generator.next_content_id_index
+        }),
+            exp_domain.ExplorationChange({
             'cmd': 'rename_state',
             'old_state_name': 'New state 2',
             'new_state_name': 'New state 3'
@@ -494,21 +829,32 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         })]
         exp_versions_diff = exp_domain.ExplorationVersionsDiff(change_list)
         exploration_stats = stats_services.get_stats_for_new_exp_version(
-            exploration.id, exploration.version, exploration.states,
-            exp_versions_diff, None)
+            exploration.id,
+            exploration.version,
+            list(exploration.states.keys()),
+            exp_versions_diff,
+            None
+        )
         stats_services.create_stats_model(exploration_stats)
 
-        exploration_stats = stats_services.get_exploration_stats_by_id(
-            exploration.id, exploration.version)
-        self.assertEqual(exploration_stats.exp_version, 6)
+        exploration_stats_with_none = (
+            stats_services.get_exploration_stats_by_id(
+                exploration.id, exploration.version
+            )
+        )
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats_with_none is not None
+        self.assertEqual(exploration_stats_with_none.exp_version, 6)
         self.assertEqual(
-            set(exploration_stats.state_stats_mapping.keys()),
+            set(exploration_stats_with_none.state_stats_mapping.keys()),
             set(['Home', 'New state 4', 'Renamed state', 'End']))
 
         # Set some values for the the stats in the ExplorationStatsModel
         # instance.
         exploration_stats_model = stats_models.ExplorationStatsModel.get_model(
             exploration.id, exploration.version)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats_model is not None
         exploration_stats_model.num_actual_starts_v2 = 5
         exploration_stats_model.num_completions_v2 = 2
         exploration_stats_model.state_stats_mapping['New state 4'][
@@ -533,60 +879,177 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         }), exp_domain.ExplorationChange({
             'cmd': 'add_state',
             'state_name': 'New state',
+            'content_id_for_state_content': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.CONTENT)
+            ),
+            'content_id_for_default_outcome': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.DEFAULT_OUTCOME)
+            )
         }), exp_domain.ExplorationChange({
+            'cmd': 'edit_exploration_property',
+            'property_name': 'next_content_id_index',
+            'new_value': content_id_generator.next_content_id_index
+        }),
+            exp_domain.ExplorationChange({
             'cmd': 'rename_state',
             'old_state_name': 'New state',
             'new_state_name': 'New state 4'
         })]
         exp_versions_diff = exp_domain.ExplorationVersionsDiff(change_list)
         exploration_stats = stats_services.get_stats_for_new_exp_version(
-            exploration.id, exploration.version, exploration.states,
-            exp_versions_diff, None)
+            exploration.id,
+            exploration.version,
+            list(exploration.states.keys()),
+            exp_versions_diff,
+            None
+        )
         stats_services.create_stats_model(exploration_stats)
 
-        exploration_stats = stats_services.get_exploration_stats_by_id(
+        exp_stats = stats_services.get_exploration_stats_by_id(
             exploration.id, exploration.version)
-        self.assertEqual(exploration_stats.exp_version, 7)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exp_stats is not None
+        self.assertEqual(exp_stats.exp_version, 7)
         self.assertEqual(
-            set(exploration_stats.state_stats_mapping.keys()),
+            set(exp_stats.state_stats_mapping.keys()),
             set(['Home', 'New state 4', 'Renamed state', 'End']))
 
         # Test the values of the stats carried over from the last version.
-        self.assertEqual(exploration_stats.num_actual_starts_v2, 5)
-        self.assertEqual(exploration_stats.num_completions_v2, 2)
+        self.assertEqual(exp_stats.num_actual_starts_v2, 5)
+        self.assertEqual(exp_stats.num_completions_v2, 2)
         self.assertEqual(
-            exploration_stats.state_stats_mapping['Home'].total_hit_count_v2, 8)
+            exp_stats.state_stats_mapping['Home'].total_hit_count_v2, 8)
         self.assertEqual(
-            exploration_stats.state_stats_mapping[
+            exp_stats.state_stats_mapping[
                 'Renamed state'].first_hit_count_v2, 2)
         self.assertEqual(
-            exploration_stats.state_stats_mapping[
+            exp_stats.state_stats_mapping[
                 'End'].useful_feedback_count_v2, 4)
         # State 'New state 4' has been deleted and recreated, so it should
         # now contain default values for stats instead of the values it
         # contained in the last version.
         self.assertEqual(
-            exploration_stats.state_stats_mapping[
+            exp_stats.state_stats_mapping[
                 'New state 4'].total_answers_count_v2, 0)
 
         # Test reverts.
         exploration.version += 1
-        exploration_stats = stats_services.get_stats_for_new_exp_version(
-            exploration.id, exploration.version, exploration.states,
-            None, 5)
-        stats_services.create_stats_model(exploration_stats)
+        exploration_stats_for_new_exp_version = (
+            stats_services.get_stats_for_new_exp_version(
+                exploration.id,
+                exploration.version,
+                list(exploration.states.keys()),
+                None,
+                5
+            )
+        )
+        stats_services.create_stats_model(
+            exploration_stats_for_new_exp_version
+        )
 
-        exploration_stats = stats_services.get_exploration_stats_by_id(
-            exploration.id, exploration.version)
-        self.assertEqual(exploration_stats.exp_version, 8)
+        newly_created_exploration_stats = (
+            stats_services.get_exploration_stats_by_id(
+                exploration.id, exploration.version
+            )
+        )
+        # Ruling out the possibility of None for mypy type checking.
+        assert newly_created_exploration_stats is not None
+        self.assertEqual(newly_created_exploration_stats.exp_version, 8)
         self.assertEqual(
-            set(exploration_stats.state_stats_mapping.keys()),
+            set(newly_created_exploration_stats.state_stats_mapping.keys()),
             set(['Home', 'Renamed state', 'End']))
 
-        self.assertEqual(exploration_stats.num_actual_starts_v2, 0)
-        self.assertEqual(exploration_stats.num_completions_v2, 0)
+        self.assertEqual(
+            newly_created_exploration_stats.num_actual_starts_v2, 0
+        )
+        self.assertEqual(newly_created_exploration_stats.num_completions_v2, 0)
 
-    def test_get_exploration_stats_from_model(self):
+        # Test state name swaps.
+        exploration.add_states(['New state 5', 'New state 6'])
+        exploration.version += 1
+        change_list = [exp_domain.ExplorationChange({
+            'cmd': 'add_state',
+            'state_name': 'New state 5',
+            'content_id_for_state_content': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.CONTENT)
+            ),
+            'content_id_for_default_outcome': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.DEFAULT_OUTCOME)
+            )
+        }), exp_domain.ExplorationChange({
+            'cmd': 'edit_exploration_property',
+            'property_name': 'next_content_id_index',
+            'new_value': content_id_generator.next_content_id_index
+        }), exp_domain.ExplorationChange({
+            'cmd': 'add_state',
+            'state_name': 'New state 6',
+            'content_id_for_state_content': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.CONTENT)
+            ),
+            'content_id_for_default_outcome': (
+                content_id_generator.generate(
+                    translation_domain.ContentType.DEFAULT_OUTCOME)
+            )
+        }), exp_domain.ExplorationChange({
+            'cmd': 'edit_exploration_property',
+            'property_name': 'next_content_id_index',
+            'new_value': content_id_generator.next_content_id_index
+        })]
+        exp_versions_diff = exp_domain.ExplorationVersionsDiff(change_list)
+        exploration_stats = stats_services.get_stats_for_new_exp_version(
+            exploration.id,
+            exploration.version,
+            list(exploration.states.keys()),
+            exp_versions_diff,
+            None
+        )
+        stats_services.create_stats_model(exploration_stats)
+
+        exploration.rename_state('New state 5', 'New state 7')
+        exploration.rename_state('New state 6', 'New state 5')
+        exploration.rename_state('New state 7', 'New state 6')
+        exploration.version += 1
+        change_list = [exp_domain.ExplorationChange({
+            'cmd': 'rename_state',
+            'old_state_name': 'New state 5',
+            'new_state_name': 'New state 7'
+        }), exp_domain.ExplorationChange({
+            'cmd': 'rename_state',
+            'old_state_name': 'New state 6',
+            'new_state_name': 'New state 5'
+        }), exp_domain.ExplorationChange({
+            'cmd': 'rename_state',
+            'old_state_name': 'New state 7',
+            'new_state_name': 'New state 6'
+        })]
+        exp_versions_diff = exp_domain.ExplorationVersionsDiff(change_list)
+        exploration_stats = stats_services.get_stats_for_new_exp_version(
+            exploration.id,
+            exploration.version,
+            list(exploration.states.keys()),
+            exp_versions_diff,
+            None
+        )
+        stats_services.create_stats_model(exploration_stats)
+
+        exploration_stats_with_none = (
+            stats_services.get_exploration_stats_by_id(
+                exploration.id, exploration.version
+            )
+        )
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats_with_none is not None
+        self.assertEqual(exploration_stats_with_none.exp_version, 10)
+        self.assertEqual(
+            set(exploration_stats_with_none.state_stats_mapping.keys()),
+            set(['End', 'Home', 'New state 6', 'New state 5', 'Renamed state']))
+
+    def test_get_exploration_stats_from_model(self) -> None:
         """Test the get_exploration_stats_from_model method."""
         model = stats_models.ExplorationStatsModel.get(self.stats_model_id)
         exploration_stats = stats_services.get_exploration_stats_from_model(
@@ -599,9 +1062,12 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         self.assertEqual(exploration_stats.num_actual_starts_v2, 0)
         self.assertEqual(exploration_stats.num_completions_v1, 0)
         self.assertEqual(exploration_stats.num_completions_v2, 0)
-        self.assertEqual(exploration_stats.state_stats_mapping, {})
+        self.assertEqual(exploration_stats.state_stats_mapping, {
+            'End': stats_domain.StateStats.create_default(),
+            'Introduction': stats_domain.StateStats.create_default()
+        })
 
-    def test_get_playthrough_from_model(self):
+    def test_get_playthrough_from_model(self) -> None:
         """Test the get_playthrough_from_model method."""
         model = stats_models.PlaythroughModel.get(self.playthrough_id)
         playthrough = stats_services.get_playthrough_from_model(model)
@@ -611,10 +1077,12 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         self.assertEqual(playthrough.issue_customization_args, {})
         self.assertEqual(playthrough.actions, [])
 
-    def test_get_exploration_stats_by_id(self):
+    def test_get_exploration_stats_by_id(self) -> None:
         """Test the get_exploration_stats_by_id method."""
         exploration_stats = stats_services.get_exploration_stats_by_id(
             self.exp_id, self.exp_version)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         self.assertEqual(exploration_stats.exp_id, 'exp_id1')
         self.assertEqual(exploration_stats.exp_version, 1)
         self.assertEqual(exploration_stats.num_starts_v1, 0)
@@ -623,16 +1091,23 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         self.assertEqual(exploration_stats.num_actual_starts_v2, 0)
         self.assertEqual(exploration_stats.num_completions_v1, 0)
         self.assertEqual(exploration_stats.num_completions_v2, 0)
-        self.assertEqual(exploration_stats.state_stats_mapping, {})
+        self.assertEqual(exploration_stats.state_stats_mapping, {
+            'End': stats_domain.StateStats.create_default(),
+            'Introduction': stats_domain.StateStats.create_default()
+        })
 
-    def test_create_stats_model(self):
-        """Test the create_stats_model method."""
+    def test_create_stats_model(self) -> None:
+        """Test the create method."""
         exploration_stats = stats_services.get_exploration_stats_by_id(
             self.exp_id, self.exp_version)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         exploration_stats.exp_version += 1
         model_id = stats_services.create_stats_model(exploration_stats)
         exploration_stats = stats_services.get_exploration_stats_by_id(
             self.exp_id, self.exp_version + 1)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         self.assertEqual(exploration_stats.exp_id, 'exp_id1')
         self.assertEqual(exploration_stats.exp_version, 2)
         self.assertEqual(exploration_stats.num_starts_v1, 0)
@@ -641,12 +1116,17 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         self.assertEqual(exploration_stats.num_actual_starts_v2, 0)
         self.assertEqual(exploration_stats.num_completions_v1, 0)
         self.assertEqual(exploration_stats.num_completions_v2, 0)
-        self.assertEqual(exploration_stats.state_stats_mapping, {})
+        self.assertEqual(exploration_stats.state_stats_mapping, {
+            'End': stats_domain.StateStats.create_default(),
+            'Introduction': stats_domain.StateStats.create_default()
+        })
 
         # Test create method with different state_stats_mapping.
         exploration_stats.state_stats_mapping = {
             'Home': stats_domain.StateStats.create_default()
         }
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         exploration_stats.exp_version += 1
         model_id = stats_services.create_stats_model(exploration_stats)
         model = stats_models.ExplorationStatsModel.get(model_id)
@@ -675,10 +1155,12 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
                 }
             })
 
-    def test_save_stats_model(self):
+    def test_save_stats_model(self) -> None:
         """Test the save_stats_model method."""
         exploration_stats = stats_services.get_exploration_stats_by_id(
             self.exp_id, self.exp_version)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         exploration_stats.num_starts_v2 += 15
         exploration_stats.num_actual_starts_v2 += 5
         exploration_stats.num_completions_v2 += 2
@@ -686,11 +1168,13 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
 
         exploration_stats = stats_services.get_exploration_stats_by_id(
             self.exp_id, self.exp_version)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
         self.assertEqual(exploration_stats.num_starts_v2, 15)
         self.assertEqual(exploration_stats.num_actual_starts_v2, 5)
         self.assertEqual(exploration_stats.num_completions_v2, 2)
 
-    def test_get_exploration_stats_multi(self):
+    def test_get_exploration_stats_multi(self) -> None:
         """Test the get_exploration_stats_multi method."""
         stats_models.ExplorationStatsModel.create(
             'exp_id2', 2, 10, 0, 0, 0, 0, 0, {})
@@ -707,13 +1191,14 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         self.assertEqual(exp_stats_list[1].exp_version, 2)
 
     def test_get_multiple_exploration_stats_by_version_with_invalid_exp_id(
-            self):
+        self
+    ) -> None:
         exp_stats = stats_services.get_multiple_exploration_stats_by_version(
             'invalid_exp_id', [1])
 
         self.assertEqual(exp_stats, [None])
 
-    def test_get_exploration_stats_multi_with_invalid_exp_id(self):
+    def test_get_exploration_stats_multi_with_invalid_exp_id(self) -> None:
         exp_version_references = [
             exp_domain.ExpVersionReference('exp_id_1', 1),
             exp_domain.ExpVersionReference('exp_id_2', 2)]
@@ -733,19 +1218,58 @@ class StatisticsServicesTests(test_utils.GenericTestBase):
         self.assertEqual(exp_stats_list[1].exp_id, 'exp_id_2')
         self.assertEqual(exp_stats_list[1].exp_version, 2)
 
+    def test_get_updated_exp_issues_models_for_new_exp_version(self) -> None:
+        self.signup(self.CURRICULUM_ADMIN_EMAIL, self.CURRICULUM_ADMIN_USERNAME)
+        admin_id = self.get_user_id_from_email(self.CURRICULUM_ADMIN_EMAIL)
+        exp = self.save_new_valid_exploration('exp_id', admin_id)
+
+        stats_models.ExplorationIssuesModel.delete_by_id(
+            '%s.%s' % ('exp_id', 1))
+        self.assertIsNone(
+            stats_models.ExplorationIssuesModel.get(
+                '%s.%s' % ('exp_id', 1), strict=False))
+
+        exp.version += 1
+        models_to_put = (
+            stats_services.get_updated_exp_issues_models_for_new_exp_version(
+                exp, exp_domain.ExplorationVersionsDiff([]), None
+            )
+        )
+        datastore_services.update_timestamps_multi(models_to_put)
+        datastore_services.put_multi(models_to_put)
+
+        exploration_issues_model = (
+            stats_models.ExplorationIssuesModel.get('%s.%s' % ('exp_id', 1)))
+        self.assertEqual(exploration_issues_model.unresolved_issues, [])
+
+    def test_raises_error_while_saving_stats_with_invalid_id(self) -> None:
+        """Test the update_stats method."""
+        exploration_stats = stats_services.get_exploration_stats_by_id(
+            self.exp_id, self.exp_version)
+        # Ruling out the possibility of None for mypy type checking.
+        assert exploration_stats is not None
+        exploration_stats.num_starts_v2 += 15
+        exploration_stats.num_actual_starts_v2 += 5
+        exploration_stats.num_completions_v2 += 2
+        exploration_stats.exp_id = 'Invalid_id'
+        with self.assertRaisesRegex(
+            Exception, 'No exploration stats model exists'
+        ):
+            stats_services.save_stats_model(exploration_stats)
+
 
 class ExplorationIssuesTests(test_utils.GenericTestBase):
     """Unit tests focused on services related to exploration issues."""
 
-    def setUp(self):
-        super(ExplorationIssuesTests, self).setUp()
+    def setUp(self) -> None:
+        super().setUp()
         self.signup(self.OWNER_EMAIL, self.OWNER_USERNAME)
         self.owner_id = self.get_user_id_from_email(self.OWNER_EMAIL)
         self.exp = self.save_new_linear_exp_with_state_names_and_interactions(
             'exp_id', self.owner_id,
             ['A', 'B'], ['TextInput', 'EndExploration'])
 
-    def _create_cst_playthrough(self, state_names):
+    def _create_cst_playthrough(self, state_names: List[str]) -> str:
         """Creates a Cyclic State Transitions playthrough and returns its id.
 
         Args:
@@ -756,8 +1280,10 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
         Returns:
             str. The ID of the new playthrough.
         """
-        issue_customization_args = {'state_names': {'value': state_names}}
-        actions = [{
+        issue_customization_args: (
+            stats_domain.IssuesCustomizationArgsDictType
+        ) = {'state_names': {'value': state_names}}
+        actions: List[stats_domain.LearnerActionDict] = [{
             'action_type': 'ExplorationStart',
             'action_customization_args': {
                 'state_name': {'value': state_names[0]},
@@ -777,7 +1303,7 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
                 },
                 'schema_version': stats_models.CURRENT_ACTION_SCHEMA_VERSION,
             }
-            for state_name, dest_state_name in python_utils.ZIP(
+            for state_name, dest_state_name in zip(
                 state_names[:-1], state_names[1:]))
         actions.append({
             'action_type': 'ExplorationQuit',
@@ -791,7 +1317,7 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
             self.exp.id, self.exp.version, 'CyclicStateTransitions',
             issue_customization_args, actions)
 
-    def _create_eq_playthrough(self, state_name):
+    def _create_eq_playthrough(self, state_name: str) -> str:
         """Creates an Early Quit playthrough and returns its id.
 
         Args:
@@ -800,11 +1326,13 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
         Returns:
             str. The ID of the new playthrough.
         """
-        issue_customization_args = {
+        issue_customization_args: (
+            stats_domain.IssuesCustomizationArgsDictType
+        ) = {
             'state_name': {'value': state_name},
             'time_spent_in_exp_in_msecs': {'value': 200},
         }
-        actions = [{
+        actions: List[stats_domain.LearnerActionDict] = [{
             'action_type': 'ExplorationStart',
             'action_customization_args': {'state_name': {'value': state_name}},
             'schema_version': stats_models.CURRENT_ACTION_SCHEMA_VERSION,
@@ -821,7 +1349,10 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
             issue_customization_args, actions)
 
     def _create_mis_playthrough(
-            self, state_name, num_times_answered_incorrectly):
+        self,
+        state_name: str,
+        num_times_answered_incorrectly: int
+    ) -> str:
         """Creates a Multiple Incorrect Submissions playthrough and returns its
         id.
 
@@ -833,13 +1364,15 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
         Returns:
             str. The ID of the new playthrough.
         """
-        issue_customization_args = {
+        issue_customization_args: (
+            stats_domain.IssuesCustomizationArgsDictType
+        ) = {
             'state_name': {'value': state_name},
             'num_times_answered_incorrectly': {
                 'value': num_times_answered_incorrectly
             },
         }
-        actions = [{
+        actions: List[stats_domain.LearnerActionDict] = [{
             'action_type': 'ExplorationStart',
             'action_customization_args': {'state_name': {'value': state_name}},
             'schema_version': stats_models.CURRENT_ACTION_SCHEMA_VERSION,
@@ -857,7 +1390,7 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
                 },
                 'schema_version': stats_models.CURRENT_ACTION_SCHEMA_VERSION,
             }
-            for _ in python_utils.RANGE(num_times_answered_incorrectly))
+            for _ in range(num_times_answered_incorrectly))
         actions.append({
             'action_type': 'ExplorationQuit',
             'action_customization_args': {
@@ -870,7 +1403,9 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
             self.exp.id, self.exp.version, 'MultipleIncorrectSubmissions',
             issue_customization_args, actions)
 
-    def _create_cst_exp_issue(self, playthrough_ids, state_names):
+    def _create_cst_exp_issue(
+        self, playthrough_ids: List[str], state_names: List[str]
+    ) -> stats_domain.ExplorationIssue:
         """Returns a new Cyclic State Transitions issue domain object.
 
         Args:
@@ -883,13 +1418,17 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
         Returns:
             stats_domain.ExplorationIssue. The new issue.
         """
-        issue_customization_args = {'state_names': {'value': state_names}}
+        issue_customization_args: Dict[
+            str, Dict[str, Union[str, int, List[str]]]
+        ] = {'state_names': {'value': state_names}}
         is_valid = True
         return stats_domain.ExplorationIssue(
             'CyclicStateTransitions', issue_customization_args, playthrough_ids,
             stats_models.CURRENT_ISSUE_SCHEMA_VERSION, is_valid)
 
-    def _create_eq_exp_issue(self, playthrough_ids, state_name):
+    def _create_eq_exp_issue(
+        self, playthrough_ids: List[str], state_name: str
+    ) -> stats_domain.ExplorationIssue:
         """Returns a new Early Quit issue domain object.
 
         Args:
@@ -900,7 +1439,9 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
         Returns:
             stats_domain.ExplorationIssue. The new issue.
         """
-        issue_customization_args = {
+        issue_customization_args: Dict[
+            str, Dict[str, Union[str, int, List[str]]]
+        ] = {
             'state_name': {'value': state_name},
             'time_spent_in_exp_in_msecs': {'value': 200},
         }
@@ -910,7 +1451,11 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
             stats_models.CURRENT_ISSUE_SCHEMA_VERSION, is_valid)
 
     def _create_mis_exp_issue(
-            self, playthrough_ids, state_name, num_times_answered_incorrectly):
+        self,
+        playthrough_ids: List[str],
+        state_name: str,
+        num_times_answered_incorrectly: int
+    ) -> stats_domain.ExplorationIssue:
         """Returns a new Multiple Incorrect Submissions issue domain object.
 
         Args:
@@ -923,7 +1468,9 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
         Returns:
             stats_domain.ExplorationIssue. The new issue.
         """
-        issue_customization_args = {
+        issue_customization_args: Dict[
+            str, Dict[str, Union[str, int, List[str]]]
+        ] = {
             'state_name': {'value': state_name},
             'num_times_answered_incorrectly': {
                 'value': num_times_answered_incorrectly
@@ -935,25 +1482,29 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
             playthrough_ids, stats_models.CURRENT_ISSUE_SCHEMA_VERSION,
             is_valid)
 
-    def test_create_exp_issues_model(self):
+    def test_create_exp_issues_model(self) -> None:
         exp_issues = stats_domain.ExplorationIssues(
             self.exp.id, stats_models.CURRENT_ISSUE_SCHEMA_VERSION, [])
 
-        stats_services.create_exp_issues_model(exp_issues)
+        stats_services.get_exp_issues_model_from_domain_object(exp_issues)
 
-        exp_issues = stats_models.ExplorationIssuesModel.get_model(
+        exp_issues_model = stats_models.ExplorationIssuesModel.get_model(
             self.exp.id, self.exp.version)
-        self.assertEqual(exp_issues.exp_id, self.exp.id)
-        self.assertEqual(exp_issues.exp_version, self.exp.version)
-        self.assertEqual(exp_issues.unresolved_issues, [])
+        # Ruling out the possibility of None for mypy type checking.
+        assert exp_issues_model is not None
+        self.assertEqual(exp_issues_model.exp_id, self.exp.id)
+        self.assertEqual(exp_issues_model.exp_version, self.exp.version)
+        self.assertEqual(exp_issues_model.unresolved_issues, [])
 
-    def test_get_exp_issues_creates_new_empty_exp_issues_when_missing(self):
+    def test_get_exp_issues_creates_new_empty_exp_issues_when_missing(
+        self
+    ) -> None:
         exp_issues = (
             stats_services.get_exp_issues(self.exp.id, self.exp.version))
         self.assertEqual(exp_issues.exp_id, self.exp.id)
         self.assertEqual(exp_issues.unresolved_issues, [])
 
-    def test_delete_playthroughs_multi(self):
+    def test_delete_playthroughs_multi(self) -> None:
         playthrough_ids = [
             self._create_eq_playthrough('A'),
             self._create_cst_playthrough(['A', 'B', 'A']),
@@ -966,7 +1517,7 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
             stats_models.PlaythroughModel.get_multi(playthrough_ids),
             [None, None, None])
 
-    def test_save_exp_issues_model(self):
+    def test_save_exp_issues_model(self) -> None:
         eq_playthrough_ids = [self._create_eq_playthrough('A')]
         cst_playthrough_ids = [self._create_cst_playthrough(['A', 'B', 'A'])]
         mis_playthrough_ids = [self._create_mis_playthrough('A', 3)]
@@ -990,7 +1541,7 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
             exp_issues.unresolved_issues[2].playthrough_ids,
             cst_playthrough_ids)
 
-    def test_cst_exp_issue_is_invalidated_when_state_is_deleted(self):
+    def test_cst_exp_issue_is_invalidated_when_state_is_deleted(self) -> None:
         stats_services.save_exp_issues_model(
             stats_domain.ExplorationIssues(self.exp.id, self.exp.version, [
                 self._create_cst_exp_issue(
@@ -998,17 +1549,22 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
                     ['A', 'B', 'A'])
             ]))
 
-        exp_services.update_exploration(self.owner_id, self.exp.id, [
-            exp_domain.ExplorationChange(
-                {'cmd': 'delete_state', 'state_name': 'B'})
-        ], 'change')
+        exp_services.update_exploration(
+            self.owner_id,
+            self.exp.id,
+            [
+                exp_domain.ExplorationChange(
+                    {'cmd': 'delete_state', 'state_name': 'B'})
+            ],
+            'change'
+        )
 
         exp_issues = (
             stats_services.get_exp_issues(self.exp.id, self.exp.version + 1))
         self.assertEqual(len(exp_issues.unresolved_issues), 1)
         self.assertFalse(exp_issues.unresolved_issues[0].is_valid)
 
-    def test_cst_exp_issue_is_updated_when_state_is_renamed(self):
+    def test_cst_exp_issue_is_updated_when_state_is_renamed(self) -> None:
         stats_services.save_exp_issues_model(
             stats_domain.ExplorationIssues(self.exp.id, self.exp.version, [
                 self._create_cst_exp_issue(
@@ -1016,13 +1572,18 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
                     ['A', 'B', 'A'])
             ]))
 
-        exp_services.update_exploration(self.owner_id, self.exp.id, [
-            exp_domain.ExplorationChange({
-                'cmd': 'rename_state',
-                'old_state_name': 'A',
-                'new_state_name': 'Z',
-            })
-        ], 'change')
+        exp_services.update_exploration(
+            self.owner_id,
+            self.exp.id,
+            [
+                exp_domain.ExplorationChange({
+                    'cmd': 'rename_state',
+                    'old_state_name': 'A',
+                    'new_state_name': 'Z',
+                })
+            ],
+            'change'
+        )
 
         exp_issues = (
             stats_services.get_exp_issues(self.exp.id, self.exp.version + 1))
@@ -1056,37 +1617,47 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
             actions[3]['action_customization_args']['state_name']['value'],
             'Z')
 
-    def test_eq_exp_issue_is_invalidated_when_state_is_deleted(self):
+    def test_eq_exp_issue_is_invalidated_when_state_is_deleted(self) -> None:
         stats_services.save_exp_issues_model(
             stats_domain.ExplorationIssues(self.exp.id, self.exp.version, [
                 self._create_eq_exp_issue(
                     [self._create_eq_playthrough('B')], 'B')
             ]))
 
-        exp_services.update_exploration(self.owner_id, self.exp.id, [
-            exp_domain.ExplorationChange(
-                {'cmd': 'delete_state', 'state_name': 'B'})
-        ], 'change')
+        exp_services.update_exploration(
+            self.owner_id,
+            self.exp.id,
+            [
+                exp_domain.ExplorationChange(
+                    {'cmd': 'delete_state', 'state_name': 'B'})
+            ],
+            'change'
+        )
 
         exp_issues = (
             stats_services.get_exp_issues(self.exp.id, self.exp.version + 1))
         self.assertEqual(len(exp_issues.unresolved_issues), 1)
         self.assertFalse(exp_issues.unresolved_issues[0].is_valid)
 
-    def test_eq_exp_issue_is_updated_when_state_is_renamed(self):
+    def test_eq_exp_issue_is_updated_when_state_is_renamed(self) -> None:
         stats_services.save_exp_issues_model(
             stats_domain.ExplorationIssues(self.exp.id, self.exp.version, [
                 self._create_eq_exp_issue(
                     [self._create_eq_playthrough('A')], 'A')
             ]))
 
-        exp_services.update_exploration(self.owner_id, self.exp.id, [
-            exp_domain.ExplorationChange({
-                'cmd': 'rename_state',
-                'old_state_name': 'A',
-                'new_state_name': 'Z',
-            })
-        ], 'change')
+        exp_services.update_exploration(
+            self.owner_id,
+            self.exp.id,
+            [
+                exp_domain.ExplorationChange({
+                    'cmd': 'rename_state',
+                    'old_state_name': 'A',
+                    'new_state_name': 'Z',
+                })
+            ],
+            'change'
+        )
 
         exp_issues = (
             stats_services.get_exp_issues(self.exp.id, self.exp.version + 1))
@@ -1110,37 +1681,47 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
         self.assertEqual(
             actions[1]['action_customization_args']['state_name']['value'], 'Z')
 
-    def test_mis_exp_issue_is_invalidated_when_state_is_deleted(self):
+    def test_mis_exp_issue_is_invalidated_when_state_is_deleted(self) -> None:
         stats_services.save_exp_issues_model(
             stats_domain.ExplorationIssues(self.exp.id, self.exp.version, [
                 self._create_mis_exp_issue(
                     [self._create_mis_playthrough('B', 2)], 'B', 2)
             ]))
 
-        exp_services.update_exploration(self.owner_id, self.exp.id, [
-            exp_domain.ExplorationChange(
-                {'cmd': 'delete_state', 'state_name': 'B'}),
-        ], 'Delete B')
+        exp_services.update_exploration(
+            self.owner_id,
+            self.exp.id,
+            [
+                exp_domain.ExplorationChange(
+                    {'cmd': 'delete_state', 'state_name': 'B'}),
+            ],
+            'Delete B'
+        )
 
         exp_issues = (
             stats_services.get_exp_issues(self.exp.id, self.exp.version + 1))
         self.assertEqual(len(exp_issues.unresolved_issues), 1)
         self.assertFalse(exp_issues.unresolved_issues[0].is_valid)
 
-    def test_mis_exp_issue_is_updated_when_state_is_renamed(self):
+    def test_mis_exp_issue_is_updated_when_state_is_renamed(self) -> None:
         stats_services.save_exp_issues_model(
             stats_domain.ExplorationIssues(self.exp.id, self.exp.version, [
                 self._create_mis_exp_issue(
                     [self._create_mis_playthrough('A', 2)], 'A', 2)
             ]))
 
-        exp_services.update_exploration(self.owner_id, self.exp.id, [
-            exp_domain.ExplorationChange({
-                'cmd': 'rename_state',
-                'old_state_name': 'A',
-                'new_state_name': 'Z',
-            })
-        ], 'change')
+        exp_services.update_exploration(
+            self.owner_id,
+            self.exp.id,
+            [
+                exp_domain.ExplorationChange({
+                    'cmd': 'rename_state',
+                    'old_state_name': 'A',
+                    'new_state_name': 'Z',
+                })
+            ],
+            'change'
+        )
 
         exp_issues = (
             stats_services.get_exp_issues(self.exp.id, self.exp.version + 1))
@@ -1168,7 +1749,7 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
         self.assertEqual(
             actions[3]['action_customization_args']['state_name']['value'], 'Z')
 
-    def test_revert_exploration_recovers_exp_issues(self):
+    def test_revert_exploration_recovers_exp_issues(self) -> None:
         stats_services.save_exp_issues_model(
             stats_domain.ExplorationIssues(self.exp.id, self.exp.version, [
                 self._create_eq_exp_issue(
@@ -1180,10 +1761,15 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
                     [self._create_mis_playthrough('B', 3)], 'B', 3),
             ]))
 
-        exp_services.update_exploration(self.owner_id, self.exp.id, [
-            exp_domain.ExplorationChange(
-                {'cmd': 'delete_state', 'state_name': 'B'}),
-        ], 'commit')
+        exp_services.update_exploration(
+            self.owner_id,
+            self.exp.id,
+            [
+                exp_domain.ExplorationChange(
+                    {'cmd': 'delete_state', 'state_name': 'B'}),
+            ],
+            'commit'
+        )
 
         exp_issues = (
             stats_services.get_exp_issues(self.exp.id, self.exp.version + 1))
@@ -1201,34 +1787,30 @@ class ExplorationIssuesTests(test_utils.GenericTestBase):
         self.assertTrue(exp_issues.unresolved_issues[1].is_valid)
         self.assertTrue(exp_issues.unresolved_issues[2].is_valid)
 
-
-class MockInteractionAnswerSummariesAggregator(
-        stats_jobs_continuous.InteractionAnswerSummariesAggregator):
-    """A modified InteractionAnswerSummariesAggregator that does not start
-    a new batch job when the previous one has finished.
-    """
-
-    @classmethod
-    def _get_batch_job_manager_class(cls):
-        return MockInteractionAnswerSummariesMRJobManager
-
-    @classmethod
-    def _kickoff_batch_job_after_previous_one_ends(cls):
-        pass
-
-
-class MockInteractionAnswerSummariesMRJobManager(
-        stats_jobs_continuous.InteractionAnswerSummariesMRJobManager):
-
-    @classmethod
-    def _get_continuous_computation_class(cls):
-        return MockInteractionAnswerSummariesAggregator
+    def test_raises_error_while_saving_exp_issues_model_with_invalid_exp_id(
+        self
+    ) -> None:
+        exp_issues = stats_domain.ExplorationIssues(
+            self.exp.id,
+            self.exp.version,
+            [
+                self._create_cst_exp_issue(
+                    [self._create_cst_playthrough(['A', 'B', 'A'])],
+                    ['A', 'B', 'A']
+                )
+            ]
+        )
+        exp_issues.exp_id = 'Invalid_id'
+        with self.assertRaisesRegex(
+            Exception, 'No ExplorationIssuesModel exists'
+        ):
+            stats_services.save_exp_issues_model(exp_issues)
 
 
 class EventLogEntryTests(test_utils.GenericTestBase):
     """Test for the event log creation."""
 
-    def test_create_events(self):
+    def test_create_events(self) -> None:
         """Basic test that makes sure there are no exceptions thrown."""
         event_services.StartExplorationEventHandler.record(
             'eid', 2, 'state', 'session', {}, feconf.PLAY_TYPE_NORMAL)
@@ -1239,13 +1821,16 @@ class EventLogEntryTests(test_utils.GenericTestBase):
 class AnswerEventTests(test_utils.GenericTestBase):
     """Test recording new answer operations through events."""
 
-    SESSION_ID = 'SESSION_ID'
-    TIME_SPENT = 5.0
-    PARAMS = {}
+    SESSION_ID: Final = 'SESSION_ID'
+    TIME_SPENT: Final = 5.0
+    PARAMS: Dict[str, str] = {}
 
-    def test_record_answer(self):
+    def test_record_answer(self) -> None:
         self.save_new_default_exploration('eid', 'fake@user.com')
         exp = exp_fetchers.get_exploration_by_id('eid')
+        content_id_generator = translation_domain.ContentIdGenerator(
+            exp.next_content_id_index
+        )
 
         first_state_name = exp.init_state_name
         second_state_name = 'State 2'
@@ -1268,20 +1853,35 @@ class AnswerEventTests(test_utils.GenericTestBase):
                             'unicode_str': 'Enter here'
                         }
                     },
-                    'rows': {'value': 1}
+                    'rows': {'value': 1},
+                    'catchMisspellings': {'value': False}
                 }
-            }), exp_domain.ExplorationChange({
-                'cmd': exp_domain.CMD_EDIT_STATE_PROPERTY,
-                'state_name': first_state_name,
-                'property_name':
-                    exp_domain.STATE_PROPERTY_NEXT_CONTENT_ID_INDEX,
-                'new_value': 1
             }), exp_domain.ExplorationChange({
                 'cmd': exp_domain.CMD_ADD_STATE,
                 'state_name': second_state_name,
+                'content_id_for_state_content': (
+                    content_id_generator.generate(
+                        translation_domain.ContentType.CONTENT)
+                ),
+                'content_id_for_default_outcome': (
+                    content_id_generator.generate(
+                        translation_domain.ContentType.DEFAULT_OUTCOME)
+                )
             }), exp_domain.ExplorationChange({
                 'cmd': exp_domain.CMD_ADD_STATE,
                 'state_name': third_state_name,
+                'content_id_for_state_content': (
+                    content_id_generator.generate(
+                        translation_domain.ContentType.CONTENT)
+                ),
+                'content_id_for_default_outcome': (
+                    content_id_generator.generate(
+                        translation_domain.ContentType.DEFAULT_OUTCOME)
+                )
+            }), exp_domain.ExplorationChange({
+                'cmd': 'edit_exploration_property',
+                'property_name': 'next_content_id_index',
+                'new_value': content_id_generator.next_content_id_index
             }), exp_domain.ExplorationChange({
                 'cmd': exp_domain.CMD_EDIT_STATE_PROPERTY,
                 'state_name': second_state_name,
@@ -1299,14 +1899,9 @@ class AnswerEventTests(test_utils.GenericTestBase):
                             'unicode_str': 'Enter here'
                         }
                     },
-                    'rows': {'value': 1}
+                    'rows': {'value': 1},
+                    'catchMisspellings': {'value': False}
                 }
-            }), exp_domain.ExplorationChange({
-                'cmd': exp_domain.CMD_EDIT_STATE_PROPERTY,
-                'state_name': second_state_name,
-                'property_name':
-                    exp_domain.STATE_PROPERTY_NEXT_CONTENT_ID_INDEX,
-                'new_value': 1
             }), exp_domain.ExplorationChange({
                 'cmd': exp_domain.CMD_EDIT_STATE_PROPERTY,
                 'state_name': third_state_name,
@@ -1325,12 +1920,6 @@ class AnswerEventTests(test_utils.GenericTestBase):
                         }
                     },
                 }
-            }), exp_domain.ExplorationChange({
-                'cmd': exp_domain.CMD_EDIT_STATE_PROPERTY,
-                'state_name': third_state_name,
-                'property_name':
-                    exp_domain.STATE_PROPERTY_NEXT_CONTENT_ID_INDEX,
-                'new_value': 2
             })], 'Add new state')
         exp = exp_fetchers.get_exploration_by_id('eid')
 
@@ -1385,58 +1974,74 @@ class AnswerEventTests(test_utils.GenericTestBase):
             'answer': 'answer1', 'time_spent_in_sec': 5.0,
             'answer_group_index': 0, 'rule_spec_index': 0,
             'classification_categorization': 'explicit', 'session_id': 'sid1',
-            'interaction_id': 'TextInput', 'params': {}
+            'interaction_id': 'TextInput', 'params': {}, 'answer_str': None,
+            'rule_spec_str': None
         }, {
             'answer': 'answer1', 'time_spent_in_sec': 5.0,
             'answer_group_index': 0, 'rule_spec_index': 1,
             'classification_categorization': 'explicit', 'session_id': 'sid2',
-            'interaction_id': 'TextInput', 'params': {}
+            'interaction_id': 'TextInput', 'params': {}, 'answer_str': None,
+            'rule_spec_str': None
         }, {
             'answer': {'x': 1.0, 'y': 5.0}, 'time_spent_in_sec': 5.0,
             'answer_group_index': 1, 'rule_spec_index': 0,
             'classification_categorization': 'explicit', 'session_id': 'sid1',
-            'interaction_id': 'TextInput', 'params': {}
+            'interaction_id': 'TextInput', 'params': {}, 'answer_str': None,
+            'rule_spec_str': None
         }, {
             'answer': 10, 'time_spent_in_sec': 5.0, 'answer_group_index': 2,
             'rule_spec_index': 0, 'classification_categorization': 'explicit',
-            'session_id': 'sid1', 'interaction_id': 'TextInput', 'params': {}
+            'session_id': 'sid1', 'interaction_id': 'TextInput', 'params': {},
+            'answer_str': None, 'rule_spec_str': None
         }, {
             'answer': [{'a': 'some', 'b': 'text'}, {'a': 1.0, 'c': 2.0}],
             'time_spent_in_sec': 5.0, 'answer_group_index': 3,
             'rule_spec_index': 0, 'classification_categorization': 'explicit',
-            'session_id': 'sid1', 'interaction_id': 'TextInput', 'params': {}
+            'session_id': 'sid1', 'interaction_id': 'TextInput', 'params': {},
+            'answer_str': None, 'rule_spec_str': None
         }]
         expected_submitted_answer_list2 = [{
             'answer': [2, 4, 8], 'time_spent_in_sec': 5.0,
             'answer_group_index': 2, 'rule_spec_index': 0,
             'classification_categorization': 'explicit', 'session_id': 'sid3',
-            'interaction_id': 'TextInput', 'params': {}
+            'interaction_id': 'TextInput', 'params': {}, 'answer_str': None,
+            'rule_spec_str': None
         }, {
             'answer': self.UNICODE_TEST_STRING, 'time_spent_in_sec': 5.0,
             'answer_group_index': 1, 'rule_spec_index': 1,
             'classification_categorization': 'explicit', 'session_id': 'sid4',
-            'interaction_id': 'TextInput', 'params': {}
+            'interaction_id': 'TextInput', 'params': {}, 'answer_str': None,
+            'rule_spec_str': None
         }]
-        expected_submitted_answer_list3 = [{
+        expected_submitted_answer_list3: List[
+            Dict[str, Union[str, Optional[int], Dict[str, str], float]]
+        ] = [{
             'answer': None, 'time_spent_in_sec': 5.0, 'answer_group_index': 1,
             'rule_spec_index': 1, 'classification_categorization': 'explicit',
-            'session_id': 'sid5', 'interaction_id': 'Continue', 'params': {}
+            'session_id': 'sid5', 'interaction_id': 'Continue', 'params': {},
+            'answer_str': None, 'rule_spec_str': None
         }]
 
         state_answers = stats_services.get_state_answers(
             'eid', exp_version, first_state_name)
+        # Ruling out the possibility of None for mypy type checking.
+        assert state_answers is not None
         self.assertEqual(
             state_answers.get_submitted_answer_dict_list(),
             expected_submitted_answer_list1)
 
         state_answers = stats_services.get_state_answers(
             'eid', exp_version, second_state_name)
+        # Ruling out the possibility of None for mypy type checking.
+        assert state_answers is not None
         self.assertEqual(
             state_answers.get_submitted_answer_dict_list(),
             expected_submitted_answer_list2)
 
         state_answers = stats_services.get_state_answers(
             'eid', exp_version, third_state_name)
+        # Ruling out the possibility of None for mypy type checking.
+        assert state_answers is not None
         self.assertEqual(
             state_answers.get_submitted_answer_dict_list(),
             expected_submitted_answer_list3)
@@ -1445,16 +2050,16 @@ class AnswerEventTests(test_utils.GenericTestBase):
 class RecordAnswerTests(test_utils.GenericTestBase):
     """Tests for functionality related to recording and retrieving answers."""
 
-    EXP_ID = 'exp_id0'
+    EXP_ID: Final = 'exp_id0'
 
-    def setUp(self):
-        super(RecordAnswerTests, self).setUp()
+    def setUp(self) -> None:
+        super().setUp()
         self.signup(self.OWNER_EMAIL, self.OWNER_USERNAME)
         self.owner_id = self.get_user_id_from_email(self.OWNER_EMAIL)
         self.exploration = self.save_new_valid_exploration(
             self.EXP_ID, self.owner_id, end_state_name='End')
 
-    def test_record_answer_without_retrieving_it_first(self):
+    def test_record_answer_without_retrieving_it_first(self) -> None:
         stats_services.record_answer(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name, 'TextInput',
@@ -1466,6 +2071,8 @@ class RecordAnswerTests(test_utils.GenericTestBase):
         state_answers = stats_services.get_state_answers(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name)
+        # Ruling out the possibility of None for mypy type checking.
+        assert state_answers is not None
         self.assertEqual(state_answers.get_submitted_answer_dict_list(), [{
             'answer': 'first answer',
             'time_spent_in_sec': 1.0,
@@ -1474,10 +2081,12 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'a_session_id_val',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }])
 
-    def test_record_and_retrieve_single_answer(self):
+    def test_record_and_retrieve_single_answer(self) -> None:
         state_answers = stats_services.get_state_answers(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name)
@@ -1494,6 +2103,8 @@ class RecordAnswerTests(test_utils.GenericTestBase):
         state_answers = stats_services.get_state_answers(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name)
+        # Ruling out the possibility of None for mypy type checking.
+        assert state_answers is not None
         self.assertEqual(state_answers.exploration_id, 'exp_id0')
         self.assertEqual(state_answers.exploration_version, 1)
         self.assertEqual(
@@ -1507,10 +2118,14 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'a_session_id_val',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }])
 
-    def test_record_and_retrieve_single_answer_with_preexisting_entry(self):
+    def test_record_and_retrieve_single_answer_with_preexisting_entry(
+        self
+    ) -> None:
         stats_services.record_answer(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name, 'TextInput',
@@ -1522,6 +2137,8 @@ class RecordAnswerTests(test_utils.GenericTestBase):
         state_answers = stats_services.get_state_answers(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name)
+        # Ruling out the possibility of None for mypy type checking.
+        assert state_answers is not None
         self.assertEqual(state_answers.get_submitted_answer_dict_list(), [{
             'answer': 'first answer',
             'time_spent_in_sec': 1.0,
@@ -1530,7 +2147,9 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'a_session_id_val',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }])
 
         stats_services.record_answer(
@@ -1544,6 +2163,8 @@ class RecordAnswerTests(test_utils.GenericTestBase):
         state_answers = stats_services.get_state_answers(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name)
+        # Ruling out the possibility of None for mypy type checking.
+        assert state_answers is not None
         self.assertEqual(state_answers.exploration_id, 'exp_id0')
         self.assertEqual(state_answers.exploration_version, 1)
         self.assertEqual(
@@ -1557,7 +2178,9 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'a_session_id_val',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }, {
             'answer': 'some text',
             'time_spent_in_sec': 10.0,
@@ -1566,10 +2189,12 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'a_session_id_val',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }])
 
-    def test_record_many_answers(self):
+    def test_record_many_answers(self) -> None:
         state_answers = stats_services.get_state_answers(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name)
@@ -1595,6 +2220,8 @@ class RecordAnswerTests(test_utils.GenericTestBase):
         state_answers = stats_services.get_state_answers(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name)
+        # Ruling out the possibility of None for mypy type checking.
+        assert state_answers is not None
         self.assertEqual(state_answers.exploration_id, 'exp_id0')
         self.assertEqual(state_answers.exploration_version, 1)
         self.assertEqual(
@@ -1608,7 +2235,9 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'session_id_v',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+             'answer_str': None,
+            'rule_spec_str': None
         }, {
             'answer': 'answer ccc',
             'time_spent_in_sec': 3.0,
@@ -1617,7 +2246,9 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'session_id_v',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }, {
             'answer': 'answer bbbbb',
             'time_spent_in_sec': 7.5,
@@ -1626,10 +2257,12 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'session_id_v',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }])
 
-    def test_record_answers_exceeding_one_shard(self):
+    def test_record_answers_exceeding_one_shard(self) -> None:
         # Use a smaller max answer list size so less answers are needed to
         # exceed a shard.
         with self.swap(
@@ -1664,6 +2297,8 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             master_model = stats_models.StateAnswersModel.get_master_model(
                 self.exploration.id, self.exploration.version,
                 self.exploration.init_state_name)
+            # Ruling out the possibility of None for mypy type checking.
+            assert master_model is not None
             self.assertGreater(master_model.shard_count, 0)
 
             # The order of the answers returned depends on the size of the
@@ -1671,6 +2306,8 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             state_answers = stats_services.get_state_answers(
                 self.EXP_ID, self.exploration.version,
                 self.exploration.init_state_name)
+            # Ruling out the possibility of None for mypy type checking.
+            assert state_answers is not None
             self.assertEqual(state_answers.exploration_id, 'exp_id0')
             self.assertEqual(state_answers.exploration_version, 1)
             self.assertEqual(
@@ -1679,7 +2316,7 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             self.assertEqual(
                 len(state_answers.get_submitted_answer_dict_list()), 600)
 
-    def test_record_many_answers_with_preexisting_entry(self):
+    def test_record_many_answers_with_preexisting_entry(self) -> None:
         stats_services.record_answer(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name, 'TextInput',
@@ -1691,6 +2328,8 @@ class RecordAnswerTests(test_utils.GenericTestBase):
         state_answers = stats_services.get_state_answers(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name)
+        # Ruling out the possibility of None for mypy type checking.
+        assert state_answers is not None
         self.assertEqual(state_answers.get_submitted_answer_dict_list(), [{
             'answer': '1 answer',
             'time_spent_in_sec': 1.0,
@@ -1699,7 +2338,9 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'a_session_id_val',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }])
 
         submitted_answer_list = [
@@ -1722,6 +2363,8 @@ class RecordAnswerTests(test_utils.GenericTestBase):
         state_answers = stats_services.get_state_answers(
             self.EXP_ID, self.exploration.version,
             self.exploration.init_state_name)
+        # Ruling out the possibility of None for mypy type checking.
+        assert state_answers is not None
         self.assertEqual(state_answers.exploration_id, 'exp_id0')
         self.assertEqual(state_answers.exploration_version, 1)
         self.assertEqual(
@@ -1735,7 +2378,9 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'a_session_id_val',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }, {
             'answer': 'answer aaa',
             'time_spent_in_sec': 10.0,
@@ -1744,7 +2389,9 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'session_id_v',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }, {
             'answer': 'answer ccccc',
             'time_spent_in_sec': 3.0,
@@ -1753,7 +2400,9 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'session_id_v',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }, {
             'answer': 'answer bbbbbbb',
             'time_spent_in_sec': 7.5,
@@ -1762,23 +2411,25 @@ class RecordAnswerTests(test_utils.GenericTestBase):
             'classification_categorization': 'explicit',
             'session_id': 'session_id_v',
             'interaction_id': 'TextInput',
-            'params': {}
+            'params': {},
+            'answer_str': None,
+            'rule_spec_str': None
         }])
 
 
 class SampleAnswerTests(test_utils.GenericTestBase):
     """Tests for functionality related to retrieving sample answers."""
 
-    EXP_ID = 'exp_id0'
+    EXP_ID: Final = 'exp_id0'
 
-    def setUp(self):
-        super(SampleAnswerTests, self).setUp()
+    def setUp(self) -> None:
+        super().setUp()
         self.signup(self.OWNER_EMAIL, self.OWNER_USERNAME)
         self.owner_id = self.get_user_id_from_email(self.OWNER_EMAIL)
         self.exploration = self.save_new_valid_exploration(
             self.EXP_ID, self.owner_id, end_state_name='End')
 
-    def test_at_most_100_answers_returned_even_if_there_are_lots(self):
+    def test_at_most_100_answers_returned_even_if_there_are_lots(self) -> None:
         submitted_answer_list = [
             stats_domain.SubmittedAnswer(
                 'answer a', 'TextInput', 0, 1,
@@ -1801,7 +2452,9 @@ class SampleAnswerTests(test_utils.GenericTestBase):
             self.exploration.init_state_name)
         self.assertEqual(len(sample_answers), 100)
 
-    def test_exactly_100_answers_returned_if_main_shard_has_100_answers(self):
+    def test_exactly_100_answers_returned_if_main_shard_has_100_answers(
+        self
+    ) -> None:
         submitted_answer_list = [
             stats_domain.SubmittedAnswer(
                 'answer a', 'TextInput', 0, 1,
@@ -1818,7 +2471,7 @@ class SampleAnswerTests(test_utils.GenericTestBase):
             self.exploration.init_state_name)
         self.assertEqual(sample_answers, ['answer a'] * 100)
 
-    def test_all_answers_returned_if_main_shard_has_few_answers(self):
+    def test_all_answers_returned_if_main_shard_has_few_answers(self) -> None:
         submitted_answer_list = [
             stats_domain.SubmittedAnswer(
                 'answer a', 'TextInput', 0, 1,
@@ -1838,7 +2491,7 @@ class SampleAnswerTests(test_utils.GenericTestBase):
             self.exploration.init_state_name)
         self.assertEqual(sample_answers, ['answer a', 'answer bbbbb'])
 
-    def test_only_sample_answers_in_main_shard_returned(self):
+    def test_only_sample_answers_in_main_shard_returned(self) -> None:
         # Use a smaller max answer list size so fewer answers are needed to
         # exceed a shard.
         with self.swap(
@@ -1865,9 +2518,9 @@ class SampleAnswerTests(test_utils.GenericTestBase):
         # submitted, there must therefore be fewer than 100 answers in the
         # index shard.
         model = stats_models.StateAnswersModel.get('%s:%s:%s:%s' % (
-            self.exploration.id, python_utils.UNICODE(self.exploration.version),
+            self.exploration.id, str(self.exploration.version),
             self.exploration.init_state_name, '0'))
-        self.assertEqual(model.shard_count, 1)
+        self.assertGreater(model.shard_count, 1)
 
         # Verify that the list of sample answers returned contains fewer than
         # 100 answers, although a total of 100 answers were submitted.
@@ -1876,561 +2529,27 @@ class SampleAnswerTests(test_utils.GenericTestBase):
             self.exploration.init_state_name)
         self.assertLess(len(sample_answers), 100)
 
-    def test_get_sample_answers_with_invalid_exp_id(self):
+    def test_get_sample_answers_with_invalid_exp_id(self) -> None:
         sample_answers = stats_services.get_sample_answers(
             'invalid_exp_id', self.exploration.version,
             self.exploration.init_state_name)
 
         self.assertEqual(sample_answers, [])
 
-
-# TODO(bhenning): Either add tests for multiple visualizations for one state or
-# disallow stats from having multiple visualizations (no interactions currently
-# seem to use more than one visualization ID).
-
-# TODO(bhenning): Add tests for each possible visualization
-# (TopAnswersByCategorization is not currently used yet by any interactions).
-class AnswerVisualizationsTests(test_utils.GenericTestBase):
-    """Tests for functionality related to retrieving visualization information
-    for answers.
-    """
-
-    ALL_CC_MANAGERS_FOR_TESTS = [MockInteractionAnswerSummariesAggregator]
-    INIT_STATE_NAME = feconf.DEFAULT_INIT_STATE_NAME
-    TEXT_INPUT_EXP_ID = 'exp_id0'
-    SET_INPUT_EXP_ID = 'exp_id1'
-    DEFAULT_EXP_ID = 'exp_id2'
-    NEW_STATE_NAME = 'new state'
-
-    def _get_swap_context(self):
-        """Substitutes the jobs_registry.ALL_CONTINUOUS_COMPUTATION_MANAGERS
-        value with ALL_CC_MANAGERS_FOR_TESTS.
-        """
-        return self.swap(
-            jobs_registry, 'ALL_CONTINUOUS_COMPUTATION_MANAGERS',
-            self.ALL_CC_MANAGERS_FOR_TESTS)
-
-    def _get_visualizations(
-            self, exp_id=TEXT_INPUT_EXP_ID, state_name=INIT_STATE_NAME):
-        """Returns the visualizations info corresponding to the given
-        exploration id and state name.
-        """
-        exploration = exp_fetchers.get_exploration_by_id(exp_id)
-        init_state = exploration.states[state_name]
-        return stats_services.get_visualizations_info(
-            exp_id, state_name, init_state.interaction.id)
-
-    def _record_answer(
-            self, answer, exp_id=TEXT_INPUT_EXP_ID, state_name=INIT_STATE_NAME):
-        """Records the submitted answer corresponding to the given exploration
-        id and state name.
-        """
-        exploration = exp_fetchers.get_exploration_by_id(exp_id)
-        interaction_id = exploration.states[state_name].interaction.id
-        event_services.AnswerSubmissionEventHandler.record(
-            exp_id, exploration.version, state_name, interaction_id, 0, 0,
-            exp_domain.EXPLICIT_CLASSIFICATION, 'sid1', 10.0, {}, answer)
-
-    def _run_answer_summaries_aggregator(self):
-        """Runs the MockInteractionAnswerSummariesAggregator."""
-        MockInteractionAnswerSummariesAggregator.start_computation()
-        self.assertEqual(
-            self.count_jobs_in_mapreduce_taskqueue(
-                taskqueue_services.QUEUE_NAME_CONTINUOUS_JOBS), 1)
-        self.process_and_flush_pending_mapreduce_tasks()
-        self.assertEqual(
-            self.count_jobs_in_mapreduce_taskqueue(
-                taskqueue_services.QUEUE_NAME_CONTINUOUS_JOBS), 0)
-
-    def _rerun_answer_summaries_aggregator(self):
-        """Reruns the MockInteractionAnswerSummariesAggregator."""
-        MockInteractionAnswerSummariesAggregator.stop_computation('a')
-        self._run_answer_summaries_aggregator()
-
-    def _rename_state(
-            self, new_state_name, exp_id=TEXT_INPUT_EXP_ID,
-            state_name=INIT_STATE_NAME):
-        """Renames the state corresponding to the given exploration id
-        and state name.
-        """
-        exp_services.update_exploration(
-            self.owner_id, exp_id, [exp_domain.ExplorationChange({
-                'cmd': exp_domain.CMD_RENAME_STATE,
-                'old_state_name': state_name,
-                'new_state_name': new_state_name
-            })], 'Update state name')
-
-    def _change_state_content(
-            self, new_content, exp_id=TEXT_INPUT_EXP_ID,
-            state_name=INIT_STATE_NAME):
-        """Updates the state content corresponding to the given exploration id
-        and state name.
-        """
-        exp_services.update_exploration(
-            self.owner_id, exp_id, [exp_domain.ExplorationChange({
-                'cmd': exp_domain.CMD_EDIT_STATE_PROPERTY,
-                'state_name': state_name,
-                'property_name': exp_domain.STATE_PROPERTY_CONTENT,
-                'new_value': {
-                    'content_id': 'content',
-                    'html': new_content
-                }
-            })], 'Change content description')
-
-    def setUp(self):
-        super(AnswerVisualizationsTests, self).setUp()
-        self.signup(self.OWNER_EMAIL, self.OWNER_USERNAME)
-        self.owner_id = self.get_user_id_from_email(self.OWNER_EMAIL)
-        self.save_new_valid_exploration(
-            self.TEXT_INPUT_EXP_ID, self.owner_id, end_state_name='End')
-        self.save_new_valid_exploration(
-            self.SET_INPUT_EXP_ID, self.owner_id, end_state_name='End',
-            interaction_id='SetInput')
-        self.save_new_default_exploration(self.DEFAULT_EXP_ID, self.owner_id)
-
-    def test_no_vis_info_for_exp_with_no_interaction_id(self):
-        with self._get_swap_context():
-            visualizations = self._get_visualizations(
-                exp_id=self.DEFAULT_EXP_ID)
-            self.assertEqual(visualizations, [])
-
-    def test_no_vis_info_for_exp_with_no_answers_no_calculations(self):
-        with self._get_swap_context():
-            visualizations = self._get_visualizations()
-            self.assertEqual(visualizations, [])
-
-    def test_no_vis_info_for_exp_with_answer_no_completed_calculations(self):
-        with self._get_swap_context():
-            self._record_answer('Answer A')
-            visualizations = self._get_visualizations()
-            self.assertEqual(visualizations, [])
-
-    def test_no_vis_info_for_exp_with_no_answers_but_with_calculations(self):
-        with self._get_swap_context():
-            self._run_answer_summaries_aggregator()
-            visualizations = self._get_visualizations()
-            self.assertEqual(visualizations, [])
-
-    def test_has_vis_info_options_for_text_input_interaction(self):
-        with self._get_swap_context():
-            self._record_answer('Answer A')
-            self._run_answer_summaries_aggregator()
-            visualizations = self._get_visualizations()
-            # There are two visualizations for TextInput. One for top answers
-            # and second is for top unresolved answers but top unresolved
-            # answers visualization is not shown as part of exploration stats.
-            self.assertEqual(len(visualizations), 1)
-
-            visualization = visualizations[0]
-            self.assertEqual(
-                visualization['options']['column_headers'], ['Answer', 'Count'])
-            self.assertIn('Top', visualization['options']['title'])
-
-    def test_has_vis_info_for_exp_with_answer_for_one_calculation(self):
-        with self._get_swap_context():
-            self._record_answer('Answer A')
-            self._run_answer_summaries_aggregator()
-            visualizations = self._get_visualizations()
-
-            # There are two visualizations for TextInput. One for top answers
-            # and second is for top unresolved answers but top unresolved
-            # answers visualization is not shown as part of exploration stats.
-            self.assertEqual(len(visualizations), 1)
-
-            visualization = visualizations[0]
-            self.assertEqual(visualization['id'], 'FrequencyTable')
-            self.assertEqual(
-                visualization['data'], [{
-                    'answer': 'Answer A',
-                    'frequency': 1
-                }])
-
-    def test_has_vis_info_for_exp_with_many_answers_for_one_calculation(self):
-        with self._get_swap_context():
-            self._record_answer('Answer A')
-            self._record_answer('Answer A')
-            self._record_answer('Answer C')
-            self._record_answer('Answer B')
-            self._record_answer('Answer A')
-            self._run_answer_summaries_aggregator()
-            visualizations = self._get_visualizations()
-            # There are two visualizations for TextInput. One for top answers
-            # and second is for top unresolved answers but top unresolved
-            # answers visualization is not shown as part of exploration stats.
-            self.assertEqual(len(visualizations), 1)
-
-            visualization = visualizations[0]
-            self.assertEqual(visualization['id'], 'FrequencyTable')
-            # Ties will appear in same order they are submitted in.
-            self.assertEqual(
-                visualization['data'], [{
-                    'answer': 'Answer A',
-                    'frequency': 3
-                }, {
-                    'answer': 'Answer C',
-                    'frequency': 1
-                }, {
-                    'answer': 'Answer B',
-                    'frequency': 1
-                }])
-
-    def test_has_vis_info_for_each_calculation_for_multi_calc_exp(self):
-        with self._get_swap_context():
-            self._record_answer(['A', 'B'], exp_id=self.SET_INPUT_EXP_ID)
-            self._record_answer(['C', 'A'], exp_id=self.SET_INPUT_EXP_ID)
-            self._record_answer(['A', 'B'], exp_id=self.SET_INPUT_EXP_ID)
-            self._record_answer(['A'], exp_id=self.SET_INPUT_EXP_ID)
-            self._record_answer(['A'], exp_id=self.SET_INPUT_EXP_ID)
-            self._record_answer(['A', 'B'], exp_id=self.SET_INPUT_EXP_ID)
-            self._run_answer_summaries_aggregator()
-            visualizations = sorted(
-                self._get_visualizations(exp_id=self.SET_INPUT_EXP_ID),
-                key=operator.itemgetter('data'))
-            self.assertEqual(len(visualizations), 2)
-
-            # Use options to distinguish between the two visualizations, since
-            # both are FrequencyTable.
-            top_answers_visualization = visualizations[0]
-            self.assertEqual(top_answers_visualization['id'], 'FrequencyTable')
-            self.assertEqual(
-                top_answers_visualization['options']['column_headers'],
-                ['Answer', 'Count'])
-            self.assertEqual(
-                top_answers_visualization['data'], [{
-                    'answer': ['A', 'B'],
-                    'frequency': 3
-                }, {
-                    'answer': ['A'],
-                    'frequency': 2
-                }, {
-                    'answer': ['C', 'A'],
-                    'frequency': 1
-                }])
-
-            common_elements_visualization = visualizations[1]
-            self.assertEqual(
-                common_elements_visualization['id'], 'FrequencyTable')
-            self.assertEqual(
-                common_elements_visualization['options']['column_headers'],
-                ['Element', 'Count'])
-
-            common_visualization_data = (
-                common_elements_visualization['data'])
-            self.assertEqual(
-                common_visualization_data, [{
-                    'answer': 'A',
-                    'frequency': 6
-                }, {
-                    'answer': 'B',
-                    'frequency': 3
-                }, {
-                    'answer': 'C',
-                    'frequency': 1
-                }])
-
-    def test_retrieves_latest_vis_info_with_rounds_of_calculations(self):
-        with self._get_swap_context():
-            self._record_answer('Answer A')
-            self._record_answer('Answer C')
-            self._run_answer_summaries_aggregator()
-
-            # Submit a new answer and run the aggregator again.
-            self._record_answer('Answer A')
-            self._rerun_answer_summaries_aggregator()
-            visualizations = self._get_visualizations()
-            # There are two visualizations for TextInput. One for top answers
-            # and second is for top unresolved answers but top unresolved
-            # answers visualization is not shown as part of exploration stats.
-            self.assertEqual(len(visualizations), 1)
-
-            visualization = visualizations[0]
-            # The latest data should include all submitted answers.
-            self.assertEqual(
-                visualization['data'], [{
-                    'answer': 'Answer A',
-                    'frequency': 2
-                }, {
-                    'answer': 'Answer C',
-                    'frequency': 1
-                }])
-
-    def test_retrieves_vis_info_across_multiple_exploration_versions(self):
-        with self._get_swap_context():
-            self._record_answer('Answer A')
-            self._record_answer('Answer B')
-
-            # Change the exploration version and submit a new answer.
-            self._change_state_content('<p>New content</p>')
-            self._record_answer('Answer A')
-
-            self._run_answer_summaries_aggregator()
-            visualizations = self._get_visualizations()
-            # There are two visualizations for TextInput. One for top answers
-            # and second is for top unresolved answers but top unresolved
-            # answers visualization is not shown as part of exploration stats.
-            self.assertEqual(len(visualizations), 1)
-
-            visualization = visualizations[0]
-            # The latest data should include all submitted answers.
-            self.assertEqual(
-                visualization['data'], [{
-                    'answer': 'Answer A',
-                    'frequency': 2
-                }, {
-                    'answer': 'Answer B',
-                    'frequency': 1
-                }])
-
-    def test_no_vis_info_for_exp_with_new_state_name_before_calculations(self):
-        with self._get_swap_context():
-            self._record_answer('Answer A')
-            self._rename_state(self.NEW_STATE_NAME)
-            self._run_answer_summaries_aggregator()
-
-            visualizations = self._get_visualizations(
-                state_name=self.NEW_STATE_NAME)
-
-            self.assertEqual(visualizations, [])
-
-    def test_no_vis_info_for_exp_with_new_state_name_after_calculations(self):
-        with self._get_swap_context():
-            self._record_answer('Answer A')
-            self._run_answer_summaries_aggregator()
-            self._rename_state(self.NEW_STATE_NAME)
-
-            visualizations = self._get_visualizations(
-                state_name=self.NEW_STATE_NAME)
-
-            self.assertEqual(visualizations, [])
-
-    def test_no_vis_info_for_exp_with_new_interaction_before_calculations(self):
-        with self._get_swap_context():
-            self._record_answer('Answer A')
-            exp_services.update_exploration(
-                self.owner_id, self.TEXT_INPUT_EXP_ID, [
-                    exp_domain.ExplorationChange({
-                        'cmd': exp_domain.CMD_EDIT_STATE_PROPERTY,
-                        'state_name': self.INIT_STATE_NAME,
-                        'property_name':
-                            exp_domain.STATE_PROPERTY_INTERACTION_ID,
-                        'new_value': 'SetInput'
-                    }), exp_domain.ExplorationChange({
-                        'cmd': exp_domain.CMD_EDIT_STATE_PROPERTY,
-                        'state_name': self.INIT_STATE_NAME,
-                        'property_name':
-                            exp_domain.STATE_PROPERTY_INTERACTION_CUST_ARGS,
-                        'new_value': {
-                            'buttonText': {
-                                'value': {
-                                    'content_id': 'ca_buttonText_0',
-                                    'unicode_str': 'Enter here'
-                                }
-                            },
-                        }
-                    })], 'Update state interaction'
-            )
-
-            self._run_answer_summaries_aggregator()
-
-            visualizations = self._get_visualizations()
-
-            self.assertEqual(visualizations, [])
-
-    def test_no_vis_info_for_exp_with_new_interaction_after_calculations(self):
-        with self._get_swap_context():
-            self._record_answer('Answer A')
-            self._run_answer_summaries_aggregator()
-            exp_services.update_exploration(
-                self.owner_id, self.TEXT_INPUT_EXP_ID, [
-                    exp_domain.ExplorationChange({
-                        'cmd': exp_domain.CMD_EDIT_STATE_PROPERTY,
-                        'state_name': self.INIT_STATE_NAME,
-                        'property_name':
-                            exp_domain.STATE_PROPERTY_INTERACTION_ID,
-                        'new_value': 'SetInput'
-                    }),
-                    exp_domain.ExplorationChange({
-                        'cmd': exp_domain.CMD_EDIT_STATE_PROPERTY,
-                        'state_name': self.INIT_STATE_NAME,
-                        'property_name':
-                            exp_domain.STATE_PROPERTY_INTERACTION_CUST_ARGS,
-                        'new_value': {
-                            'buttonText': {
-                                'value': {
-                                    'content_id': 'ca_buttonText_0',
-                                    'unicode_str': 'Enter here'
-                                }
-                            },
-                        }
-                    })
-                ], 'Update state interaction'
-            )
-
-            visualizations = self._get_visualizations()
-
-            self.assertEqual(visualizations, [])
-
-
-class StateAnswersStatisticsTest(test_utils.GenericTestBase):
-    """Tests for functionality related to retrieving statistics for answers of a
-    particular state.
-    """
-
-    STATE_NAMES = ['STATE A', 'STATE B', 'STATE C']
-    EXP_ID = 'exp_id'
-
-    def _get_top_state_answer_stats(
-            self, exp_id=EXP_ID, state_name=STATE_NAMES[0]):
-        """Returns the top answer stats corresponding to the given exploration
-        id and state names.
-        """
-        return stats_services.get_top_state_answer_stats(exp_id, state_name)
-
-    def _get_top_state_unresolved_answer_stats(
-            self, exp_id=EXP_ID, state_name=STATE_NAMES[0]):
-        """Returns the top unresolved answer stats corresponding to the given
-        exploration id and state names.
-        """
-        return stats_services.get_top_state_unresolved_answers(
-            exp_id, state_name)
-
-    def _get_top_state_answer_stats_multi(
-            self, state_names, exp_id=EXP_ID):
-        """Returns the top answer stats corresponding to the given exploration
-        id and state names.
-        """
-        return stats_services.get_top_state_answer_stats_multi(
-            exp_id, state_names)
-
-    def _record_answer(
-            self, answer, exp_id=EXP_ID, state_name=STATE_NAMES[0],
-            classification_category=exp_domain.EXPLICIT_CLASSIFICATION):
-        """Records the submitted answer corresponding to the given interaction
-        id in an exploration.
-        """
-        exploration = exp_fetchers.get_exploration_by_id(exp_id)
-        interaction_id = exploration.states[state_name].interaction.id
-        event_services.AnswerSubmissionEventHandler.record(
-            exp_id, exploration.version, state_name, interaction_id, 0, 0,
-            classification_category, 'sid1', 10.0, {}, answer)
-
-    def _run_answer_summaries_aggregator(self):
-        """Runs the MockInteractionAnswerSummariesAggregator."""
-        MockInteractionAnswerSummariesAggregator.start_computation()
-        self.assertEqual(
-            self.count_jobs_in_mapreduce_taskqueue(
-                taskqueue_services.QUEUE_NAME_CONTINUOUS_JOBS), 1)
-        self.process_and_flush_pending_mapreduce_tasks()
-        self.assertEqual(
-            self.count_jobs_in_mapreduce_taskqueue(
-                taskqueue_services.QUEUE_NAME_CONTINUOUS_JOBS), 0)
-        MockInteractionAnswerSummariesAggregator.stop_computation(
-            feconf.SYSTEM_COMMITTER_ID)
-
-    def setUp(self):
-        super(StateAnswersStatisticsTest, self).setUp()
-        self.signup(self.OWNER_EMAIL, self.OWNER_USERNAME)
-        self.owner_id = self.get_user_id_from_email(self.OWNER_EMAIL)
-        self.save_new_linear_exp_with_state_names_and_interactions(
-            self.EXP_ID, self.owner_id, self.STATE_NAMES, ['TextInput'])
-
-    def test_get_top_state_unresolved_answer_stats(self):
-        self._record_answer(
-            'A', classification_category=exp_domain.EXPLICIT_CLASSIFICATION)
-        self._record_answer(
-            'B', classification_category=exp_domain.EXPLICIT_CLASSIFICATION)
-        self._record_answer(
-            'C', classification_category=exp_domain.STATISTICAL_CLASSIFICATION)
-        self._record_answer(
-            'A', classification_category=exp_domain.STATISTICAL_CLASSIFICATION)
-        self._record_answer(
-            'D',
-            classification_category=exp_domain.DEFAULT_OUTCOME_CLASSIFICATION)
-        self._record_answer(
-            'E',
-            classification_category=exp_domain.DEFAULT_OUTCOME_CLASSIFICATION)
-        self._record_answer(
-            'D', classification_category=exp_domain.EXPLICIT_CLASSIFICATION)
-        self._run_answer_summaries_aggregator()
-
-        with self.swap(feconf, 'STATE_ANSWER_STATS_MIN_FREQUENCY', 1):
-            state_answers_stats = self._get_top_state_unresolved_answer_stats()
-
-        self.assertEqual(
-            state_answers_stats, [
-                {'answer': 'A', 'frequency': 2},
-                {'answer': 'C', 'frequency': 1},
-                {'answer': 'E', 'frequency': 1}
-            ])
-
-        self._record_answer(
-            'A', classification_category=exp_domain.EXPLICIT_CLASSIFICATION)
-        self._record_answer(
-            'E', classification_category=exp_domain.EXPLICIT_CLASSIFICATION)
-        self._run_answer_summaries_aggregator()
-
-        with self.swap(feconf, 'STATE_ANSWER_STATS_MIN_FREQUENCY', 1):
-            state_answers_stats = self._get_top_state_unresolved_answer_stats()
-
-        self.assertEqual(
-            state_answers_stats, [
-                {'answer': 'C', 'frequency': 1}
-            ])
-
-    def test_get_top_state_answer_stats(self):
-        self._record_answer('A')
-        self._record_answer('B')
-        self._record_answer('A')
-        self._record_answer('A')
-        self._record_answer('B')
-        self._record_answer('C')
-        self._run_answer_summaries_aggregator()
-
-        with self.swap(feconf, 'STATE_ANSWER_STATS_MIN_FREQUENCY', 2):
-            state_answers_stats = self._get_top_state_answer_stats()
-
-        self.assertEqual(
-            state_answers_stats, [
-                {'answer': 'A', 'frequency': 3},
-                {'answer': 'B', 'frequency': 2},
-                # C is not included because min frequency is 2.
-            ])
-
-    def test_get_top_state_answer_stats_multi(self):
-        self._record_answer('A', state_name='STATE A')
-        self._record_answer('A', state_name='STATE A')
-        self._record_answer('B', state_name='STATE A')
-        self._record_answer(1, state_name='STATE B')
-        self._record_answer(1, state_name='STATE B')
-        self._record_answer(2, state_name='STATE B')
-        self._record_answer('X', state_name='STATE C')
-        self._record_answer('X', state_name='STATE C')
-        self._record_answer('Y', state_name='STATE C')
-        self._run_answer_summaries_aggregator()
-
-        with self.swap(feconf, 'STATE_ANSWER_STATS_MIN_FREQUENCY', 1):
-            state_answers_stats_multi = self._get_top_state_answer_stats_multi(
-                ['STATE A', 'STATE B'])
-
-        self.assertEqual(sorted(state_answers_stats_multi), [
-            'STATE A',
-            'STATE B',
-        ])
-        self.assertEqual(state_answers_stats_multi['STATE A'], [
-            {'answer': 'A', 'frequency': 2},
-            {'answer': 'B', 'frequency': 1},
-        ])
-        self.assertEqual(state_answers_stats_multi['STATE B'], [
-            {'answer': 1, 'frequency': 2},
-            {'answer': 2, 'frequency': 1},
-        ])
+    def test_raises_error_while_fetching_exp_issues_with_invalid_id_and_strict(
+        self
+    ) -> None:
+        with self.assertRaisesRegex(
+            Exception, 'No ExplorationIssues model found'
+        ):
+            stats_services.get_exp_issues('Invalid_id', 0, strict=True)
 
 
 class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
     """Test for services related to learner answer details."""
 
-    def setUp(self):
-        super(LearnerAnswerDetailsServicesTest, self).setUp()
+    def setUp(self) -> None:
+        super().setUp()
         self.exp_id = 'exp_id1'
         self.state_name = 'intro'
         self.question_id = 'q_id_1'
@@ -2454,28 +2573,33 @@ class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
                 self.state_reference_question, self.interaction_id, [],
                 feconf.CURRENT_LEARNER_ANSWER_INFO_SCHEMA_VERSION, 0))
 
-    def test_get_state_reference_for_exp_raises_error_for_fake_exp_id(self):
+    def test_get_state_reference_for_exp_raises_error_for_fake_exp_id(
+        self
+    ) -> None:
         self.signup(self.OWNER_EMAIL, self.OWNER_USERNAME)
         self.get_user_id_from_email(self.OWNER_EMAIL)
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             Exception, 'Entity .* not found'):
             stats_services.get_state_reference_for_exploration(
                 'fake_exp', 'state_name')
 
     def test_get_state_reference_for_exp_raises_error_for_invalid_state_name(
-            self):
+        self
+    ) -> None:
         self.signup(self.OWNER_EMAIL, self.OWNER_USERNAME)
         owner_id = self.get_user_id_from_email(self.OWNER_EMAIL)
         exploration = self.save_new_default_exploration(
             self.exp_id, owner_id)
         self.assertEqual(list(exploration.states.keys()), ['Introduction'])
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             utils.InvalidInputException,
             'No state with the given state name was found'):
             stats_services.get_state_reference_for_exploration(
                 self.exp_id, 'state_name')
 
-    def test_get_state_reference_for_exp_for_valid_exp_id_and_state_name(self):
+    def test_get_state_reference_for_exp_for_valid_exp_id_and_state_name(
+        self
+    ) -> None:
         self.signup(self.OWNER_EMAIL, self.OWNER_USERNAME)
         owner_id = self.get_user_id_from_email(self.OWNER_EMAIL)
         exploration = self.save_new_default_exploration(
@@ -2486,31 +2610,40 @@ class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
                 self.exp_id, 'Introduction'))
         self.assertEqual(state_reference, 'exp_id1:Introduction')
 
-    def test_get_state_reference_for_question_with_invalid_question_id(self):
-        with self.assertRaisesRegexp(
+    def test_get_state_reference_for_question_with_invalid_question_id(
+        self
+    ) -> None:
+        with self.assertRaisesRegex(
             utils.InvalidInputException,
             'No question with the given question id exists'):
             stats_services.get_state_reference_for_question(
                 'fake_question_id')
 
-    def test_get_state_reference_for_question_with_valid_question_id(self):
+    def test_get_state_reference_for_question_with_valid_question_id(
+        self
+    ) -> None:
         self.signup(self.EDITOR_EMAIL, self.EDITOR_USERNAME)
         editor_id = self.get_user_id_from_email(
             self.EDITOR_EMAIL)
         question_id = question_services.get_new_question_id()
+        content_id_generator = translation_domain.ContentIdGenerator()
         question = self.save_new_question(
             question_id, editor_id,
-            self._create_valid_question_data('ABC'), ['skill_1'])
+            self._create_valid_question_data('ABC', content_id_generator),
+            ['skill_1'],
+            content_id_generator.next_content_id_index)
         self.assertNotEqual(question, None)
         state_reference = (
             stats_services.get_state_reference_for_question(question_id))
         self.assertEqual(state_reference, question_id)
 
-    def test_update_learner_answer_details(self):
+    def test_update_learner_answer_details(self) -> None:
         answer = 'This is my answer'
         answer_details = 'This is my answer details'
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, self.state_reference_exploration)
+        # Ruling out the possibility of None for mypy type checking.
+        assert learner_answer_details is not None
         self.assertEqual(
             len(learner_answer_details.learner_answer_info_list), 0)
         stats_services.record_learner_answer_info(
@@ -2518,6 +2651,8 @@ class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
             self.interaction_id, answer, answer_details)
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, self.state_reference_exploration)
+        # Ruling out the possibility of None for mypy type checking.
+        assert learner_answer_details is not None
         self.assertEqual(
             len(learner_answer_details.learner_answer_info_list), 1)
 
@@ -2528,12 +2663,16 @@ class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
             self.interaction_id, answer, answer_details)
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, self.state_reference_exploration)
+        # Ruling out the possibility of None for mypy type checking.
+        assert learner_answer_details is not None
         self.assertEqual(
             len(learner_answer_details.learner_answer_info_list), 2)
 
-    def test_delete_learner_answer_info(self):
+    def test_delete_learner_answer_info(self) -> None:
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, self.state_reference_exploration)
+        # Ruling out the possibility of None for mypy type checking.
+        assert learner_answer_details is not None
         self.assertEqual(
             len(learner_answer_details.learner_answer_info_list), 0)
         answer = 'This is my answer'
@@ -2543,6 +2682,8 @@ class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
             self.interaction_id, answer, answer_details)
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, self.state_reference_exploration)
+        # Ruling out the possibility of None for mypy type checking.
+        assert learner_answer_details is not None
         self.assertEqual(
             len(learner_answer_details.learner_answer_info_list), 1)
         learner_answer_info_id = (
@@ -2552,20 +2693,25 @@ class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
             learner_answer_info_id)
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, self.state_reference_exploration)
+        # Ruling out the possibility of None for mypy type checking.
+        assert learner_answer_details is not None
         self.assertEqual(
             len(learner_answer_details.learner_answer_info_list), 0)
 
-    def test_delete_learner_answer_info_with_invalid_input(self):
-        with self.assertRaisesRegexp(
+    def test_delete_learner_answer_info_with_invalid_input(self) -> None:
+        with self.assertRaisesRegex(
             utils.InvalidInputException,
             'No learner answer details found with the given state reference'):
             stats_services.delete_learner_answer_info(
                 feconf.ENTITY_TYPE_EXPLORATION, 'expID:stateName', 'id_1')
 
     def test_delete_learner_answer_info_with_unknown_learner_answer_info_id(
-            self):
+        self
+    ) -> None:
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, self.state_reference_exploration)
+        # Ruling out the possibility of None for mypy type checking.
+        assert learner_answer_details is not None
         self.assertEqual(
             len(learner_answer_details.learner_answer_info_list), 0)
         answer = 'This is my answer'
@@ -2575,19 +2721,23 @@ class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
             self.interaction_id, answer, answer_details)
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, self.state_reference_exploration)
+        # Ruling out the possibility of None for mypy type checking.
+        assert learner_answer_details is not None
         self.assertEqual(
             len(learner_answer_details.learner_answer_info_list), 1)
         learner_answer_info_id = 'id_1'
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             Exception, 'Learner answer info with the given id not found'):
             stats_services.delete_learner_answer_info(
                 feconf.ENTITY_TYPE_EXPLORATION,
                 self.state_reference_exploration, learner_answer_info_id)
 
-    def test_update_state_reference(self):
+    def test_update_state_reference(self) -> None:
         new_state_reference = 'exp_id_2:state_name_2'
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, self.state_reference_exploration)
+        # Ruling out the possibility of None for mypy type checking.
+        assert learner_answer_details is not None
         self.assertNotEqual(
             learner_answer_details.state_reference, new_state_reference)
         stats_services.update_state_reference(
@@ -2595,10 +2745,12 @@ class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
             new_state_reference)
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, new_state_reference)
+        # Ruling out the possibility of None for mypy type checking.
+        assert learner_answer_details is not None
         self.assertEqual(
             learner_answer_details.state_reference, new_state_reference)
 
-    def test_new_learner_answer_details_is_created(self):
+    def test_new_learner_answer_details_is_created(self) -> None:
         state_reference = 'exp_id_2:state_name_2'
         interaction_id = 'GraphInput'
         answer = 'Hello World'
@@ -2611,6 +2763,8 @@ class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
             interaction_id, answer, answer_details)
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, state_reference)
+        # Ruling out the possibility of None for mypy type checking.
+        assert learner_answer_details is not None
         self.assertNotEqual(learner_answer_details, None)
         self.assertEqual(
             learner_answer_details.state_reference, state_reference)
@@ -2618,15 +2772,15 @@ class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
         self.assertEqual(
             len(learner_answer_details.learner_answer_info_list), 1)
 
-    def test_update_with_invalid_input_raises_exception(self):
-        with self.assertRaisesRegexp(
+    def test_update_with_invalid_input_raises_exception(self) -> None:
+        with self.assertRaisesRegex(
             utils.InvalidInputException,
             'No learner answer details found with the given state reference'):
             stats_services.update_state_reference(
                 feconf.ENTITY_TYPE_EXPLORATION, 'expID:stateName',
                 'newexp:statename')
 
-    def test_delete_learner_answer_details_for_exploration_state(self):
+    def test_delete_learner_answer_details_for_exploration_state(self) -> None:
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_EXPLORATION, self.state_reference_exploration)
         self.assertNotEqual(learner_answer_details, None)
@@ -2636,7 +2790,7 @@ class LearnerAnswerDetailsServicesTest(test_utils.GenericTestBase):
             feconf.ENTITY_TYPE_EXPLORATION, self.state_reference_exploration)
         self.assertEqual(learner_answer_details, None)
 
-    def test_delete_learner_answer_details_for_question_state(self):
+    def test_delete_learner_answer_details_for_question_state(self) -> None:
         learner_answer_details = stats_services.get_learner_answer_details(
             feconf.ENTITY_TYPE_QUESTION, self.state_reference_question)
         self.assertNotEqual(learner_answer_details, None)

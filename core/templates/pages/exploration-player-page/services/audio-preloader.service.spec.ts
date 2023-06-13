@@ -20,16 +20,18 @@ import { HttpClientTestingModule, HttpTestingController } from '@angular/common/
 import { TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
 
 import { ExplorationBackendDict, ExplorationObjectFactory } from 'domain/exploration/ExplorationObjectFactory';
+import { InteractionAnswer } from 'interactions/answer-defs';
 import { AudioPreloaderService } from 'pages/exploration-player-page/services/audio-preloader.service';
 import { AudioTranslationLanguageService } from 'pages/exploration-player-page/services/audio-translation-language.service';
 import { ContextService } from 'services/context.service';
 
 describe('Audio preloader service', () => {
   let httpTestingController: HttpTestingController;
+  let interactionAnswer: InteractionAnswer[] = ['Ans1'];
 
   beforeEach(() => {
     TestBed.configureTestingModule({imports: [HttpClientTestingModule]});
-    httpTestingController = TestBed.get(HttpTestingController);
+    httpTestingController = TestBed.inject(HttpTestingController);
   });
 
   afterEach(() => {
@@ -44,9 +46,16 @@ describe('Audio preloader service', () => {
   const audioBlob = new Blob(['audio data'], {type: 'audiotype'});
 
   let explorationDict: ExplorationBackendDict = {
+    correctness_feedback_enabled: false,
+    draft_change_list_id: 1,
+    draft_changes: [],
+    auto_tts_enabled: false,
+    version: 1,
+    is_version_of_draft_valid: true,
     language_code: 'en',
     title: 'My Title',
     init_state_name: 'Introduction',
+    next_content_id_index: 7,
     states: {
       'State 1': {
         param_changes: [],
@@ -75,6 +84,7 @@ describe('Audio preloader service', () => {
               html: ''
             },
             dest: 'State 3',
+            dest_if_really_stuck: null,
             param_changes: [],
             labelled_as_correct: false,
             refresher_exploration_id: null,
@@ -91,14 +101,9 @@ describe('Audio preloader service', () => {
           hints: []
         },
         solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {},
-            default_outcome: {}
-          }
-        },
+        card_is_checkpoint: false,
+        linked_skill_id: null,
         classifier_model_id: null,
-        next_content_id_index: null,
       },
       'State 3': {
         param_changes: [],
@@ -132,13 +137,9 @@ describe('Audio preloader service', () => {
           hints: []
         },
         solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {}
-          }
-        },
+        card_is_checkpoint: false,
+        linked_skill_id: null,
         classifier_model_id: null,
-        next_content_id_index: null,
       },
       'State 2': {
         param_changes: [],
@@ -167,6 +168,7 @@ describe('Audio preloader service', () => {
               html: ''
             },
             dest: 'State 3',
+            dest_if_really_stuck: null,
             param_changes: [],
             labelled_as_correct: false,
             refresher_exploration_id: null,
@@ -183,14 +185,9 @@ describe('Audio preloader service', () => {
           hints: []
         },
         solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {},
-            default_outcome: {}
-          }
-        },
+        card_is_checkpoint: false,
+        linked_skill_id: null,
         classifier_model_id: null,
-        next_content_id_index: null,
       },
       Introduction: {
         param_changes: [],
@@ -216,6 +213,7 @@ describe('Audio preloader service', () => {
           id: 'TextInput',
           default_outcome: {
             dest: 'Introduction',
+            dest_if_really_stuck: null,
             feedback: {
               content_id: 'default_outcome',
               html: '<p>Try again.</p>'
@@ -232,16 +230,23 @@ describe('Audio preloader service', () => {
             },
             placeholder: {
               value: ''
+            },
+            catchMisspellings: {
+              value: false
             }
           },
           solution: null,
           answer_groups: [{
             rule_specs: [{
               rule_type: 'Contains',
-              inputs: {x: '1'}
+              inputs: {x: {
+                contentId: 'rule_input',
+                normalizedStrSet: ['1']
+              }}
             }],
             outcome: {
               dest: 'State 1',
+              dest_if_really_stuck: null,
               feedback: {
                 content_id: 'feedback_1',
                 html: "<p>Let's go to State 1</p>"
@@ -251,15 +256,19 @@ describe('Audio preloader service', () => {
               refresher_exploration_id: null,
               missing_prerequisite_skill_id: null,
             },
-            training_data: null,
+            training_data: interactionAnswer,
             tagged_skill_misconception_id: null,
           }, {
             rule_specs: [{
               rule_type: 'Contains',
-              inputs: {x: '2'}
+              inputs: {x: {
+                contentId: 'rule_input',
+                normalizedStrSet: ['2']
+              }}
             }],
             outcome: {
               dest: 'State 2',
+              dest_if_really_stuck: null,
               feedback: {
                 content_id: 'feedback_2',
                 html: "<p>Let's go to State 2</p>"
@@ -269,25 +278,35 @@ describe('Audio preloader service', () => {
               refresher_exploration_id: null,
               missing_prerequisite_skill_id: null,
             },
-            training_data: null,
+            training_data: interactionAnswer,
             tagged_skill_misconception_id: null,
           }],
           hints: []
         },
         solicit_answer_details: false,
-        written_translations: {
-          translations_mapping: {
-            content: {},
-            default_outcome: {},
-            feedback_1: {}
-          }
-        },
+        card_is_checkpoint: true,
+        linked_skill_id: null,
         classifier_model_id: null,
-        next_content_id_index: null,
       }
     },
     param_specs: {},
     param_changes: [],
+    exploration_metadata: {
+      title: 'Exploration',
+      category: 'Algebra',
+      objective: 'To learn',
+      language_code: 'en',
+      tags: [],
+      blurb: '',
+      author_notes: '',
+      states_schema_version: 50,
+      init_state_name: 'Introduction',
+      param_specs: {},
+      param_changes: [],
+      auto_tts_enabled: false,
+      correctness_feedback_enabled: true,
+      edits_allowed: true
+    }
   };
   let requestUrl1 = '/assetsdevhandler/exploration/1/assets/audio/en-1.mp3';
   let requestUrl2 = '/assetsdevhandler/exploration/1/assets/audio/en-2.mp3';
@@ -295,11 +314,12 @@ describe('Audio preloader service', () => {
   let requestUrl4 = '/assetsdevhandler/exploration/1/assets/audio/en-4.mp3';
 
   beforeEach(() => {
-    audioPreloaderService = TestBed.get(AudioPreloaderService);
+    audioPreloaderService = TestBed.inject(AudioPreloaderService);
+    audioPreloaderService.setAudioLoadedCallback((_: string): void => {});
     audioTranslationLanguageService = (
-      TestBed.get(AudioTranslationLanguageService));
-    explorationObjectFactory = TestBed.get(ExplorationObjectFactory);
-    contextService = TestBed.get(ContextService);
+      TestBed.inject(AudioTranslationLanguageService));
+    explorationObjectFactory = TestBed.inject(ExplorationObjectFactory);
+    contextService = TestBed.inject(ContextService);
     spyOn(contextService, 'getExplorationId').and.returnValue('1');
   });
 
@@ -310,7 +330,7 @@ describe('Audio preloader service', () => {
       audioPreloaderService.init(exploration);
       audioTranslationLanguageService.init(['en'], 'en', 'en', false);
       audioPreloaderService.kickOffAudioPreloader(
-        exploration.getInitialState().name);
+        exploration.getInitialState().name as string);
 
       expect(audioPreloaderService.getFilenamesOfAudioCurrentlyDownloading())
         .toEqual(['en-1.mp3', 'en-2.mp3', 'en-3.mp3']);
@@ -345,13 +365,28 @@ describe('Audio preloader service', () => {
         .toEqual([]);
     }));
 
+  it('should return empty audioFiles list if language code is null', () => {
+    spyOn(audioTranslationLanguageService, 'getCurrentAudioLanguageCode')
+      .and.returnValue(null);
+
+    const exploration = (
+      explorationObjectFactory.createFromBackendDict(explorationDict));
+    audioPreloaderService.init(exploration);
+    audioTranslationLanguageService.init(['en'], 'en', 'en', false);
+    audioPreloaderService.kickOffAudioPreloader(
+      exploration.getInitialState().name as string);
+
+    expect(audioPreloaderService.getFilenamesOfAudioCurrentlyDownloading())
+      .toEqual([]);
+  });
+
   it('should properly restart pre-loading from a new state', () => {
     const exploration = (
       explorationObjectFactory.createFromBackendDict(explorationDict));
     audioPreloaderService.init(exploration);
     audioTranslationLanguageService.init(['en'], 'en', 'en', false);
     audioPreloaderService.kickOffAudioPreloader(
-      exploration.getInitialState().name);
+      exploration.getInitialState().name as string);
 
     httpTestingController.expectOne(requestUrl1);
     httpTestingController.expectOne(requestUrl2);
@@ -371,5 +406,15 @@ describe('Audio preloader service', () => {
     httpTestingController.expectOne(requestUrl4);
     expect(audioPreloaderService.getFilenamesOfAudioCurrentlyDownloading())
       .toEqual(['en-3.mp3', 'en-4.mp3']);
+  });
+
+  it('should properly set most recently requested audio filename', () => {
+    audioPreloaderService.clearMostRecentlyRequestedAudioFilename();
+    expect(audioPreloaderService.getMostRecentlyRequestedAudioFilename())
+      .toEqual(null);
+    var filename = 'test_file';
+    audioPreloaderService.setMostRecentlyRequestedAudioFilename(filename);
+    expect(audioPreloaderService.getMostRecentlyRequestedAudioFilename())
+      .toEqual(filename);
   });
 });

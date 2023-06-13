@@ -25,7 +25,7 @@ import { ImageClickInputCustomizationArgs } from
 import { ImageClickInputValidationService } from 'interactions/ImageClickInput/directives/image-click-input-validation.service';
 import { Outcome, OutcomeObjectFactory } from
   'domain/exploration/OutcomeObjectFactory';
-import { RuleObjectFactory } from 'domain/exploration/RuleObjectFactory';
+import { Rule } from 'domain/exploration/rule.model';
 
 import { AppConstants } from 'app.constants';
 
@@ -38,22 +38,21 @@ describe('ImageClickInputValidationService', () => {
   let goodDefaultOutcome: Outcome;
   var customizationArguments: ImageClickInputCustomizationArgs;
   let oof: OutcomeObjectFactory, agof: AnswerGroupObjectFactory;
-  let rof: RuleObjectFactory;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [ImageClickInputValidationService]
     });
 
-    validatorService = TestBed.get(ImageClickInputValidationService);
-    oof = TestBed.get(OutcomeObjectFactory);
-    agof = TestBed.get(AnswerGroupObjectFactory);
-    rof = TestBed.get(RuleObjectFactory);
+    validatorService = TestBed.inject(ImageClickInputValidationService);
+    oof = TestBed.inject(OutcomeObjectFactory);
+    agof = TestBed.inject(AnswerGroupObjectFactory);
     WARNING_TYPES = AppConstants.WARNING_TYPES;
 
     currentState = 'First State';
     goodDefaultOutcome = oof.createFromBackendDict({
       dest: 'Second State',
+      dest_if_really_stuck: null,
       feedback: {
         html: '',
         content_id: ''
@@ -66,6 +65,7 @@ describe('ImageClickInputValidationService', () => {
 
     badOutcome = oof.createFromBackendDict({
       dest: currentState,
+      dest_if_really_stuck: null,
       feedback: {
         html: '',
         content_id: ''
@@ -99,14 +99,14 @@ describe('ImageClickInputValidationService', () => {
     };
 
     goodAnswerGroups = [agof.createNew(
-      [rof.createFromBackendDict({
+      [Rule.createFromBackendDict({
         rule_type: 'IsInRegion',
         inputs: {
           x: 'SecondLabel'
         }
-      })],
+      }, 'ImageClickInput')],
       goodDefaultOutcome,
-      null,
+      [],
       null)];
   });
 
@@ -115,10 +115,11 @@ describe('ImageClickInputValidationService', () => {
       goodAnswerGroups[0].rules = [];
       expect(() => {
         validatorService.getAllWarnings(
-          // This throws "Argument of type '{}' is not assignable to
-          // parameter of type 'ImageClickInputCustomizationArgs'." We are
-          // purposely assigning the wrong type of customization args in
-          // order to test validations.
+          // This throws "Argument of type '{}'. We need to suppress this error
+          // because ..  oppia/comment-style is not assignable to parameter of
+          // type 'ImageClickInputCustomizationArgs'." We are purposely
+          // assigning the wrong type of customization args in order to test
+          // validations.
           // @ts-expect-error
           currentState, {}, goodAnswerGroups, goodDefaultOutcome);
       }).toThrowError(
@@ -190,8 +191,8 @@ describe('ImageClickInputValidationService', () => {
       goodDefaultOutcome);
     expect(warnings).toEqual([{
       type: WARNING_TYPES.CRITICAL,
-      message: 'The region label \'FakeLabel\' in rule 1 in group 1 is ' +
-        'invalid.'
+      message: 'The region label \'FakeLabel\' in learner answer 1 in ' +
+        'Oppia response 1 is invalid.'
     }]);
   });
 
@@ -201,15 +202,15 @@ describe('ImageClickInputValidationService', () => {
         currentState, customizationArguments, goodAnswerGroups, null);
       expect(warnings).toEqual([{
         type: WARNING_TYPES.ERROR,
-        message: 'Please add a rule to cover what should happen if none of ' +
-          'the given regions are clicked.'
+        message: 'Please add a learner answer to cover what should happen ' +
+          'if none of the given regions are clicked.'
       }]);
       warnings = validatorService.getAllWarnings(
         currentState, customizationArguments, goodAnswerGroups, badOutcome);
       expect(warnings).toEqual([{
         type: WARNING_TYPES.ERROR,
-        message: 'Please add a rule to cover what should happen if none of ' +
-          'the given regions are clicked.'
+        message: 'Please add a learner answer to cover what should happen ' +
+        'if none of the given regions are clicked.'
       }]);
     });
 });

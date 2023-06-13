@@ -16,83 +16,116 @@
  * @fileoverview Unit test for ImageLocalStorageService.
  */
 
-import { UpgradedServices } from 'services/UpgradedServices';
+import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+import { AlertsService } from './alerts.service';
+import { ImageLocalStorageService } from './image-local-storage.service';
 
-require('services/image-local-storage.service.ts');
 
-describe('ImageLocalStorageService', function() {
-  var AlertsService = null;
-  var ImageLocalStorageService = null;
-  var sampleImageData = 'data:image/png;base64,xyz';
-  var imageFilename = 'filename';
-  var mockImageUploadHelperService = {
-    convertImageDataToImageFile: function(imageData) {}
-  };
+describe('ImageLocalStorageService', () => {
+  let alertsService: AlertsService;
+  let imageLocalStorageService: ImageLocalStorageService;
+  let sampleImageData = 'data:image/png;base64,JUMzJTg3JTJD';
+  let imageFilename = 'filename';
 
-  beforeEach(angular.mock.module('oppia'));
-  beforeEach(angular.mock.module('oppia', function($provide) {
-    $provide.value(
-      'ImageUploadHelperService', [mockImageUploadHelperService][0]);
-    var ugs = new UpgradedServices();
-    for (let [key, value] of Object.entries(ugs.getUpgradedServices())) {
-      $provide.value(key, value);
-    }
-  }));
-
-  beforeEach(angular.mock.inject(function($injector) {
-    ImageLocalStorageService = $injector.get('ImageLocalStorageService');
-    AlertsService = $injector.get('AlertsService');
-  }));
-
-  it(
-    'should call helper service function correctly when getting' +
-    ' object url', function() {
-      spyOn(mockImageUploadHelperService, 'convertImageDataToImageFile');
-      spyOn(URL, 'createObjectURL').and.returnValue('objectUrl');
-      ImageLocalStorageService.saveImage(imageFilename, sampleImageData);
-      expect(
-        ImageLocalStorageService.getObjectUrlForImage(imageFilename)
-      ).toBe('objectUrl');
-      expect(
-        mockImageUploadHelperService.convertImageDataToImageFile
-      ).toHaveBeenCalledWith(sampleImageData);
-    }
-  );
-
-  it('should delete images from localStorage correctly', function() {
-    ImageLocalStorageService.saveImage(imageFilename, sampleImageData);
-    ImageLocalStorageService.saveImage('filename 2', sampleImageData);
-    ImageLocalStorageService.saveImage('filename 3', sampleImageData);
-    ImageLocalStorageService.deleteImage('filename 2');
-    expect(
-      ImageLocalStorageService.getStoredImagesData().length).toEqual(2);
-    ImageLocalStorageService.flushStoredImagesData();
-    expect(
-      ImageLocalStorageService.getStoredImagesData().length).toEqual(0);
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule]
+    });
   });
 
-  it('should return correctly check whether file exist in storage', function() {
-    expect(ImageLocalStorageService.isInStorage(imageFilename)).toBeFalse();
-    ImageLocalStorageService.saveImage(imageFilename, sampleImageData);
-    expect(ImageLocalStorageService.isInStorage(imageFilename)).toBeTrue();
+  beforeEach(() => {
+    imageLocalStorageService = TestBed.inject(ImageLocalStorageService);
+    alertsService = TestBed.inject(AlertsService);
+  });
+
+  it('should delete images from localStorage correctly', () => {
+    imageLocalStorageService.saveImage(imageFilename, sampleImageData);
+    imageLocalStorageService.saveImage('filename 2', sampleImageData);
+    imageLocalStorageService.saveImage('filename 3', sampleImageData);
+    imageLocalStorageService.deleteImage('filename 2');
+    expect(
+      imageLocalStorageService.getStoredImagesData().length).toEqual(2);
+    imageLocalStorageService.flushStoredImagesData();
+    expect(
+      imageLocalStorageService.getStoredImagesData().length).toEqual(0);
+  });
+
+  it('should get raw image data correctly', () => {
+    imageLocalStorageService.saveImage(imageFilename, sampleImageData);
+    expect(
+      imageLocalStorageService.getRawImageData(imageFilename)).toEqual(
+      sampleImageData);
+    expect(
+      imageLocalStorageService.getRawImageData('invalidFilename')).toEqual(
+      null);
+  });
+
+  it('should return correctly check whether file exist in storage', () => {
+    expect(imageLocalStorageService.isInStorage(imageFilename)).toBeFalse();
+    imageLocalStorageService.saveImage(imageFilename, sampleImageData);
+    expect(imageLocalStorageService.isInStorage(imageFilename)).toBeTrue();
   });
 
   it(
     'should show error message if number of stored images crosses ' +
-    'limit', function() {
-      for (var i = 0; i <= 50; i++) {
-        ImageLocalStorageService.saveImage('filename' + i, sampleImageData);
+    'limit', () => {
+      for (let i = 0; i <= 50; i++) {
+        imageLocalStorageService.saveImage('filename' + i, sampleImageData);
       }
-      expect(AlertsService.messages.length).toEqual(0);
-      ImageLocalStorageService.saveImage('filename51', sampleImageData);
-      expect(AlertsService.messages.length).toEqual(1);
+      expect(alertsService.messages.length).toEqual(0);
+      imageLocalStorageService.saveImage('filename51', sampleImageData);
+      expect(alertsService.messages.length).toEqual(1);
     }
   );
 
-  it('should set and clear the thumbnail background color', function() {
-    expect(ImageLocalStorageService.getThumbnailBgColor()).toEqual(null);
+  it('should set and clear the thumbnail background color', () => {
+    expect(imageLocalStorageService.getThumbnailBgColor()).toBeNull();
     let bgColor = '#e34d43';
-    ImageLocalStorageService.setThumbnailBgColor(bgColor);
-    expect(ImageLocalStorageService.getThumbnailBgColor()).toEqual(bgColor);
+    imageLocalStorageService.setThumbnailBgColor(bgColor);
+    expect(imageLocalStorageService.getThumbnailBgColor()).toEqual(bgColor);
+  });
+
+  it('should map image filenames to base64 string', async() => {
+    const sampleImageData = [{
+      filename: 'image1.png',
+      imageBlob: new Blob(['image1'], {type: 'image/png'})
+    }, {
+      filename: 'image2.png',
+      imageBlob: new Blob(['image2'], {type: 'image/png'})
+    }];
+    const imageFilenameTob64Mapping = (
+      await imageLocalStorageService.getFilenameToBase64MappingAsync(
+        sampleImageData));
+    expect(Object.keys(imageFilenameTob64Mapping).sort()).toEqual(
+      ['image1.png', 'image2.png']);
+    expect(imageFilenameTob64Mapping['image1.png']).toEqual('aW1hZ2Ux');
+    expect(imageFilenameTob64Mapping['image2.png']).toEqual('aW1hZ2Uy');
+  });
+
+  it('should handle mapping scenario when image data is empty', async() => {
+    const imageFilenameTob64Mapping = (
+      await imageLocalStorageService.getFilenameToBase64MappingAsync([]));
+    expect(imageFilenameTob64Mapping).toEqual({});
+  });
+
+  it('should throw error if image blob is null', async() => {
+    const sampleImageData = [{
+      filename: 'imageFilename1',
+      imageBlob: null
+    }];
+    await expectAsync((
+      imageLocalStorageService.getFilenameToBase64MappingAsync(
+        sampleImageData))).toBeRejectedWithError('No image data found');
+  });
+
+  it('should throw error if prefix is invalid', async() => {
+    const sampleImageData = [{
+      filename: 'imageFilename1',
+      imageBlob: new Blob(['data:random/xyz;base64,Blob1'], {type: 'image'})
+    }];
+    await expectAsync((
+      imageLocalStorageService.getFilenameToBase64MappingAsync(sampleImageData)
+    )).toBeRejectedWithError('No valid prefix found in data url');
   });
 });

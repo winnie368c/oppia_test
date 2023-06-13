@@ -48,7 +48,7 @@ describe('Browser Checker Service', function() {
   it('should support speech synthesis when device is desktop', () => {
     spyOnProperty(wrs.nativeWindow, 'speechSynthesis').and.returnValue({
       getVoices: () => [{ lang: 'en-US' }]
-    });
+    } as SpeechSynthesis);
     expect(bcs.supportsSpeechSynthesis()).toBe(true);
   });
 
@@ -56,12 +56,12 @@ describe('Browser Checker Service', function() {
     mockUserAgent(mobileAgent);
     spyOnProperty(window, 'speechSynthesis').and.returnValue({
       getVoices: () => [{ lang: 'en_US' }]
-    });
+    } as SpeechSynthesis);
     expect(bcs.supportsSpeechSynthesis()).toBe(true);
   });
 
   it('should not support speech synthesis', () => {
-    spyOn(<Object>wrs.nativeWindow, 'hasOwnProperty')
+    spyOn(wrs.nativeWindow as Object, 'hasOwnProperty')
       .withArgs('speechSynthesis').and.returnValue(false);
     expect(bcs.supportsSpeechSynthesis()).toBe(false);
   });

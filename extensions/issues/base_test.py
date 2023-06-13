@@ -16,20 +16,23 @@
 
 """Tests for the base issue specification."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 from core.domain import playthrough_issue_registry
 from core.platform import models
 from core.tests import test_utils
 
-(stats_models,) = models.Registry.import_models([models.NAMES.statistics])
+MYPY = False
+if MYPY: # pragma: no cover
+    from mypy_imports import stats_models
+
+(stats_models,) = models.Registry.import_models([models.Names.STATISTICS])
 
 
 class IssueUnitTests(test_utils.GenericTestBase):
     """Test that the default issues are valid."""
 
-    def test_issue_properties_for_early_quit(self):
+    def test_issue_properties_for_early_quit(self) -> None:
         """Test the standard properties of early quit issue."""
 
         issue = playthrough_issue_registry.Registry.get_issue_by_type(
@@ -57,7 +60,7 @@ class IssueUnitTests(test_utils.GenericTestBase):
                 'default_value': 0
             }])
 
-    def test_issue_properties_for_multiple_incorrect_submissions(self):
+    def test_issue_properties_for_multiple_incorrect_submissions(self) -> None:
         """Test the standard properties of multiple incorrect submissions
         issue.
         """
@@ -86,7 +89,7 @@ class IssueUnitTests(test_utils.GenericTestBase):
                 'default_value': 0
             }])
 
-    def test_issue_properties_for_cyclic_state_transitions(self):
+    def test_issue_properties_for_cyclic_state_transitions(self) -> None:
         """Test the standard properties of cyclic state transitions issue."""
 
         issue = playthrough_issue_registry.Registry.get_issue_by_type(

@@ -33,8 +33,9 @@ import {
   FeaturedTranslationLanguage,
   FeaturedTranslationLanguageBackendDict,
 } from 'domain/opportunity/featured-translation-language.model';
+import { UserService } from 'services/user.service';
 
-import constants from 'assets/constants';
+import { AppConstants } from 'app.constants';
 
 interface SkillContributionOpportunitiesBackendDict {
   'opportunities': SkillOpportunityBackendDict[];
@@ -48,10 +49,8 @@ interface TranslationContributionOpportunitiesBackendDict {
   'more': boolean;
 }
 
-interface VoiceoverContributionOpportunitiesBackendDict {
+interface ReviewableTranslationOpportunitiesBackendDict {
   'opportunities': ExplorationOpportunitySummaryBackendDict[];
-  'next_cursor': string;
-  'more': boolean;
 }
 
 interface SkillContributionOpportunities {
@@ -66,14 +65,20 @@ interface TranslationContributionOpportunities {
   more: boolean;
 }
 
-interface VoiceoverContributionOpportunities {
+interface FetchedReviewableTranslationOpportunitiesResponse {
   opportunities: ExplorationOpportunitySummary[];
-  nextCursor: string;
-  more: boolean;
 }
 
 interface FeaturedTranslationLanguagesBackendDict {
   'featured_translation_languages': FeaturedTranslationLanguageBackendDict[];
+}
+
+interface TopicNamesBackendDict {
+  'topic_names': string[];
+}
+
+interface PreferredTranslationLanguageBackendDict {
+  'preferred_translation_language_code': string|null;
 }
 
 @Injectable({
@@ -84,6 +89,7 @@ export class ContributionOpportunitiesBackendApiService {
   constructor(
     private urlInterpolationService: UrlInterpolationService,
     private http: HttpClient,
+    private userService: UserService,
   ) {}
 
   private _getExplorationOpportunityFromDict(
@@ -92,7 +98,9 @@ export class ContributionOpportunitiesBackendApiService {
     return new ExplorationOpportunitySummary(
       opportunityDict.id, opportunityDict.topic_name,
       opportunityDict.story_title, opportunityDict.chapter_title,
-      opportunityDict.content_count, opportunityDict.translation_counts);
+      opportunityDict.content_count, opportunityDict.translation_counts,
+      opportunityDict.translation_in_review_counts,
+      opportunityDict.language_code);
   }
 
   private _getSkillOpportunityFromDict(
@@ -102,7 +110,7 @@ export class ContributionOpportunitiesBackendApiService {
       opportunityDict.topic_name, opportunityDict.question_count);
   }
 
-  fetchSkillOpportunities(cursor: string):
+  async fetchSkillOpportunitiesAsync(cursor: string):
   Promise<SkillContributionOpportunities> {
     const params = {
       cursor: cursor
@@ -111,7 +119,7 @@ export class ContributionOpportunitiesBackendApiService {
     return this.http.get<SkillContributionOpportunitiesBackendDict>(
       this.urlInterpolationService.interpolateUrl(
         this.urlTemplate, {
-          opportunityType: constants.OPPORTUNITY_TYPE_SKILL
+          opportunityType: AppConstants.OPPORTUNITY_TYPE_SKILL
         }
       ), { params }).toPromise().then(data => {
       const opportunities = data.opportunities.map(
@@ -127,17 +135,22 @@ export class ContributionOpportunitiesBackendApiService {
     });
   }
 
-  fetchTranslationOpportunities(languageCode: string, cursor: string):
-  Promise<TranslationContributionOpportunities> {
+  async fetchTranslationOpportunitiesAsync(
+      languageCode: string, topicName: string, cursor: string):
+    Promise<TranslationContributionOpportunities> {
+    topicName = (
+      topicName === AppConstants.TOPIC_SENTINEL_NAME_ALL ? '' : topicName);
+
     const params = {
       language_code: languageCode,
+      topic_name: topicName,
       cursor: cursor
     };
 
     return this.http.get<TranslationContributionOpportunitiesBackendDict>(
       this.urlInterpolationService.interpolateUrl(
         this.urlTemplate, {
-          opportunityType: constants.OPPORTUNITY_TYPE_TRANSLATION
+          opportunityType: AppConstants.OPPORTUNITY_TYPE_TRANSLATION
         }
       ), { params }).toPromise().then(data => {
       const opportunities = data.opportunities.map(
@@ -153,33 +166,38 @@ export class ContributionOpportunitiesBackendApiService {
     });
   }
 
-  fetchVoiceoverOpportunities(languageCode: string, cursor: string):
-  Promise<VoiceoverContributionOpportunities> {
-    const params = {
-      language_code: languageCode,
-      cursor: cursor
-    };
-
-    return this.http.get<VoiceoverContributionOpportunitiesBackendDict>(
-      this.urlInterpolationService.interpolateUrl(
-        this.urlTemplate, {
-          opportunityType: constants.OPPORTUNITY_TYPE_VOICEOVER
-        }
-      ), { params }).toPromise().then(data => {
+  async fetchReviewableTranslationOpportunitiesAsync(
+      topicName: string,
+      languageCode?: string
+  ): Promise<FetchedReviewableTranslationOpportunitiesResponse> {
+    const params: {
+      topic_name?: string;
+      language_code?: string;
+    } = {};
+    if (
+      topicName !== '' &&
+      topicName !== AppConstants.TOPIC_SENTINEL_NAME_ALL
+    ) {
+      params.topic_name = topicName;
+    }
+    if (languageCode && languageCode !== '') {
+      params.language_code = languageCode;
+    }
+    return this.http.get<ReviewableTranslationOpportunitiesBackendDict>(
+      '/getreviewableopportunitieshandler', {
+        params
+      } as Object).toPromise().then(data => {
       const opportunities = data.opportunities.map(
         dict => this._getExplorationOpportunityFromDict(dict));
-
       return {
-        opportunities: opportunities,
-        nextCursor: data.next_cursor,
-        more: data.more
+        opportunities: opportunities
       };
     }, errorResponse => {
       throw new Error(errorResponse.error.error);
     });
   }
 
-  async fetchFeaturedTranslationLanguages():
+  async fetchFeaturedTranslationLanguagesAsync():
   Promise<FeaturedTranslationLanguage[]> {
     try {
       const response = await this.http
@@ -192,6 +210,58 @@ export class ContributionOpportunitiesBackendApiService {
     } catch {
       return [];
     }
+  }
+
+  async fetchTranslatableTopicNamesAsync():
+  Promise<string[]> {
+    try {
+      const response = await this.http
+        .get<TopicNamesBackendDict>('/gettranslatabletopicnames').toPromise();
+      // TODO(#15648): Re-enable "All Topics" after fetching latency is fixed.
+      // response.topic_names.unshift('All');
+
+      return response.topic_names;
+    } catch {
+      return [];
+    }
+  }
+
+  async savePreferredTranslationLanguageAsync(
+      languageCode: string
+  ): Promise<void> {
+    return this.userService.getUserInfoAsync().then(
+      (userInfo) => {
+        if (userInfo.isLoggedIn()) {
+          return this.http.post<void>(
+            '/preferredtranslationlanguage',
+            {language_code: languageCode}
+          ).toPromise().catch((errorResponse) => {
+            throw new Error(errorResponse.error.error);
+          });
+        }
+      }
+    );
+  }
+
+  async getPreferredTranslationLanguageAsync(
+  ): Promise<string|null> {
+    const emptyResponse = {
+      preferred_translation_language_code: null
+    };
+    return this.userService.getUserInfoAsync().then(
+      async(userInfo) => {
+        if (userInfo.isLoggedIn()) {
+          const res = (
+            await this.http.get<PreferredTranslationLanguageBackendDict>(
+              '/preferredtranslationlanguage'
+            ).toPromise().catch(() => emptyResponse)
+          );
+          return res.preferred_translation_language_code;
+        } else {
+          return null;
+        }
+      }
+    );
   }
 }
 

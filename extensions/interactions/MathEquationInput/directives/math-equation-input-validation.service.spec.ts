@@ -25,8 +25,8 @@ import { MathEquationInputValidationService } from
   'interactions/MathEquationInput/directives/math-equation-input-validation.service';
 import { Outcome, OutcomeObjectFactory } from
   'domain/exploration/OutcomeObjectFactory';
-import { Rule, RuleObjectFactory } from
-  'domain/exploration/RuleObjectFactory';
+import { Rule } from
+  'domain/exploration/rule.model';
 import { MathEquationInputCustomizationArgs } from
   'extensions/interactions/customization-args-defs';
 
@@ -40,8 +40,7 @@ describe('MathEquationInputValidationService', () => {
   let answerGroups: AnswerGroup[], goodDefaultOutcome: Outcome;
   let matchesExactlyWith: Rule, isEquivalentTo: Rule;
   let customizationArgs: MathEquationInputCustomizationArgs;
-  let oof: OutcomeObjectFactory, agof: AnswerGroupObjectFactory,
-    rof: RuleObjectFactory;
+  let oof: OutcomeObjectFactory, agof: AnswerGroupObjectFactory;
   let warnings;
 
   beforeEach(() => {
@@ -52,12 +51,12 @@ describe('MathEquationInputValidationService', () => {
     validatorService = TestBed.get(MathEquationInputValidationService);
     oof = TestBed.get(OutcomeObjectFactory);
     agof = TestBed.get(AnswerGroupObjectFactory);
-    rof = TestBed.get(RuleObjectFactory);
     WARNING_TYPES = AppConstants.WARNING_TYPES;
 
     currentState = 'First State';
     goodDefaultOutcome = oof.createFromBackendDict({
       dest: 'Second State',
+      dest_if_really_stuck: null,
       feedback: {
         html: '',
         content_id: ''
@@ -69,27 +68,28 @@ describe('MathEquationInputValidationService', () => {
     });
 
     customizationArgs = {
-      customOskLetters: {
+      useFractionForDivision: false,
+      allowedVariables: {
         value: ['x', 'y', 'm', 'x', 'c', 'a', 'b']
       }
     };
 
-    isEquivalentTo = rof.createFromBackendDict({
+    isEquivalentTo = Rule.createFromBackendDict({
       rule_type: 'IsEquivalentTo',
       inputs: {
         x: 'y = c + m*x'
       }
-    });
+    }, 'MathEquationInput');
 
-    matchesExactlyWith = rof.createFromBackendDict({
+    matchesExactlyWith = Rule.createFromBackendDict({
       rule_type: 'MatchesExactlyWith',
       inputs: {
         x: 'y = m*x + c',
         y: 'both'
       }
-    });
+    }, 'MathEquationInput');
 
-    answerGroups = [agof.createNew([], goodDefaultOutcome, null, null)];
+    answerGroups = [agof.createNew([], goodDefaultOutcome, [], null)];
   });
 
   it('should be able to perform basic validation', () => {
@@ -106,23 +106,24 @@ describe('MathEquationInputValidationService', () => {
       currentState, customizationArgs, answerGroups, goodDefaultOutcome);
     expect(warnings).toEqual([{
       type: WARNING_TYPES.ERROR,
-      message: 'Rule 2 from answer group 1 will never be matched because it' +
-      ' is preceded by an \'IsEquivalentTo\' rule with a matching input.'
+      message: 'Learner answer 2 from Oppia response 1 will never be ' +
+      'matched because it is preceded by an \'IsEquivalentTo\' learner ' +
+      'answer with a matching input.'
     }]);
 
 
-    let isEquivalentTo1 = rof.createFromBackendDict({
+    let isEquivalentTo1 = Rule.createFromBackendDict({
       rule_type: 'IsEquivalentTo',
       inputs: {
         x: '(a+b)^2 = 0'
       }
-    });
-    let isEquivalentTo2 = rof.createFromBackendDict({
+    }, 'MathEquationInput');
+    let isEquivalentTo2 = Rule.createFromBackendDict({
       rule_type: 'IsEquivalentTo',
       inputs: {
         x: 'a^2 + 2*a*b + b^2 = 0'
       }
-    });
+    }, 'MathEquationInput');
 
     // The second rule will never get matched.
     answerGroups[0].rules = [isEquivalentTo1, isEquivalentTo2];
@@ -131,25 +132,26 @@ describe('MathEquationInputValidationService', () => {
       currentState, customizationArgs, answerGroups, goodDefaultOutcome);
     expect(warnings).toEqual([{
       type: WARNING_TYPES.ERROR,
-      message: 'Rule 2 from answer group 1 will never be matched because it' +
-      ' is preceded by an \'IsEquivalentTo\' rule with a matching input.'
+      message: 'Learner answer 2 from Oppia response 1 will never be ' +
+      'matched because it is preceded by an \'IsEquivalentTo\' learner ' +
+      'answer with a matching input.'
     }]);
 
 
-    let matchesExactlyWith1 = rof.createFromBackendDict({
+    let matchesExactlyWith1 = Rule.createFromBackendDict({
       rule_type: 'MatchesExactlyWith',
       inputs: {
-        x: 'x ^ 2 = 1',
+        x: 'x*x = 1',
         y: 'irrelevant'
       }
-    });
-    let matchesExactlyWith2 = rof.createFromBackendDict({
+    }, 'MathEquationInput');
+    let matchesExactlyWith2 = Rule.createFromBackendDict({
       rule_type: 'MatchesExactlyWith',
       inputs: {
         x: '-1 + x*x = 0',
         y: 'irrelevant'
       }
-    });
+    }, 'MathEquationInput');
 
     // The second rule will never get matched.
     answerGroups[0].rules = [matchesExactlyWith1, matchesExactlyWith2];
@@ -158,8 +160,9 @@ describe('MathEquationInputValidationService', () => {
       currentState, customizationArgs, answerGroups, goodDefaultOutcome);
     expect(warnings).toEqual([{
       type: WARNING_TYPES.ERROR,
-      message: 'Rule 2 from answer group 1 will never be matched because it' +
-      ' is preceded by a \'MatchesExactlyWith\' rule with a matching input.'
+      message: 'Learner answer 2 from Oppia response 1 will never be ' +
+      'matched because it is preceded by a \'MatchesExactlyWith\' learner ' +
+      'answer with a matching input.'
     }]);
   });
 
@@ -169,19 +172,19 @@ describe('MathEquationInputValidationService', () => {
       currentState, customizationArgs, answerGroups, goodDefaultOutcome);
     expect(warnings).toEqual([]);
 
-    matchesExactlyWith = rof.createFromBackendDict({
+    matchesExactlyWith = Rule.createFromBackendDict({
       rule_type: 'MatchesExactlyWith',
       inputs: {
         x: 'x * y = 0',
         y: 'both'
       }
-    });
-    isEquivalentTo = rof.createFromBackendDict({
+    }, 'MathEquationInput');
+    isEquivalentTo = Rule.createFromBackendDict({
       rule_type: 'IsEquivalentTo',
       inputs: {
         x: 'x + y = 0'
       }
-    });
+    }, 'MathEquationInput');
 
     answerGroups[0].rules = [isEquivalentTo, matchesExactlyWith];
 
@@ -192,15 +195,16 @@ describe('MathEquationInputValidationService', () => {
 
   it('should warn if there are missing custom variables', function() {
     answerGroups[0].rules = [
-      rof.createFromBackendDict({
+      Rule.createFromBackendDict({
         rule_type: 'IsEquivalentTo',
         inputs: {
           x: 'x^2 = alpha - y/b'
         }
-      })
+      }, 'MathEquationInput')
     ];
     customizationArgs = {
-      customOskLetters: {
+      useFractionForDivision: false,
+      allowedVariables: {
         value: ['y', 'a', 'b']
       }
     };
@@ -210,22 +214,23 @@ describe('MathEquationInputValidationService', () => {
     expect(warnings).toEqual([{
       type: AppConstants.WARNING_TYPES.ERROR,
       message: (
-        'The following variables are present in some of the answer groups ' +
+        'The following variables are present in some of the Oppia responses ' +
         'but are missing from the custom letters list: x,α')
     }]);
   });
 
   it('should warn if there are too many custom variables', function() {
     answerGroups[0].rules = [
-      rof.createFromBackendDict({
+      Rule.createFromBackendDict({
         rule_type: 'IsEquivalentTo',
         inputs: {
           x: 'x=y'
         }
-      })
+      }, 'MathEquationInput')
     ];
     customizationArgs = {
-      customOskLetters: {
+      useFractionForDivision: false,
+      allowedVariables: {
         value: ['y', 'x', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
       }
     };
@@ -235,6 +240,34 @@ describe('MathEquationInputValidationService', () => {
     expect(warnings).toEqual([{
       type: AppConstants.WARNING_TYPES.ERROR,
       message: 'The number of custom letters cannot be more than 10.'
+    }]);
+  });
+
+  it('should warn if there are inputs with unsupported functions', function() {
+    answerGroups[0].rules = [
+      Rule.createFromBackendDict({
+        rule_type: 'IsEquivalentTo',
+        inputs: {
+          x: 'x+log(y)=tan(x) - sqrt(y)'
+        }
+      }, 'MathEquationInput')
+    ];
+    customizationArgs = {
+      useFractionForDivision: false,
+      allowedVariables: {
+        value: ['x', 'y']
+      }
+    };
+
+    warnings = validatorService.getAllWarnings(
+      currentState, customizationArgs, answerGroups, goodDefaultOutcome);
+
+    expect(warnings).toEqual([{
+      type: AppConstants.WARNING_TYPES.ERROR,
+      message: (
+        'Input for learner answer 1 from Oppia response 1 uses these ' +
+        'function(s) that aren\'t supported: [log,tan] ' +
+        'The supported functions are: [sqrt,abs]')
     }]);
   });
 });

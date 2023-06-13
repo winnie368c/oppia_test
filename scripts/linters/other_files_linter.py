@@ -16,46 +16,82 @@
 
 """Lint checks of other file types."""
 
-from __future__ import absolute_import  # pylint: disable=import-only-modules
-from __future__ import unicode_literals  # pylint: disable=import-only-modules
+from __future__ import annotations
 
 import glob
 import json
-
 import os
+import re
 
-import python_utils
+from core import utils
 
+from typing import Any, Dict, Final, List, Tuple, TypedDict
+import yaml
+
+from . import linter_utils
 from .. import concurrent_task_utils
 
-WEBPACK_CONFIG_FILE_NAME = 'webpack.common.config.ts'
-WEBPACK_CONFIG_FILEPATH = os.path.join(os.getcwd(), WEBPACK_CONFIG_FILE_NAME)
+MYPY = False
+if MYPY:  # pragma: no cover
+    from scripts.linters import pre_commit_linter
 
-APP_YAML_FILEPATH = os.path.join(os.getcwd(), 'app_dev.yaml')
 
-MANIFEST_JSON_FILE_PATH = os.path.join(os.getcwd(), 'manifest.json')
-PACKAGE_JSON_FILE_PATH = os.path.join(os.getcwd(), 'package.json')
-_TYPE_DEFS_FILE_EXTENSION_LENGTH = len('.d.ts')
-_DEPENDENCY_SOURCE_MANIFEST = 'manifest.json'
-_DEPENDENCY_SOURCE_PACKAGE = 'package.json'
+class ThirdPartyLibDict(TypedDict):
+    """Type for the dictionary representation of elements of THIRD_PARTY_LIB."""
 
-THIRD_PARTY_LIBS = [
+    name: str
+    dependency_key: str
+    dependency_source: str
+    type_defs_filename_prefix: str
+
+
+STRICT_TS_CONFIG_FILE_NAME: Final = 'tsconfig-strict.json'
+STRICT_TS_CONFIG_FILEPATH: Final = os.path.join(
+    os.getcwd(), STRICT_TS_CONFIG_FILE_NAME)
+
+WEBPACK_CONFIG_FILE_NAME: Final = 'webpack.common.config.ts'
+WEBPACK_CONFIG_FILEPATH: Final = os.path.join(
+    os.getcwd(), WEBPACK_CONFIG_FILE_NAME
+)
+
+APP_YAML_FILEPATH: Final = os.path.join(os.getcwd(), 'app_dev.yaml')
+
+DEPENDENCIES_JSON_FILE_PATH: Final = os.path.join(
+    os.getcwd(), 'dependencies.json'
+)
+PACKAGE_JSON_FILE_PATH: Final = os.path.join(os.getcwd(), 'package.json')
+_TYPE_DEFS_FILE_EXTENSION_LENGTH: Final = len('.d.ts')
+_DEPENDENCY_SOURCE_DEPENDENCIES_JSON: Final = 'dependencies.json'
+_DEPENDENCY_SOURCE_PACKAGE: Final = 'package.json'
+
+WORKFLOWS_DIR: Final = os.path.join(os.getcwd(), '.github', 'workflows')
+WORKFLOW_FILENAME_REGEX: Final = r'\.(yaml)|(yml)$'
+MERGE_STEP: Final = {'uses': './.github/actions/merge'}
+WORKFLOWS_EXEMPT_FROM_MERGE_REQUIREMENT: Final = (
+    'backend_tests.yml',
+    'develop_commit_notification.yml',
+    'pending-review-notification.yml',
+    'revert-web-wiki-updates.yml',
+    'frontend_tests.yml'
+)
+
+THIRD_PARTY_LIBS: List[ThirdPartyLibDict] = [
     {
         'name': 'Guppy',
         'dependency_key': 'guppy',
-        'dependency_source': _DEPENDENCY_SOURCE_MANIFEST,
+        'dependency_source': _DEPENDENCY_SOURCE_DEPENDENCIES_JSON,
         'type_defs_filename_prefix': 'guppy-defs-'
     },
     {
         'name': 'Skulpt',
         'dependency_key': 'skulpt-dist',
-        'dependency_source': _DEPENDENCY_SOURCE_MANIFEST,
+        'dependency_source': _DEPENDENCY_SOURCE_DEPENDENCIES_JSON,
         'type_defs_filename_prefix': 'skulpt-defs-'
     },
     {
         'name': 'MIDI',
         'dependency_key': 'midiJs',
-        'dependency_source': _DEPENDENCY_SOURCE_MANIFEST,
+        'dependency_source': _DEPENDENCY_SOURCE_DEPENDENCIES_JSON,
         'type_defs_filename_prefix': 'midi-defs-'
     },
     {
@@ -67,10 +103,10 @@ THIRD_PARTY_LIBS = [
 ]
 
 
-class CustomLintChecksManager(python_utils.OBJECT):
+class CustomLintChecksManager(linter_utils.BaseLinter):
     """Manages other files lint checks."""
 
-    def __init__(self, file_cache):
+    def __init__(self, file_cache: pre_commit_linter.FileCache) -> None:
         """Constructs a CustomLintChecksManager object.
 
         Args:
@@ -79,7 +115,9 @@ class CustomLintChecksManager(python_utils.OBJECT):
         """
         self.file_cache = file_cache
 
-    def check_skip_files_in_app_dev_yaml(self):
+    def check_skip_files_in_app_dev_yaml(
+        self
+    ) -> concurrent_task_utils.TaskResult:
         """Check to ensure that all lines in skip_files in app_dev.yaml
         reference valid files in the repository.
         """
@@ -115,7 +153,9 @@ class CustomLintChecksManager(python_utils.OBJECT):
         return concurrent_task_utils.TaskResult(
             name, failed, error_messages, error_messages)
 
-    def check_third_party_libs_type_defs(self):
+    def check_third_party_libs_type_defs(
+        self
+    ) -> concurrent_task_utils.TaskResult:
         """Checks the type definitions for third party libs
         are up to date.
 
@@ -128,10 +168,10 @@ class CustomLintChecksManager(python_utils.OBJECT):
         failed = False
         error_messages = []
 
-        manifest = json.load(python_utils.open_file(
-            MANIFEST_JSON_FILE_PATH, 'r'))['dependencies']['frontend']
+        dependencies_json = json.load(utils.open_file(
+            DEPENDENCIES_JSON_FILE_PATH, 'r'))['dependencies']['frontend']
 
-        package = json.load(python_utils.open_file(
+        package = json.load(utils.open_file(
             PACKAGE_JSON_FILE_PATH, 'r'))['dependencies']
 
         files_in_typings_dir = os.listdir(
@@ -140,9 +180,10 @@ class CustomLintChecksManager(python_utils.OBJECT):
         for third_party_lib in THIRD_PARTY_LIBS:
             lib_dependency_source = third_party_lib['dependency_source']
 
-            if lib_dependency_source == _DEPENDENCY_SOURCE_MANIFEST:
+            if lib_dependency_source == _DEPENDENCY_SOURCE_DEPENDENCIES_JSON:
                 lib_version = (
-                    manifest[third_party_lib['dependency_key']]['version'])
+                    dependencies_json[
+                        third_party_lib['dependency_key']]['version'])
 
             elif lib_dependency_source == _DEPENDENCY_SOURCE_PACKAGE:
                 lib_version = package[third_party_lib['dependency_key']]
@@ -190,7 +231,7 @@ class CustomLintChecksManager(python_utils.OBJECT):
         return concurrent_task_utils.TaskResult(
             name, failed, error_messages, error_messages)
 
-    def check_webpack_config_file(self):
+    def check_webpack_config_file(self) -> concurrent_task_utils.TaskResult:
         """Check to ensure that the instances of HtmlWebpackPlugin in
         webpack.common.config.ts contains all needed keys.
 
@@ -237,7 +278,60 @@ class CustomLintChecksManager(python_utils.OBJECT):
         return concurrent_task_utils.TaskResult(
             name, failed, error_messages, error_messages)
 
-    def perform_all_lint_checks(self):
+    def check_github_workflows_use_merge_action(
+        self
+    ) -> concurrent_task_utils.TaskResult:
+        """Checks that all github actions workflows use the merge action.
+
+        Returns:
+            TaskResult. A TaskResult object describing any workflows
+            that failed to use the merge action.
+        """
+        name = 'Github workflows use merge action'
+        workflow_paths = {
+            os.path.join(WORKFLOWS_DIR, filename)
+            for filename in os.listdir(WORKFLOWS_DIR)
+            if re.search(WORKFLOW_FILENAME_REGEX, filename)
+            if filename not in WORKFLOWS_EXEMPT_FROM_MERGE_REQUIREMENT
+        }
+        errors = []
+        for workflow_path in workflow_paths:
+            workflow_str = self.file_cache.read(workflow_path)
+            workflow_dict = yaml.load(workflow_str, Loader=yaml.Loader)
+            errors += self._check_that_workflow_steps_use_merge_action(
+                workflow_dict, workflow_path)
+        return concurrent_task_utils.TaskResult(
+            name, bool(errors), errors, errors)
+
+    # Here we use type Any because the argument 'workflow_dict' accept
+    # dictionaries that represents the content of workflow YAML file and
+    # that dictionaries can contain various types of values.
+    @staticmethod
+    def _check_that_workflow_steps_use_merge_action(
+        workflow_dict: Dict[str, Any], workflow_path: str
+    ) -> List[str]:
+        """Check that a workflow uses the merge action.
+
+        Args:
+            workflow_dict: dict. Dictionary representation of the
+                workflow YAML file.
+            workflow_path: str. Path to workflow file.
+
+        Returns:
+            list(str). A list of error messages describing any jobs
+            failing to use the merge action.
+        """
+        jobs_without_merge = []
+        for job, job_dict in workflow_dict['jobs'].items():
+            if MERGE_STEP not in job_dict['steps']:
+                jobs_without_merge.append(job)
+        return [
+            '%s --> Job %s does not use the .github/actions/merge action.' % (
+                workflow_path, job)
+            for job in jobs_without_merge
+        ]
+
+    def perform_all_lint_checks(self) -> List[concurrent_task_utils.TaskResult]:
         """Perform all the lint checks and returns the messages returned by all
         the checks.
 
@@ -250,11 +344,14 @@ class CustomLintChecksManager(python_utils.OBJECT):
         linter_stdout.append(self.check_skip_files_in_app_dev_yaml())
         linter_stdout.append(self.check_third_party_libs_type_defs())
         linter_stdout.append(self.check_webpack_config_file())
+        linter_stdout.append(self.check_github_workflows_use_merge_action())
 
         return linter_stdout
 
 
-def get_linters(file_cache):
+def get_linters(
+    file_cache: pre_commit_linter.FileCache
+) -> Tuple[CustomLintChecksManager, None]:
     """Creates CustomLintChecksManager and returns it.
 
     Args:

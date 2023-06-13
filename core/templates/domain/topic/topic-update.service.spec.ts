@@ -18,28 +18,21 @@
 
 // TODO(#7222): Remove the following block of unnnecessary imports once
 // topic-update.service.ts is upgraded to Angular 8.
-import { RecordedVoiceoversObjectFactory } from
-  'domain/exploration/RecordedVoiceoversObjectFactory';
-import { ShortSkillSummaryObjectFactory } from
-  'domain/skill/ShortSkillSummaryObjectFactory';
-import { SubtitledHtmlObjectFactory } from
-  'domain/exploration/SubtitledHtmlObjectFactory';
-import { SubtopicPageObjectFactory } from
-  'domain/topic/SubtopicPageObjectFactory';
+import { ShortSkillSummary } from
+  'domain/skill/short-skill-summary.model';
+import { SubtitledHtml } from
+  'domain/exploration/subtitled-html.model';
 // ^^^ This block is to be removed.
 import { UndoRedoService } from 'domain/editor/undo_redo/undo-redo.service';
-import { TopicObjectFactory, TopicBackendDict} from 'domain/topic/TopicObjectFactory';
+import { Topic, TopicBackendDict} from 'domain/topic/topic-object.model';
 import { TopicUpdateService } from 'domain/topic/topic-update.service';
 import { TestBed } from '@angular/core/testing';
+import { SubtopicPage } from './subtopic-page.model';
+import { RecordedVoiceovers } from 'domain/exploration/recorded-voiceovers.model';
 
 describe('Topic update service', function() {
-  let recordedVoiceoversObjectFactory :RecordedVoiceoversObjectFactory = null;
-  let topicUpdateService :TopicUpdateService;
-  let topicObjectFactory :TopicObjectFactory = null;
-  let skillSummaryObjectFactory :ShortSkillSummaryObjectFactory = null;
-  let subtitledHtmlObjectFactory :SubtitledHtmlObjectFactory = null;
-  let subtopicPageObjectFactory :SubtopicPageObjectFactory = null;
-  let undoRedoService :UndoRedoService = null;
+  let topicUpdateService: TopicUpdateService;
+  let undoRedoService: UndoRedoService = null;
   let _sampleTopic = null;
   let _firstSkillSummary = null;
   let _secondSkillSummary = null;
@@ -74,6 +67,7 @@ describe('Topic update service', function() {
       }],
       next_subtopic_id: 2,
       language_code: 'en',
+      skill_ids_for_diagnostic_test: []
     },
     skillIdToDescriptionDict: {
       skill_1: 'Description 1',
@@ -105,25 +99,19 @@ describe('Topic update service', function() {
   };
 
   beforeEach(() => {
-    recordedVoiceoversObjectFactory = TestBed.get(
-      RecordedVoiceoversObjectFactory);
     topicUpdateService = TestBed.get(TopicUpdateService);
-    topicObjectFactory = TestBed.get(TopicObjectFactory);
-    subtitledHtmlObjectFactory = TestBed.get(SubtitledHtmlObjectFactory);
-    subtopicPageObjectFactory = TestBed.get(SubtopicPageObjectFactory);
     undoRedoService = TestBed.get(UndoRedoService);
-    skillSummaryObjectFactory = TestBed.get(ShortSkillSummaryObjectFactory);
 
-    _firstSkillSummary = skillSummaryObjectFactory.create(
+    _firstSkillSummary = ShortSkillSummary.create(
       'skill_1', 'Description 1');
-    _secondSkillSummary = skillSummaryObjectFactory.create(
+    _secondSkillSummary = ShortSkillSummary.create(
       'skill_2', 'Description 2');
-    _thirdSkillSummary = skillSummaryObjectFactory.create(
+    _thirdSkillSummary = ShortSkillSummary.create(
       'skill_3', 'Description 3');
 
-    _sampleSubtopicPage = subtopicPageObjectFactory.createFromBackendDict(
+    _sampleSubtopicPage = SubtopicPage.createFromBackendDict(
       sampleSubtopicPageObject);
-    _sampleTopic = topicObjectFactory.create(
+    _sampleTopic = Topic.create(
       sampleTopicBackendObject.topicDict as TopicBackendDict,
       sampleTopicBackendObject.skillIdToDescriptionDict);
   });
@@ -219,6 +207,24 @@ describe('Topic update service', function() {
         _sampleTopic, _thirdSkillSummary);
     }).toThrowError('Given skillId is not an uncategorized skill.');
     expect(undoRedoService.getCommittableChangeList()).toEqual([]);
+  });
+
+  it('should create a proper backend change dict for updating the skill Ids ' +
+     'for diagnostic test', function() {
+    _sampleTopic.setSkillSummariesForDiagnosticTest([_secondSkillSummary]);
+    topicUpdateService.updateDiagnosticTestSkills(
+      _sampleTopic, [_firstSkillSummary]);
+    expect(_sampleTopic.getSkillSummariesForDiagnosticTest()).toEqual(
+      [_firstSkillSummary]);
+    expect(undoRedoService.getCommittableChangeList()).toEqual([{
+      cmd: 'update_topic_property',
+      property_name: 'skill_ids_for_diagnostic_test',
+      new_value: ['skill_1'],
+      old_value: ['skill_2']
+    }]);
+    undoRedoService.undoChange(_sampleTopic);
+    expect(_sampleTopic.getSkillSummariesForDiagnosticTest()).toEqual(
+      [_secondSkillSummary]);
   });
 
   it('should set/unset changes to a topic\'s name', () => {
@@ -446,7 +452,7 @@ describe('Topic update service', function() {
     'when the subtopic does not exist', () => {
     expect(() => {
       topicUpdateService.setSubtopicTitle(_sampleTopic, 10, 'whatever');
-    }).toThrowError('Subtopic doesn\'t exist');
+    }).toThrowError('Subtopic with id 10 doesn\'t exist');
     expect(undoRedoService.getCommittableChangeList()).toEqual([]);
   });
 
@@ -480,7 +486,7 @@ describe('Topic update service', function() {
     expect(() => {
       topicUpdateService
         .setSubtopicThumbnailFilename(_sampleTopic, 10, 'whatever');
-    }).toThrowError('Subtopic doesn\'t exist');
+    }).toThrowError('Subtopic with id 10 doesn\'t exist');
     expect(undoRedoService.getCommittableChangeList()).toEqual([]);
   });
 
@@ -518,7 +524,7 @@ describe('Topic update service', function() {
     expect(() => {
       topicUpdateService
         .setSubtopicThumbnailBgColor(_sampleTopic, 10, 'whatever');
-    }).toThrowError('Subtopic doesn\'t exist');
+    }).toThrowError('Subtopic with id 10 doesn\'t exist');
     expect(undoRedoService.getCommittableChangeList()).toEqual([]);
   });
 
@@ -538,7 +544,7 @@ describe('Topic update service', function() {
     'url fragment when the subtopic does not exist', () => {
     expect(() => {
       topicUpdateService.setSubtopicUrlFragment(_sampleTopic, 10, 'whatever');
-    }).toThrowError('Subtopic doesn\'t exist');
+    }).toThrowError('Subtopic with id 10 doesn\'t exist');
     expect(undoRedoService.getCommittableChangeList()).toEqual([]);
   });
 
@@ -584,7 +590,7 @@ describe('Topic update service', function() {
 
   it('should add/remove a subtopic', () => {
     expect(_sampleTopic.getSubtopics().length).toEqual(1);
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title2');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title2', 'frag-two');
     expect(_sampleTopic.getSubtopics().length).toEqual(2);
     expect(_sampleTopic.getNextSubtopicId()).toEqual(3);
     expect(_sampleTopic.getSubtopics()[1].getTitle()).toEqual('Title2');
@@ -636,7 +642,7 @@ describe('Topic update service', function() {
   it('should rearrange a skill in a subtopic', () => {
     sampleTopicBackendObject.topicDict.subtopics[0].skill_ids = [
       'skill_id_1', 'skill_id_2', 'skill_id_3'];
-    _sampleTopic = topicObjectFactory.create(
+    _sampleTopic = Topic.create(
       sampleTopicBackendObject.topicDict as TopicBackendDict,
       sampleTopicBackendObject.skillIdToDescriptionDict);
     let skills = _sampleTopic.getSubtopicById(1).getSkillSummaries();
@@ -676,7 +682,7 @@ describe('Topic update service', function() {
       {id: 3, title: 'Title3', skill_ids: []}];
     sampleTopicBackendObject.topicDict.subtopics.push(...subtopicsDict);
 
-    _sampleTopic = topicObjectFactory.create(
+    _sampleTopic = Topic.create(
       sampleTopicBackendObject.topicDict as TopicBackendDict,
       sampleTopicBackendObject.skillIdToDescriptionDict);
     var subtopics = _sampleTopic.getSubtopics();
@@ -717,11 +723,12 @@ describe('Topic update service', function() {
 
   it('should create a proper backend change dict for adding a subtopic',
     () => {
-      topicUpdateService.addSubtopic(_sampleTopic, 'Title2');
+      topicUpdateService.addSubtopic(_sampleTopic, 'Title2', 'frag-two');
       expect(undoRedoService.getCommittableChangeList()).toEqual([{
         cmd: 'add_subtopic',
         subtopic_id: 2,
-        title: 'Title2'
+        title: 'Title2',
+        url_fragment: 'frag-two'
       }]);
     }
   );
@@ -740,8 +747,8 @@ describe('Topic update service', function() {
   });
 
   it('should properly remove/add a newly created subtopic', () => {
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title2');
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title3');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title2', 'frag-two');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title3', 'frag-three');
     expect(_sampleTopic.getSubtopics()[1].getId()).toEqual(2);
     expect(_sampleTopic.getSubtopics()[2].getId()).toEqual(3);
     expect(_sampleTopic.getNextSubtopicId()).toEqual(4);
@@ -769,7 +776,7 @@ describe('Topic update service', function() {
     'when an error is encountered', () => {
     expect(() => {
       topicUpdateService.deleteSubtopic(_sampleTopic, 10);
-    }).toThrowError('Subtopic doesn\'t exist');
+    }).toThrowError('Subtopic with id 10 doesn\'t exist');
     expect(undoRedoService.getCommittableChangeList()).toEqual([]);
   });
 
@@ -808,7 +815,7 @@ describe('Topic update service', function() {
      * Undo back to old subtopic
      *  Move to _sampleTopic, move to _sampleTopic2, then undo
      */
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2', 'frag-two');
 
     topicUpdateService.moveSkillToSubtopic(
       _sampleTopic, null, 1, _firstSkillSummary);
@@ -833,7 +840,7 @@ describe('Topic update service', function() {
 
   it('should correctly create changelists when moving a skill to a newly ' +
     'created subtopic that has since been deleted', () => {
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2', 'frag-two');
     topicUpdateService.moveSkillToSubtopic(
       _sampleTopic, null, 2, _firstSkillSummary
     );
@@ -843,7 +850,7 @@ describe('Topic update service', function() {
     topicUpdateService.deleteSubtopic(_sampleTopic, 2);
     expect(undoRedoService.getCommittableChangeList()).toEqual([]);
 
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2', 'frag-two');
     topicUpdateService.moveSkillToSubtopic(
       _sampleTopic, 1, 2, _secondSkillSummary
     );
@@ -864,7 +871,7 @@ describe('Topic update service', function() {
     }]);
     undoRedoService.clearChanges();
 
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2', 'frag-two');
     topicUpdateService.moveSkillToSubtopic(
       _sampleTopic, null, 2, _firstSkillSummary
     );
@@ -881,8 +888,8 @@ describe('Topic update service', function() {
 
   it('should create properly decrement subtopic ids of later subtopics when ' +
     'a newly created subtopic is deleted', () => {
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2');
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title 3');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2', 'frag-two');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title 3', 'frag-three');
     topicUpdateService.moveSkillToSubtopic(
       _sampleTopic, 1, 3, _secondSkillSummary
     );
@@ -890,7 +897,8 @@ describe('Topic update service', function() {
     expect(undoRedoService.getCommittableChangeList()).toEqual([{
       cmd: 'add_subtopic',
       title: 'Title 3',
-      subtopic_id: 2
+      subtopic_id: 2,
+      url_fragment: 'frag-three'
     }, {
       cmd: 'move_skill_id_to_subtopic',
       old_subtopic_id: 1,
@@ -901,9 +909,9 @@ describe('Topic update service', function() {
 
   it('should properly decrement subtopic ids of moved subtopics ' +
     'when a newly created subtopic is deleted', () => {
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2');
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title 3');
-    topicUpdateService.addSubtopic(_sampleTopic, 'Title 4');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title 2', 'frag-two');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title 3', 'frag-three');
+    topicUpdateService.addSubtopic(_sampleTopic, 'Title 4', 'frag-four');
 
     topicUpdateService.moveSkillToSubtopic(
       _sampleTopic, 1, 3, _secondSkillSummary
@@ -915,11 +923,13 @@ describe('Topic update service', function() {
     expect(undoRedoService.getCommittableChangeList()).toEqual([{
       cmd: 'add_subtopic',
       title: 'Title 3',
-      subtopic_id: 2
+      subtopic_id: 2,
+      url_fragment: 'frag-three'
     }, {
       cmd: 'add_subtopic',
       title: 'Title 4',
-      subtopic_id: 3
+      subtopic_id: 3,
+      url_fragment: 'frag-four'
     }, {
       cmd: 'move_skill_id_to_subtopic',
       old_subtopic_id: 1,
@@ -954,7 +964,8 @@ describe('Topic update service', function() {
     expect(() => {
       topicUpdateService.moveSkillToSubtopic(
         _sampleTopic, 1, 2, _secondSkillSummary);
-    }).toThrowError('Cannot read property \'addSkill\' of null');
+    }).toThrowError(
+      'Cannot read properties of null (reading \'addSkill\')');
     expect(undoRedoService.getCommittableChangeList()).toEqual([]);
   });
 
@@ -1007,7 +1018,7 @@ describe('Topic update service', function() {
       content_id: 'content'
     };
     var newSampleSubtitledHtml =
-      subtitledHtmlObjectFactory.createFromBackendDict(
+      SubtitledHtml.createFromBackendDict(
         newSampleSubtitledHtmlDict);
     expect(_sampleSubtopicPage.getPageContents().toBackendDict()).toEqual({
       subtitled_html: {
@@ -1076,7 +1087,7 @@ describe('Topic update service', function() {
       content_id: 'content'
     };
     let newSampleSubtitledHtml =
-      subtitledHtmlObjectFactory.createFromBackendDict(
+      SubtitledHtml.createFromBackendDict(
         newSampleSubtitledHtmlDict);
     topicUpdateService.setSubtopicPageContentsHtml(
       _sampleSubtopicPage, 1, newSampleSubtitledHtml);
@@ -1106,7 +1117,7 @@ describe('Topic update service', function() {
         }
       }
     };
-    let newVoiceovers = recordedVoiceoversObjectFactory.createFromBackendDict(
+    let newVoiceovers = RecordedVoiceovers.createFromBackendDict(
       newRecordedVoiceoversDict);
 
     expect(_sampleSubtopicPage.getPageContents().toBackendDict()).toEqual({
@@ -1173,7 +1184,7 @@ describe('Topic update service', function() {
         }
       }
     };
-    var newVoiceovers = recordedVoiceoversObjectFactory.createFromBackendDict(
+    var newVoiceovers = RecordedVoiceovers.createFromBackendDict(
       newRecordedVoiceoversDict);
     topicUpdateService.setSubtopicPageContentsAudio(
       _sampleSubtopicPage, 1, newVoiceovers);

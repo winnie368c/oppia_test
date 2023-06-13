@@ -17,7 +17,6 @@
  * backend.
  */
 
-import { downgradeInjectable } from '@angular/upgrade/static';
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 
@@ -25,9 +24,10 @@ import { ProfilePageDomainConstants } from
   'pages/profile-page/profile-page-domain.constants';
 import { UrlInterpolationService } from
   'domain/utilities/url-interpolation.service';
-import { UrlService } from 'services/contextual/url.service.ts';
+import { UrlService } from 'services/contextual/url.service';
 import { UserProfile, UserProfileBackendDict } from
   'domain/user/user-profile.model';
+import { UserService } from 'services/user.service';
 
 @Injectable({
   providedIn: 'root'
@@ -36,7 +36,8 @@ export class ProfilePageBackendApiService {
   constructor(
     private urlInterpolationService: UrlInterpolationService,
     private http: HttpClient,
-    private urlService: UrlService
+    private urlService: UrlService,
+    private userService: UserService
   ) {}
 
   async _postSubscribeAsync(creatorUsername: string): Promise<void> {
@@ -94,7 +95,3 @@ export class ProfilePageBackendApiService {
     return this._fetchProfileDataAsync();
   }
 }
-
-angular.module('oppia').factory(
-  'ProfilePageBackendApiService',
-  downgradeInjectable(ProfilePageBackendApiService));

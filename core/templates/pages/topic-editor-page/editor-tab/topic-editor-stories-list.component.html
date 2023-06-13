@@ -1,0 +1,124 @@
+<table class="dashboard-table e2e-test-story-list-table">
+  <colgroup>
+    <col class="oppia-colgroup-col-1">
+    <col class="oppia-colgroup-col-2">
+    <col class="oppia-colgroup-col-3">
+  </colgroup>
+  <tr>
+    <th *ngFor="let key of STORY_TABLE_COLUMN_HEADINGS"
+        class="dashboard-table-headings">
+      <p *ngIf="key === 'title'" class="text-left">Title</p>
+      <p *ngIf="key === 'node_count'" class="text-center">Chapters</p>
+      <p *ngIf="key === 'publication_status'" class="text-center">Published?</p>
+    </th>
+  </tr>
+  <tbody cdkDropList
+         (cdkDropListDropped)="drop($event)">
+    <tr *ngFor="let summary of storySummaries; index as idx"
+        class="list-item e2e-test-list-view-item-item e2e-test-story-list-item"
+        cdkDrag>
+      <td>
+        <a (click)="topicRights.canEditTopic() && openStoryEditor(summary.getId())" class="list-summary text-left">
+          <span class="e2e-test-story-title"> {{ summary.getTitle() }} </span>
+        </a>
+      </td>
+      <td>
+        <a (click)="topicRights.canEditTopic() && openStoryEditor(summary.getId())" class="list-summary text-center">
+          <span> {{ summary.getNodeTitles().length }} </span>
+        </a>
+      </td>
+      <td>
+        <a (click)="topicRights.canEditTopic() && openStoryEditor(summary.getId())" class="list-summary text-center">
+          <span class="e2e-test-story-publication-status"> {{ summary.isStoryPublished() ? "Yes" : "No" }} </span>
+        </a>
+      </td>
+      <td>
+        <a (click)="deleteCanonicalStory(summary.getId())" class="list-summary text-center">
+          <span class="fas fa-trash-alt" *ngIf="topicRights.canEditTopic()"></span>
+        </a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<style>
+  .list-item {
+    background: #fff;
+    margin: 20px 7.5px 0 12.5%;
+    padding: 10px 20px;
+    width: 75%;
+  }
+
+  .dashboard-table {
+    font-size: 15px;
+    margin-top: 2vh;
+    width: 100%;
+  }
+
+  .dashboard-table .dashboard-table-headings {
+    border-bottom: 2px solid #000;
+    margin: 25px 0;
+  }
+
+  .dashboard-table .dashboard-table-headings tr {
+    font-size: 16px;
+    font-weight: bold;
+  }
+
+  .list-summary,
+  .list-summary:active,
+  .list-summary:visited {
+    color: inherit;
+    display: block;
+    height: 2em;
+    margin: 20px 0;
+    text-decoration: none;
+  }
+
+  .list-item:not(:last-child) {
+    border-bottom: 1px solid #bbb;
+  }
+
+  .list-item:hover {
+    background-color: #ededed;
+  }
+
+  .list-summary span {
+    display: inline-block;
+    line-height: normal;
+    vertical-align: middle;
+  }
+
+  .oppia-colgroup-col-1 {
+    width: 40%;
+  }
+
+  .oppia-colgroup-col-2
+  .oppia-colgroup-col-3 {
+    width: 30%;
+  }
+
+  .cdk-drag-preview {
+    border-radius: 4px;
+    box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
+                0 8px 10px 1px rgba(0, 0, 0, 0.14),
+                0 3px 14px 2px rgba(0, 0, 0, 0.12);
+    box-sizing: border-box;
+  }
+
+  .cdk-drag-placeholder {
+    opacity: 0;
+  }
+
+  .cdk-drag-animating {
+    transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+  }
+
+  .list-item:last-child {
+    border: none;
+  }
+
+  .story-list.cdk-drop-list-dragging .list-item:not(.cdk-drag-placeholder) {
+    transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+  }
+</style>

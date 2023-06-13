@@ -28,9 +28,13 @@ import { LoggerService } from 'services/contextual/logger.service';
   providedIn: 'root'
 })
 export class TranslationLanguageService {
-  private activeLanguageCode: string = null;
+  // This property is initialized using Angular lifecycle hooks
+  // and we need to do non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  private activeLanguageCode!: string;
   private allAudioLanguageCodes: string[] = (
     this.languageUtilService.getAllVoiceoverLanguageCodes());
+
   private _activeLanguageChangedEventEmitter = new EventEmitter<void>();
 
   constructor(
@@ -41,8 +45,15 @@ export class TranslationLanguageService {
     return this.activeLanguageCode;
   }
 
+  getActiveLanguageDirection(): string {
+    return this.languageUtilService.getLanguageDirection(
+      this.getActiveLanguageCode());
+  }
+
+  // This function throws an error if 'newActiveLanguageCode' is invalid.
   setActiveLanguageCode(newActiveLanguageCode: string): void {
-    if (this.allAudioLanguageCodes.indexOf(newActiveLanguageCode) < 0) {
+    if (newActiveLanguageCode &&
+        this.allAudioLanguageCodes.indexOf(newActiveLanguageCode) < 0) {
       this.loggerService.error(
         'Invalid active language code: ' + newActiveLanguageCode);
       return;
@@ -51,7 +62,8 @@ export class TranslationLanguageService {
     this._activeLanguageChangedEventEmitter.emit();
   }
 
-  getActiveLanguageDescription(): string {
+  // Function returns null when active language code is not set.
+  getActiveLanguageDescription(): string | null {
     if (!this.activeLanguageCode) {
       return null;
     }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Oppia Authors. All Rights Reserved.
+// Copyright 2021 The Oppia Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,13 +19,32 @@
  * valid.
  */
 
-require(
-  'pages/exploration-editor-page/services/exploration-property.service.ts');
+import { Injectable } from '@angular/core';
+import { downgradeInjectable } from '@angular/upgrade/static';
+import { ExplorationPropertyService } from './exploration-property.service';
+import { AlertsService } from 'services/alerts.service';
+import { ChangeListService } from './change-list.service';
+import { LoggerService } from 'services/contextual/logger.service';
 
-angular.module('oppia').factory('ExplorationInitStateNameService', [
-  'ExplorationPropertyService', function(ExplorationPropertyService) {
-    var child = Object.create(ExplorationPropertyService);
-    child.propertyName = 'init_state_name';
-    return child;
+@Injectable({
+  providedIn: 'root'
+})
+export class ExplorationInitStateNameService
+    extends ExplorationPropertyService {
+  // This property is initialized using init method and we need to do
+  // non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  savedMemento!: string;
+  propertyName: string = 'init_state_name';
+  constructor(
+    protected alertsService: AlertsService,
+    protected changeListService: ChangeListService,
+    protected loggerService: LoggerService
+  ) {
+    super(alertsService, changeListService, loggerService);
   }
-]);
+}
+
+angular.module('oppia').factory(
+  'ExplorationInitStateNameService', downgradeInjectable(
+    ExplorationInitStateNameService));

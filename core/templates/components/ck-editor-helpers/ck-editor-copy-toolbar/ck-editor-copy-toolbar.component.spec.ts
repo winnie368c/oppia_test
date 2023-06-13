@@ -22,14 +22,14 @@ import { CkEditorCopyToolbarComponent } from
   // eslint-disable-next-line max-len
   'components/ck-editor-helpers/ck-editor-copy-toolbar/ck-editor-copy-toolbar.component';
 import { CkEditorCopyContentService } from
-  'components/ck-editor-helpers/ck-editor-copy-content-service';
+  'components/ck-editor-helpers/ck-editor-copy-content.service';
 
 
 describe('CkEditor copy toolbar', () => {
   let component: CkEditorCopyToolbarComponent;
   let fixture: ComponentFixture<CkEditorCopyToolbarComponent>;
-  let ckCopyService;
-  let dummyRichTextEditor;
+  let ckCopyService: CkEditorCopyContentService;
+  let dummyRichTextEditor: HTMLElement;
 
   beforeEach(async(() => {
     TestBed.configureTestingModule({
@@ -79,6 +79,18 @@ describe('CkEditor copy toolbar', () => {
     component.toggleToolActive();
     fixture.detectChanges();
     expect(blurSpy).toHaveBeenCalled();
+  });
+
+  it('should revert cursor to normal when modal is closed', () => {
+    component.toggleToolActive();
+    fixture.detectChanges();
+
+    expect(document.body.style.cursor).toBe('copy');
+
+    component.ngOnDestroy();
+    fixture.detectChanges();
+
+    expect(document.body.style.cursor).toBe('');
   });
 
   afterEach(() => {

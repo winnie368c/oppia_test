@@ -31,6 +31,7 @@ import { RatioExpressionInputRulesService } from
 import { Outcome } from
   'domain/exploration/OutcomeObjectFactory';
 import { AppConstants } from 'app.constants';
+import { RatioInputAnswer } from 'interactions/answer-defs';
 
 @Injectable({
   providedIn: 'root'
@@ -42,8 +43,8 @@ export class RatioExpressionInputValidationService {
 
   getCustomizationArgsWarnings(
       customizationArgs: RatioExpressionInputCustomizationArgs): Warning[] {
-    var isNonNegativeInt = function(number) {
-      return angular.isNumber(number) && number % 1 === 0 && number >= 0;
+    var isNonNegativeInt = function(number: number) {
+      return number % 1 === 0 && number >= 0;
     };
     var expectedNumberOfTerms = customizationArgs.numberOfTerms.value;
     // 0 is allowed as an input, as that corresponds to having no limit.
@@ -66,6 +67,14 @@ export class RatioExpressionInputValidationService {
             'The number of terms in a ratio should be greater than 1.')
         }
       ];
+    } else if (expectedNumberOfTerms > 10) {
+      return [
+        {
+          type: AppConstants.WARNING_TYPES.ERROR,
+          message: (
+            'The number of terms in a ratio should not be greater than 10.')
+        }
+      ];
     } else {
       return [];
     }
@@ -76,7 +85,7 @@ export class RatioExpressionInputValidationService {
       customizationArgs: RatioExpressionInputCustomizationArgs,
       answerGroups: AnswerGroup[],
       defaultOutcome: Outcome): Warning[] {
-    let warningsList = [];
+    let warningsList: Warning[] = [];
     let ratioRulesService = (
       new RatioExpressionInputRulesService());
     var expectedNumberOfTerms = customizationArgs.numberOfTerms.value;
@@ -112,13 +121,20 @@ export class RatioExpressionInputValidationService {
     for (let i = 0; i < answerGroups.length; i++) {
       let rules = answerGroups[i].rules;
       for (let j = 0; j < rules.length; j++) {
-        let currentRuleType = <string> rules[j].type;
-        let currentInput = null;
-        var ratio: Ratio = null;
+        let currentRuleType = rules[j].type as string;
+        let currentInput: number[] | number;
+        var ratio: Ratio;
         if (currentRuleType === 'HasNumberOfTermsEqualTo') {
-          currentInput = <number> rules[j].inputs.y;
+          currentInput = rules[j].inputs.y as number;
+        } else if (currentRuleType === 'HasSpecificTermEqualTo') {
+          currentInput = [
+            // The x-th term.
+            rules[j].inputs.x as number,
+            // Should have value y.
+            rules[j].inputs.y as number,
+          ];
         } else {
-          currentInput = <number[]> rules[j].inputs.x;
+          currentInput = rules[j].inputs.x as number[];
         }
 
         if (expectedNumberOfTerms >= 2) {
@@ -127,64 +143,109 @@ export class RatioExpressionInputValidationService {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  `Rule ${j + 1} from answer group ${i + 1} will never be` +
-                  ' matched because it has differing number of terms than ' +
-                  'required.'
+                  `Learner answer ${j + 1} from Oppia response ${i + 1} ` +
+                  'will never be matched because it has differing number ' +
+                  'of terms than required.'
+                )
+              });
+            }
+          } else if (currentRuleType === 'HasSpecificTermEqualTo') {
+            const _currentInput = currentInput as number[];
+            // Note: termIndex is 1-indexed, not 0-indexed. In other words,
+            // we don't want the lesson implementor to have a rule like
+            // "make sure the 0-th term of the ratio equals..." since the
+            // 0-th term doesn't exist.
+            let termIndex = _currentInput[0];
+            if (termIndex > expectedNumberOfTerms) {
+              warningsList.push({
+                type: AppConstants.WARNING_TYPES.ERROR,
+                message: (
+                  `Learner answer ${j + 1} from Oppia response ${i + 1} ` +
+                  'will never be matched because it expects more terms ' +
+                  'than the answer allows.'
                 )
               });
             }
           } else {
-            ratio = Ratio.fromList(<number[]> currentInput);
+            ratio = Ratio.fromList(currentInput as number[]);
             if (ratio.getNumberOfTerms() !== expectedNumberOfTerms) {
               warningsList.push({
                 type: AppConstants.WARNING_TYPES.ERROR,
                 message: (
-                  `Rule ${j + 1} from answer group ${i + 1} will never be` +
-                  ' matched because it has differing number of terms than ' +
-                  'required.'
+                  `Learner answer ${j + 1} from Oppia response ${i + 1} ` +
+                  'will never be matched because it has differing ' +
+                  'number of terms than required.'
                 )
               });
             }
           }
         }
-        ratio = Ratio.fromList(<number[]> currentInput);
         for (let seenRule of seenRules) {
-          let seenInput = seenRule.inputs.x || seenRule.inputs.y;
-          let seenRuleType = <string> seenRule.type;
+          let seenRuleType = seenRule.type as string;
+          let seenInput = null;
+          if (seenRuleType === 'HasNumberOfTermsEqualTo') {
+            seenInput = seenRule.inputs.y as number;
+          } else if (seenRuleType === 'HasSpecificTermEqualTo') {
+            seenInput = [
+              // The x-th term.
+              seenRule.inputs.x as number,
+              // Should have value y.
+              seenRule.inputs.y as number,
+            ];
+          } else {
+            seenInput = seenRule.inputs.x as number[];
+          }
 
           if (
             seenRuleType === 'Equals' &&
             currentRuleType !== 'IsEquivalent' &&
             currentRuleType !== 'HasNumberOfTermsEqualTo' && (
               ratioRulesService.Equals(
-                seenInput, {x: currentInput}))) {
+              seenInput as RatioInputAnswer, {x: currentInput as number[]}))) {
             // This rule will make all of the following matching
             // inputs obsolete.
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
               message: (
-                `Rule ${j + 1} from answer group ${i + 1} will never` +
-                ' be matched because it is preceded by a \'Equals\' rule with' +
-                ' a matching input.')
+                `Learner answer ${j + 1} from Oppia response ${i + 1} will ` +
+                'never be matched because it is preceded by a \'Equals\' ' +
+                'answer with a matching input.')
+            });
+          } else if (
+            seenRuleType === 'HasSpecificTermEqualTo' &&
+            currentRuleType === 'Equals' && (
+              ratioRulesService.HasSpecificTermEqualTo(
+                currentInput as RatioInputAnswer,
+                seenRule.inputs as { x: number; y: number }))) {
+            // This rule will make all of the following matching
+            // inputs obsolete.
+            warningsList.push({
+              type: AppConstants.WARNING_TYPES.ERROR,
+              message: (
+                `Learner answer ${j + 1} from Oppia response ${i + 1} will ` +
+                'never be matched because it is preceded by a ' +
+                '\'HasSpecificTermEqualTo\' answer with a matching input.')
             });
           } else if (
             seenRuleType === 'IsEquivalent' &&
-            currentRuleType !== 'HasNumberOfTermsEqualTo' && (
+            currentRuleType !== 'HasNumberOfTermsEqualTo' &&
+            currentRuleType !== 'HasSpecificTermEqualTo' && (
               ratioRulesService.IsEquivalent(
-                seenInput, {x: currentInput}))) {
+              seenInput as RatioInputAnswer, {x: currentInput as number[]}))) {
             // This rule will make the following inputs with
             // IsEquivalent rule obsolete.
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
               message: (
-                `Rule ${j + 1} from answer group ${i + 1} will never` +
-                ' be matched because it is preceded by a \'IsEquivalent\'' +
-                ' rule with a matching input.')
+                `Learner answer ${j + 1} from Oppia response ${i + 1} will ` +
+                'never be matched because it is preceded by a ' +
+                '\'IsEquivalent\' answer with a matching input.')
             });
           } else if (
             seenRuleType === 'HasNumberOfTermsEqualTo' &&
             hasLessNumberOfTerms(
-              currentRuleType, seenRuleType, currentInput, seenInput
+              currentRuleType, seenRuleType,
+              currentInput as number[], seenInput as number
             )
           ) {
             // This rule will make the following inputs with
@@ -192,20 +253,20 @@ export class RatioExpressionInputValidationService {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
               message: (
-                `Rule ${j + 1} from answer group ${i + 1} will never` +
-                ' be matched because the \'HasNumberOfTermsEqualTo\' ' +
-                'rule is preceded by a rule with a matching input.')
+                `Learner answer ${j + 1} from Oppia response ${i + 1} will ` +
+                'never be matched because it is preceded by a ' +
+                '\'HasNumberOfTermsEqualTo\' answer with a matching input.')
             });
           } else if (
             currentRuleType === 'HasNumberOfTermsEqualTo' &&
             seenRuleType === 'HasNumberOfTermsEqualTo' && (
-              currentInput === seenRule.inputs.y)) {
+              currentInput === seenInput)) {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
               message: (
-                `Rule ${j + 1} from answer group ${i + 1} will never` +
-                ' be matched because it is preceded by a ' +
-                '\'HasNumberOfTermsEqualTo\' rule with a matching input.')
+                `Learner answer ${j + 1} from Oppia response ${i + 1} will ` +
+                'never be matched because it is preceded by a ' +
+                '\'HasNumberOfTermsEqualTo\' answer with a matching input.')
             });
           }
         }

@@ -30,6 +30,15 @@ import { Outcome } from
 
 import { AppConstants } from 'app.constants';
 
+interface Range {
+  answerGroupIndex: number;
+  ruleIndex: number;
+  lb: number;
+  ub: number;
+  lbi: boolean;
+  ubi: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -47,7 +56,7 @@ export class NumericInputValidationService {
       stateName: string,
       customizationArgs: NumericInputCustomizationArgs,
       answerGroups: AnswerGroup[], defaultOutcome: Outcome): Warning[] {
-    var warningsList = [];
+    var warningsList: Warning[] = [];
 
     warningsList = warningsList.concat(
       this.getCustomizationArgsWarnings(customizationArgs));
@@ -62,13 +71,14 @@ export class NumericInputValidationService {
       ubi: bool, is upper bound inclusive
     }
     */
-    var setLowerAndUpperBounds = (range, lb, ub, lbi, ubi) => {
+    var setLowerAndUpperBounds = (
+        range: Range, lb: number, ub: number, lbi: boolean, ubi: boolean) => {
       range.lb = lb;
       range.ub = ub;
       range.lbi = lbi;
       range.ubi = ubi;
     };
-    var isEnclosedBy = (ra, rb) => {
+    var isEnclosedBy = (ra: Range, rb: Range) => {
       // Checks if range ra is enclosed by range rb.
       var lowerBoundConditionIsSatisfied =
           (rb.lb < ra.lb) || (rb.lb === ra.lb && (!ra.lbi || rb.lbi));
@@ -80,14 +90,25 @@ export class NumericInputValidationService {
 
     var ranges = [];
     var raiseWarningForRuleIsInclusivelyBetween = function(
-        ruleIndex, answerGroupIndex) {
+        ruleIndex: number, answerGroupIndex: number) {
       warningsList.push({
         type: AppConstants.WARNING_TYPES.ERROR,
         message: (
-          'In Rule ' + (ruleIndex + 1) + ' from answer group ' +
+          'In learner answer ' + (ruleIndex + 1) + ' from Oppia response ' +
           (answerGroupIndex + 1) + ', Please ensure that the second number ' +
           'is greater than the first number.')
       });
+    };
+    var raiseWarningForRequireNonnegativeInput = function(
+        ruleIndex: number, input: number) {
+      if (input < 0 && customizationArgs.requireNonnegativeInput.value) {
+        warningsList.push({
+          type: AppConstants.WARNING_TYPES.ERROR,
+          message: (
+            'Learner answer ' + (ruleIndex + 1) + ' input ' +
+            'should be greater than or equal to zero.')
+        });
+      }
     };
     for (var i = 0; i < answerGroups.length; i++) {
       var rules = answerGroups[i].rules;
@@ -96,44 +117,77 @@ export class NumericInputValidationService {
         var range = {
           answerGroupIndex: i,
           ruleIndex: j,
-          lb: null,
-          ub: null,
+          lb: 0,
+          ub: 0,
           lbi: false,
           ubi: false,
         };
         switch (rule.type) {
           case 'Equals':
-            var x = (<number>rule.inputs.x);
+            var x = rule.inputs.x as number;
             setLowerAndUpperBounds(range, x, x, true, true);
+            raiseWarningForRequireNonnegativeInput(j, x);
             break;
           case 'IsInclusivelyBetween':
-            var a = rule.inputs.a;
-            var b = rule.inputs.b;
-            if (a > b) {
+            var a = rule.inputs.a as number;
+            var b = rule.inputs.b as number;
+            if (a >= b) {
               raiseWarningForRuleIsInclusivelyBetween(j, i);
             }
             setLowerAndUpperBounds(range, a, b, true, true);
+            if (
+              a < 0 &&
+              customizationArgs.requireNonnegativeInput.value
+            ) {
+              warningsList.push({
+                type: AppConstants.WARNING_TYPES.ERROR,
+                message: (
+                  'Learner answer ' + (j + 1) + ' upper bound of the range ' +
+                  'should be greater than or equal to zero.')
+              });
+            }
             break;
           case 'IsGreaterThan':
-            var x = (<number>rule.inputs.x);
+            var x = rule.inputs.x as number;
             setLowerAndUpperBounds(range, x, Infinity, false, false);
             break;
           case 'IsGreaterThanOrEqualTo':
-            var x = (<number>rule.inputs.x);
+            var x = rule.inputs.x as number;
             setLowerAndUpperBounds(range, x, Infinity, true, false);
             break;
           case 'IsLessThan':
-            var x = (<number>rule.inputs.x);
+            var x = rule.inputs.x as number;
             setLowerAndUpperBounds(range, -Infinity, x, false, false);
+            raiseWarningForRequireNonnegativeInput(j, x);
             break;
           case 'IsLessThanOrEqualTo':
-            var x = (<number>rule.inputs.x);
+            var x = rule.inputs.x as number;
             setLowerAndUpperBounds(range, -Infinity, x, false, true);
+            raiseWarningForRequireNonnegativeInput(j, x);
             break;
           case 'IsWithinTolerance':
-            var x = (<number>rule.inputs.x);
-            var tol = (<number>rule.inputs.tol);
+            var x = rule.inputs.x as number;
+            var tol = rule.inputs.tol as number;
             setLowerAndUpperBounds(range, x - tol, x + tol, true, true);
+            if (tol <= 0) {
+              warningsList.push({
+                type: AppConstants.WARNING_TYPES.ERROR,
+                message: (
+                  'Learner answer ' + (j + 1) +
+                  ' tolerance must be a positive value.')
+              });
+            }
+            if (
+              (x + tol) < 0 &&
+              customizationArgs.requireNonnegativeInput.value
+            ) {
+              warningsList.push({
+                type: AppConstants.WARNING_TYPES.ERROR,
+                message: (
+                  'Learner answer ' + (j + 1) + ' Upper bound of the ' +
+                  'tolerance range should be greater than or equal to zero.')
+              });
+            }
             break;
           default:
         }
@@ -142,10 +196,10 @@ export class NumericInputValidationService {
             warningsList.push({
               type: AppConstants.WARNING_TYPES.ERROR,
               message: (
-                'Rule ' + (j + 1) + ' from answer group ' +
-                (i + 1) + ' will never be matched because it ' +
-                'is made redundant by rule ' + (ranges[k].ruleIndex + 1) +
-                ' from answer group ' + (ranges[k].answerGroupIndex + 1) + '.')
+                'Learner answer ' + (j + 1) + ' from Oppia response ' +
+                (i + 1) + ' will never be matched because it is made ' +
+                'redundant by answer ' + (ranges[k].ruleIndex + 1) + ' from ' +
+                'response ' + (ranges[k].answerGroupIndex + 1) + '.')
             });
           }
         }
@@ -160,40 +214,89 @@ export class NumericInputValidationService {
     return warningsList;
   }
 
-  getErrorString(value: number): string {
-    if (value === undefined || value === null) {
-      return 'Please enter a valid number.';
+  // Returns 'undefined' when no error occurs.
+  validateNumericString(
+      value: string, decimalSeparator: string
+  ): string | undefined {
+    value = value.toString().trim();
+    const invalidChars = /[^0-9e.-]/g;
+    const trailingDot = /[\.|\,|\u066B]\d/g;
+    const twoDecimals = /.*[\.|\,|\u066B].*[\.|\,|\u066B]/g;
+    const trailingMinus = /(^-)|(e-)/g;
+    const extraMinus = /-.*-/g;
+    const extraExponent = /e.*e/g;
+
+    if (value.match(invalidChars)) {
+      return 'I18N_INTERACTIONS_NUMERIC_INPUT_NO_INVALID_CHARS';
+    } else if (value.includes(decimalSeparator) && !value.match(trailingDot)) {
+      return 'I18N_INTERACTIONS_NUMERIC_INPUT_NO_TRAILING_DECIMAL';
+    } else if (value.match(twoDecimals)) {
+      return 'I18N_INTERACTIONS_NUMERIC_INPUT_ATMOST_1_DECIMAL';
+    } else if (value.includes('-') && !value.match(trailingMinus)) {
+      return 'I18N_INTERACTIONS_NUMERIC_INPUT_MINUS_AT_BEGINNING';
+    } else if (value.includes('-') && value.match(extraMinus)) {
+      return 'I18N_INTERACTIONS_NUMERIC_INPUT_ATMOST_1_MINUS';
+    } else if (value.includes('e') && value.match(extraExponent)) {
+      return 'I18N_INTERACTIONS_NUMERIC_INPUT_ATMOST_1_EXPONENT';
     }
+  }
+
+  // Returns 'undefined' when no error occurs.
+  validateNumber(
+      // Null can also be passed in as a value, which is further validated.
+      value: number | null,
+      requireNonnegativeInput: boolean,
+      decimalSeparator: string = '.'
+  ): string | undefined {
+    if (requireNonnegativeInput && value && value < 0) {
+      return 'I18N_INTERACTIONS_NUMERIC_INPUT_LESS_THAN_ZERO';
+    }
+
     let stringValue = null;
+    // Value of sign is '-' if value of number is negative,
+    // '' if non-negative.
+    let sign: string = '';
+    if (value !== null) {
+      sign = value < 0 ? '-' : '';
+    }
+
     // Convert exponential notation to decimal number.
     // Logic derived from https://stackoverflow.com/a/16139848.
-    var data = String(value).split(/[eE]/);
-    if (data.length === 1) {
-      stringValue = data[0];
-    } else {
-      var z = '';
-      var sign = value < 0 ? '-' : '';
-      var str = data[0].replace('.', '');
-      var mag = Number(data[1]) + 1;
+    let numberParts = String(value).split(/[eE]/);
 
-      if (mag < 0) {
-        z = sign + '0.';
-        while (mag++) {
-          z += '0';
+    // If numberParts.length === 1, that means number is not in
+    // exponential form.
+    if (numberParts.length === 1) {
+      stringValue = numberParts[0];
+    } else {
+      let exponentialValueToString = '';
+      // Mantissa is the part of exponential number before the 'e' or 'E'.
+      let mantissa = numberParts[0].replace('.', '');
+      let numberOfZerosToAdd = Number(numberParts[1]) + 1;
+
+      if (numberOfZerosToAdd < 0) {
+        exponentialValueToString = sign + '0.';
+        while (numberOfZerosToAdd++) {
+          exponentialValueToString += '0';
         }
-        stringValue = z + str.replace(/^\-/, '');
+        stringValue = exponentialValueToString + mantissa.replace(/^\-/, '');
       } else {
-        mag -= str.length;
-        while (mag--) {
-          z += '0';
+        numberOfZerosToAdd -= mantissa.length;
+        while (numberOfZerosToAdd--) {
+          exponentialValueToString += '0';
         }
-        stringValue = str + z;
+        stringValue = mantissa + exponentialValueToString;
       }
     }
-
-    if (stringValue.match(/\d/g).length > 15) {
-      return 'The answer can contain at most 15 digits (0-9) or symbols ' +
-        '(. or -).';
+    const stringValueRegExp = stringValue.match(/\d/g);
+    if (stringValueRegExp === null) {
+      return 'I18N_INTERACTIONS_NUMERIC_INPUT_INVALID_NUMBER';
+    } else if (stringValueRegExp.length > 15) {
+      if (decimalSeparator === ',') {
+        return 'I18N_INTERACTIONS_NUMERIC_INPUT_GREATER_THAN_15_DIGITS_COMMA';
+      } else {
+        return 'I18N_INTERACTIONS_NUMERIC_INPUT_GREATER_THAN_15_DIGITS_DOT';
+      }
     }
   }
 }

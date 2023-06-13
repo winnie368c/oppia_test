@@ -1,4 +1,4 @@
-// Copyright 2018 The Oppia Authors. All Rights Reserved.
+// Copyright 2021 The Oppia Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,30 +17,41 @@
  *  of the subtopic viewer.
  */
 
-require('domain/classroom/classroom-domain.constants.ajs.ts');
-require('domain/utilities/url-interpolation.service.ts');
-require('services/contextual/url.service.ts');
+import { Component, OnInit } from '@angular/core';
+import { downgradeComponent } from '@angular/upgrade/static';
 
-angular.module('oppia').component('subtopicViewerNavbarPreLogoAction', {
-  template: require('./subtopic-viewer-navbar-pre-logo-action.component.html'),
-  controller: [
-    'UrlInterpolationService', 'UrlService',
-    'TOPIC_VIEWER_REVISION_URL_TEMPLATE',
-    function(
-        UrlInterpolationService, UrlService,
-        TOPIC_VIEWER_REVISION_URL_TEMPLATE) {
-      var ctrl = this;
+import { ClassroomDomainConstants } from 'domain/classroom/classroom-domain.constants';
+import { UrlInterpolationService } from 'domain/utilities/url-interpolation.service';
+import { UrlService } from 'services/contextual/url.service';
 
-      ctrl.$onInit = function() {
-        ctrl.topicUrlFragment = (
-          UrlService.getTopicUrlFragmentFromLearnerUrl());
+@Component({
+  selector: 'subtopic-viewer-navbar-pre-logo-action',
+  templateUrl: './subtopic-viewer-navbar-pre-logo-action.component.html',
+  styleUrls: []
+})
+export class SubtopicViewerNavbarPreLogoActionComponent implements OnInit {
+  // These properties are initialized using Angular lifecycle hooks
+  // and we need to do non-null assertion. For more information, see
+  // https://github.com/oppia/oppia/wiki/Guide-on-defining-types#ts-7-1
+  topicUrlFragment!: string;
+  topicUrl!: string;
+  constructor(
+    private urlService: UrlService,
+    private urlInterpolationService: UrlInterpolationService
+  ) {}
 
-        ctrl.topicUrl = UrlInterpolationService.interpolateUrl(
-          TOPIC_VIEWER_REVISION_URL_TEMPLATE, {
-            topic_url_fragment: ctrl.topicUrlFragment,
-            classroom_url_fragment: (
-              UrlService.getClassroomUrlFragmentFromLearnerUrl())
-          });
-      };
-    }]
-});
+  ngOnInit(): void {
+    this.topicUrlFragment = (
+      this.urlService.getTopicUrlFragmentFromLearnerUrl());
+    this.topicUrl = this.urlInterpolationService.interpolateUrl(
+      ClassroomDomainConstants.TOPIC_VIEWER_REVISION_URL_TEMPLATE, {
+        topic_url_fragment: this.topicUrlFragment,
+        classroom_url_fragment: (
+          this.urlService.getClassroomUrlFragmentFromLearnerUrl())
+      });
+  }
+}
+
+angular.module('oppia').component(
+  'subtopicViewerNavbarPreLogoActionComponent', downgradeComponent(
+    { component: SubtopicViewerNavbarPreLogoActionComponent }));

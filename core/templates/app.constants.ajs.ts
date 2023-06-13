@@ -56,6 +56,9 @@ angular.module('oppia').constant(
   'STATE_ERROR_MESSAGES', AppConstants.STATE_ERROR_MESSAGES);
 
 angular.module('oppia').constant(
+  'CHECKPOINT_ERROR_MESSAGES', AppConstants.CHECKPOINT_ERROR_MESSAGES);
+
+angular.module('oppia').constant(
   'EXPLORATION_SUMMARY_DATA_URL_TEMPLATE',
   AppConstants.EXPLORATION_SUMMARY_DATA_URL_TEMPLATE);
 
@@ -66,6 +69,9 @@ angular.module('oppia').constant(
 // We use a slash because this character is forbidden in a state name.
 angular.module('oppia').constant(
   'PLACEHOLDER_OUTCOME_DEST', AppConstants.PLACEHOLDER_OUTCOME_DEST);
+angular.module('oppia').constant(
+  'PLACEHOLDER_OUTCOME_DEST_IF_STUCK',
+  AppConstants.PLACEHOLDER_OUTCOME_DEST_IF_STUCK);
 angular.module('oppia').constant(
   'INTERACTION_DISPLAY_MODE_INLINE',
   AppConstants.INTERACTION_DISPLAY_MODE_INLINE);
@@ -108,6 +114,8 @@ angular.module('oppia').constant(
   'COMPONENT_NAME_INTERACTION_CUSTOMIZATION_ARGS',
   AppConstants.COMPONENT_NAME_INTERACTION_CUSTOMIZATION_ARGS);
 angular.module('oppia').constant(
+  'COMPONENT_NAME_RULE_INPUT', AppConstants.COMPONENT_NAME_RULE_INPUT);
+angular.module('oppia').constant(
   'COMPONENT_NAME_SOLUTION', AppConstants.COMPONENT_NAME_SOLUTION);
 angular.module('oppia').constant(
   'COMPONENT_NAME_EXPLANATION', AppConstants.COMPONENT_NAME_EXPLANATION);
@@ -136,8 +144,6 @@ angular.module('oppia').constant('SITE_NAME', AppConstants.SITE_NAME);
 
 angular.module('oppia').constant(
   'DEFAULT_PROFILE_IMAGE_PATH', AppConstants.DEFAULT_PROFILE_IMAGE_PATH);
-
-angular.module('oppia').constant('LOGOUT_URL', AppConstants.LOGOUT_URL);
 
 // TODO(vojtechjelinek): Move these to separate file later, after we establish
 // process to follow for Angular constants (#6731).
